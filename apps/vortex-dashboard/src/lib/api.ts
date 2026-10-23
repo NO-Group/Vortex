@@ -53,17 +53,23 @@ export function clearToken(): void {
   safeRemove(USER_KEY);
 }
 
-/** True when a JWT's `exp` is in the past (or missing/invalid). */
+/** True when a JWT's `exp` is meaningfully in the past (2-min clock tolerance). */
 export function isTokenExpired(token: string): boolean {
   try {
     const payload = JSON.parse(
       atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')),
     ) as { exp?: number };
     if (typeof payload.exp !== 'number') return false;
-    return payload.exp * 1000 <= Date.now();
+    return payload.exp * 1000 <= Date.now() - 120_000;
   } catch {
     return true; // undecodable = unusable
   }
+}
+
+/** Timestamp of the most recent successful sign-in (grace window). */
+let lastSignInAt = 0;
+export function markSignIn(): void {
+  lastSignInAt = Date.now();
 }
 
 export interface StoredUser {
@@ -105,19 +111,29 @@ export class ApiError extends Error {
  *     "wrong credentials", not "you were signed in"),
  *  2. the failing call actually carried a token,
  *  3. that token is still the CURRENT token (a stale in-flight request
- *     from a previous session must never clear a fresh login).
+ *     from a previous session must never clear a fresh login),
+ *  4. we are outside the post-sign-in grace window (transient proxy
+ *     hiccups right after login surface as errors, not a sign-out).
  */
 function shouldEndSession(path: string, sentToken: string | null): boolean {
   if (path.startsWith('/v1/auth/login') || path.startsWith('/v1/auth/signup')) {
     return false;
   }
   if (!sentToken) return false;
-  return sentToken === getToken();
+  if (sentToken !== getToken()) return false;
+  if (Date.now() - lastSignInAt < 5_000) return false;
+  return true;
 }
 
-function endSession(): void {
+function endSession(path: string, message: string): void {
+  // eslint-disable-next-line no-console
+  console.warn(`[vortex] session ended: ${message} (${path})`);
   clearToken();
-  window.dispatchEvent(new CustomEvent('vortex:logout', { detail: { reason: 'expired' } }));
+  window.dispatchEvent(
+    new CustomEvent('vortex:logout', {
+      detail: { reason: 'expired', path, message },
+    }),
+  );
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -126,7 +142,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set('content-type', 'application/json');
   }
   const sentToken = getToken();
-  if (sentToken) headers.set('authorization', `Bearer ${sentToken}`);
+  if (sentToken) {
+    headers.set('authorization', `Bearer ${sentToken}`);
+    // Fallback channel: some preview/proxy edges strip `Authorization`.
+    headers.set('x-vortex-token', sentToken);
+  }
 
   const res = await fetch(path, { ...init, headers });
 
@@ -135,8 +155,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = (body as { error?: { code?: string; message?: string; details?: unknown } }).error;
+    const message = err?.message ?? `Request failed with status ${res.status}`;
     if (res.status === 401 && shouldEndSession(path, sentToken)) {
-      endSession();
+      endSession(path, message);
     }
     throw new ApiError(
       res.status,
@@ -163,7 +184,7 @@ export const api = {
       method: 'POST',
       headers: {
         'content-type': file.type || 'application/octet-stream',
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(token ? { authorization: `Bearer ${token}`, 'x-vortex-token': token } : {}),
       },
       body: file,
     });

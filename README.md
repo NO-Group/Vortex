@@ -32,7 +32,8 @@ live.**
 | Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · JSONB · RBAC + owner-scoping |
 | Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) · Redis multi-node bridge |
 | Storage Gateway | `/v1/storage` | ✅ local disk + S3/R2/MinIO · presigned up/download |
-| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — live engine vitals, DB explorer, event stream, storage browser |
+| Apps Hosting | `/v1/apps` + `/apps/:name/*` | ✅ deploy static web apps — file manifest, SPA fallback, public serving |
+| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — live engine vitals, DB explorer, event stream, storage browser, app deploys |
 | Dart/Flutter SDK | `packages/sdk-dart` | ✅ auth/db/realtime/storage client + N.O Group design system + UI controllers* |
 
 \* Dart code is authored in-repo; verify with a local Flutter SDK (`flutter pub get && flutter test`).
@@ -64,6 +65,7 @@ vortex/
   as one realtime fabric (echo-suppressed, local fan-out stays on the fast path)
 - **Storage** — local-disk driver (HMAC presigned URLs) · AWS S3 SDK for S3/R2/MinIO
 - **Auth** — jsonwebtoken + bcryptjs · role-based access control with owner-scoped rows
+- **Apps** — deploy static web apps (SPA fallback) — live at `/apps/<name>/`
 - **SDK** — Dart/Flutter client (`vortex_client`) with the N.O Group design system
 
 ## Quickstart
@@ -118,12 +120,12 @@ Useful scripts:
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | watch-mode engine on `:8080` |
-| `npm run dev:dashboard` | Vite console on `:5173` with `/v1` proxy |
+| `npm run dev:dashboard` | Vite console on `:5173` with `/v1` + `/apps` proxy |
 | `npm run build` | compile `@vortex/core`, server, and dashboard |
-| `npm run test` | unit suite (40 tests) |
+| `npm run test` | unit suite (50 tests) |
 | `npm run typecheck` | strict TypeScript across the workspace |
 | `npm run migrate` | run knex migrations |
-| `npm run smoke` | full 22-step E2E suite vs embedded Postgres |
+| `npm run smoke` | full 31-step E2E suite vs embedded Postgres |
 | `npm run preview:stack` | self-contained live demo (PG + engine + seed data) |
 
 ## API reference
@@ -205,6 +207,29 @@ curl -X POST localhost:8080/v1/storage/presign-download \
   -d '{"key":"uploads/report.pdf"}'
 ```
 
+### Apps — `/v1/apps` (deploy) + `/apps/:name/*` (serve)
+
+Vortex can carry apps: deploy any static web build (Vite, Next export,
+Flutter web, plain HTML) and it is served live with SPA routing.
+
+```bash
+# 1. Create an app (name is a URL slug: lowercase, digits, dashes)
+curl -X POST localhost:8080/v1/apps \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"my-next-app","title":"My Next App"}'
+
+# 2. Deploy files (repeat per file; paths are app-relative)
+curl -X POST "localhost:8080/v1/apps/my-next-app/files?path=index.html" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: text/html' \
+  --data-binary @dist/index.html
+
+# 3. Visit it — live at /apps/my-next-app/ (extension-less routes fall
+#    back to index.html, so client-side routing works out of the box)
+```
+
+The console **Apps** page does all of this with drag-and-drop: create an app,
+drop a build folder, hit *Open*. The live demo ships with `/apps/welcome/`.
+
 ## Client SDK (Dart / Flutter)
 
 `packages/sdk-dart` is the official client — one facade for every gateway,
@@ -261,7 +286,8 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
 - ~~**v0.2** — `vortex-dashboard`: glassmorphic admin console~~ ✅ shipped
 - ~~**v0.3** — `sdk-dart` Flutter/Dart client + SDK UI controllers~~ ✅ shipped
 - ~~**v0.4** — Redis pub/sub bridge for multi-node realtime fan-out~~ ✅ shipped
-- **v0.5** — Edge functions, custom claims, row policies UI
+- ~~**v0.5** — Vortex Apps: deploy & host static web apps from the console~~ ✅ shipped
+- **v0.6** — Edge functions, custom claims, row policies UI
 
 ## License
 

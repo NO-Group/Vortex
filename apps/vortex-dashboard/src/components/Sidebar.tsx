@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { StatusDot } from './Glass.js';
 
-export type PageKey = 'overview' | 'database' | 'realtime' | 'storage' | 'auth';
+export type PageKey = 'overview' | 'database' | 'realtime' | 'storage' | 'apps' | 'auth';
 
 interface NavItem {
   key: PageKey;
@@ -37,6 +37,14 @@ const icons: Record<PageKey, ReactElement> = {
       <path d="M2 8l10-5 10 5-10 5L2 8z" strokeLinejoin="round" />
     </svg>
   ),
+  apps: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="8" height="8" rx="2" />
+      <rect x="13" y="3" width="8" height="8" rx="2" />
+      <rect x="3" y="13" width="8" height="8" rx="2" />
+      <circle cx="17" cy="17" r="4" />
+    </svg>
+  ),
   auth: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="4" y="10" width="16" height="11" rx="2" />
@@ -50,6 +58,7 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'database', label: 'Database', hint: '/v1/db' },
   { key: 'realtime', label: 'Live Stream', hint: '/v1/realtime' },
   { key: 'storage', label: 'Storage', hint: '/v1/storage' },
+  { key: 'apps', label: 'Apps', hint: 'hosting' },
   { key: 'auth', label: 'Auth & Token', hint: '/v1/auth' },
 ];
 
@@ -72,9 +81,9 @@ export function Sidebar({
       <div className="tracking-line absolute inset-y-0 left-0 w-[2.5px]" />
 
       <div className="flex items-center gap-3 px-5 pb-6 pt-5">
-        <div className="gradient-ring h-10 w-10 rounded-[12px]">
-          <div className="flex h-full w-full items-center justify-center rounded-[10.5px]">
-            <img src="/logo.png" alt="Vortex" className="h-7 w-7 object-contain" />
+        <div className="gradient-ring h-12 w-12 rounded-[14px]">
+          <div className="flex h-full w-full items-center justify-center rounded-[12.5px]">
+            <img src="/logo.png" alt="Vortex" className="h-9 w-9 object-contain" />
           </div>
         </div>
         <div>

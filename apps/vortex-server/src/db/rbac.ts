@@ -3,7 +3,13 @@ import type { PermissionAction, RoleName, TablePermission } from '@vortex/core';
 import { ApiError } from '../errors.js';
 
 /** Tables that must never be mutated by non-admin callers via /v1/db. */
-export const SYSTEM_TABLES = new Set(['users', 'table_permissions', 'storage_objects']);
+export const SYSTEM_TABLES = new Set([
+  'users',
+  'table_permissions',
+  'storage_objects',
+  'apps',
+  'app_files',
+]);
 
 interface PermissionRow {
   role: string;

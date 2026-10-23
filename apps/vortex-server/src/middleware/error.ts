@@ -10,6 +10,13 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   if (err instanceof ApiError) {
+    if (err.status === 401 || err.status === 403) {
+      // Audit trail for auth failures (e.g. proxies dropping credentials).
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[vortex] ${err.status} ${err.code} on ${_req.method} ${_req.path}: ${err.message}`,
+      );
+    }
     res.status(err.status).json(err.toBody());
     return;
   }

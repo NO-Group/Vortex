@@ -141,6 +141,58 @@ async function main() {
   }
 
   log('seeded demo account sensei@no.group / vortex-secret-1');
+
+  // ── Demo app: prove Vortex can carry apps — /apps/welcome/ ────────────
+  const apps = await api('/v1/apps', { headers: auth });
+  const hasWelcome = (apps.body.apps ?? []).some((a) => a.name === 'welcome');
+  if (!hasWelcome) {
+    await api('/v1/apps', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ name: 'welcome', title: 'Welcome to Vortex Apps' }),
+    });
+
+    const html = `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome — Vortex Apps</title>
+<style>
+  body { margin:0; min-height:100vh; background:#000; color:#E6EDF3; font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    background-image: radial-gradient(ellipse 55% 45% at 12% -8%, rgba(0,75,255,.22), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 88% 108%, rgba(0,210,255,.16), transparent 55%); }
+  .glass { background:rgba(255,255,255,.04); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.1);
+    border-radius:20px; padding:48px 52px; max-width:560px; text-align:center; }
+  .ring { width:96px; height:96px; margin:0 auto 22px; border-radius:28px; padding:2px;
+    background:conic-gradient(from 0deg,#004BFF,#A38CFF,#FFA1C5,#00D2FF,#00E6A6,#1BFF6B,#004BFF); }
+  .ring > div { width:100%; height:100%; border-radius:26px; background:#090C10; display:flex; align-items:center; justify-content:center; font-size:44px; }
+  h1 { margin:0 0 6px; font-size:30px; letter-spacing:.06em; }
+  .grad { background:conic-gradient(from 0deg,#004BFF,#A38CFF,#FFA1C5,#00D2FF,#00E6A6,#1BFF6B,#004BFF);
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  p { color:#8B949E; line-height:1.6; margin:14px 0 0; }
+  code { background:#090C10; border:1px solid #161B22; border-radius:8px; padding:2px 8px; font-size:13px; color:#00D2FF; }
+  a { color:#3379FF; text-decoration:none; }
+</style></head>
+<body><div class="glass">
+  <div class="ring"><div>🌪️</div></div>
+  <h1>YOUR APP IS <span class="grad">LIVE</span></h1>
+  <p>This page is served by the <b>Vortex Apps</b> gateway — deployed from the console,
+     hosted on the engine at <code>/apps/welcome/</code>.</p>
+  <p>Drop any static build (Vite, Next export, Flutter web…) into the Apps page
+     and it ships instantly.<br><br><a href="/">← back to the Vortex Console</a></p>
+</div></body></html>`;
+
+    const up = await fetch(`${BASE}/v1/apps/welcome/files?path=index.html`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        authorization: `Bearer ${token}`,
+      },
+      body: html,
+    });
+    log(`demo app deployed → /apps/welcome/ (upload ${up.status})`);
+  }
+
   log('stack ready → http://localhost:' + PORT);
 }
 

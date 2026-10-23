@@ -47,12 +47,12 @@ export function Login({
       <div className="w-full max-w-[420px] animate-fade-in">
         <div className="glass-strong p-8">
           <div className="flex flex-col items-center">
-            <div className="gradient-ring h-20 w-20 rounded-[22px]">
-              <div className="flex h-full w-full items-center justify-center rounded-[20.5px]">
-                <img src="/logo.png" alt="Vortex" className="h-12 w-12 object-contain" />
+            <div className="gradient-ring h-28 w-28 rounded-[32px]">
+              <div className="flex h-full w-full items-center justify-center rounded-[30.5px]">
+                <img src="/logo.png" alt="Vortex" className="h-[72px] w-[72px] object-contain" />
               </div>
             </div>
-            <h1 className="mt-5 text-2xl font-bold tracking-[0.12em] text-white">
+            <h1 className="mt-6 text-3xl font-bold tracking-[0.12em] text-white">
               VORTEX <span className="gradient-text">CONSOLE</span>
             </h1>
             <p className="mt-1.5 text-center text-sm text-slate-400">

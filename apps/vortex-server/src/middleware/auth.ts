@@ -13,12 +13,17 @@ declare global {
   }
 }
 
-/** Extract a Bearer token from the Authorization header. */
+/** Extract a bearer token: `Authorization: Bearer …` or `x-vortex-token` fallback. */
 export function bearerFrom(req: Request): string | null {
   const header = req.header('authorization') ?? req.header('Authorization');
-  if (!header) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return match?.[1] ?? null;
+  if (header) {
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    if (match?.[1]) return match[1];
+  }
+  // Some reverse proxies/preview edges strip the Authorization header.
+  // The console also sends the token in x-vortex-token as a fallback.
+  const fallback = req.header('x-vortex-token');
+  return fallback && fallback.trim() !== '' ? fallback.trim() : null;
 }
 
 /** Express middleware enforcing a valid Vortex access token. */

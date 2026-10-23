@@ -5,6 +5,7 @@ import {
   getStoredUser,
   getToken,
   isTokenExpired,
+  markSignIn,
   setStoredUser,
   setToken,
   type AuthSession,
@@ -20,9 +21,10 @@ import { Overview } from './pages/Overview.js';
 import { DatabasePage } from './pages/DatabasePage.js';
 import { RealtimePage } from './pages/RealtimePage.js';
 import { StoragePage } from './pages/StoragePage.js';
+import { AppsPage } from './pages/AppsPage.js';
 import { AuthPage } from './pages/AuthPage.js';
 
-const PAGES: PageKey[] = ['overview', 'database', 'realtime', 'storage', 'auth'];
+const PAGES: PageKey[] = ['overview', 'database', 'realtime', 'storage', 'apps', 'auth'];
 
 interface Session {
   user: StoredUser;
@@ -116,11 +118,12 @@ export default function App() {
   const signIn = useCallback((next: AuthSession) => {
     setToken(next.token);
     setStoredUser(next.user);
+    markSignIn();
     setSession({ user: next.user, token: next.token });
     setNotice(null);
   }, []);
 
-  const signOut = useCallback((reason?: string) => {
+  const signOut = useCallback((reason?: string, detail?: string) => {
     clearToken();
     setSession(null);
     setEvents([]);
@@ -128,7 +131,7 @@ export default function App() {
     setClient(null);
     setNotice(
       reason === 'expired'
-        ? 'Your session expired — please sign in again.'
+        ? `Session ended: ${detail ?? 'your session expired'} — please sign in again.`
         : null,
     );
     window.location.hash = '#/overview';
@@ -137,8 +140,8 @@ export default function App() {
   // Auto-logout events (401 with the current token) land here.
   useEffect(() => {
     const onLogout = (e: Event) => {
-      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
-      signOut(reason);
+      const d = (e as CustomEvent<{ reason?: string; path?: string; message?: string }>).detail;
+      signOut(d?.reason, d?.path ? `${d.message ?? 'unauthorized'} (${d.path})` : d?.message);
     };
     window.addEventListener('vortex:logout', onLogout);
     return () => window.removeEventListener('vortex:logout', onLogout);
@@ -156,6 +159,8 @@ export default function App() {
         ) : null;
       case 'storage':
         return <StoragePage />;
+      case 'apps':
+        return <AppsPage />;
       case 'auth':
         return <AuthPage user={session?.user ?? null} onLogout={() => signOut()} />;
       default:

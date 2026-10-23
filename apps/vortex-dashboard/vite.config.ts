@@ -17,6 +17,11 @@ export default defineConfig({
         xfwd: true,
         ws: true,
       },
+      '/apps': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: false,
+        xfwd: true,
+      },
       '/healthz': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: false,

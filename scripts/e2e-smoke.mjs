@@ -50,7 +50,7 @@ const api = (p, opts = {}) =>
   });
 
 async function main() {
-  console.log('\n[1/6] Starting embedded Postgres...');
+  console.log('\n[1/7] Starting embedded Postgres...');
   const pg = new EmbeddedPostgres({
     databaseDir: path.join(TMP, 'pgdata'),
     user: 'postgres',
@@ -63,7 +63,7 @@ async function main() {
   await pg.start();
   await pg.createDatabase('vortex');
 
-  console.log('[2/6] Booting vortex-server...');
+  console.log('[2/7] Booting vortex-server...');
   const server = spawn('node', [SERVER], {
     env: {
       ...process.env,
@@ -93,7 +93,7 @@ async function main() {
   check('server boots and reports healthy', healthy);
   if (!healthy) throw new Error('server never became healthy');
 
-  console.log('[3/6] Auth engine (/v1/auth)...');
+  console.log('[3/7] Auth engine (/v1/auth)...');
   const signup = await api('/v1/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ email: 'sensei@no.group', password: 'vortex-secret-1', metadata: { team: 'n-o' } }),
@@ -131,7 +131,7 @@ async function main() {
   const anon = await api('/v1/auth/me');
   check('unauthenticated /me rejected with 401', anon.status === 401);
 
-  console.log('[4/6] Database gateway (/v1/db) + RBAC...');
+  console.log('[4/7] Database gateway (/v1/db) + RBAC...');
   const admin = new Client({
     connectionString: 'postgres://postgres:postgres@localhost:55433/vortex',
   });
@@ -188,7 +188,7 @@ async function main() {
   });
   check('identifier injection rejected', inject.status === 400);
 
-  console.log('[5/6] Realtime engine (/v1/realtime)...');
+  console.log('[5/7] Realtime engine (/v1/realtime)...');
   const ws = new WebSocket(`${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`);
   await new Promise((resolve, reject) => {
     ws.on('open', () => {
@@ -227,7 +227,7 @@ async function main() {
   );
   check('fan-out latency under 50ms budget', latency < 200, `(${latency}ms incl. HTTP insert)`);
 
-  console.log('[6/6] Storage gateway (/v1/storage)...');
+  console.log('[6/7] Storage gateway (/v1/storage)...');
   const presign = await api('/v1/storage/presign-upload', {
     method: 'POST',
     headers: auth,
@@ -262,6 +262,48 @@ async function main() {
     body: JSON.stringify({ key: 'uploads/smoke.txt' }),
   });
   check('object delete returns 204', del.status === 204);
+
+  console.log('[7/7] Apps hosting (/v1/apps + /apps/*)...');
+  const createApp = await api('/v1/apps', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'smoke-app', title: 'Smoke App' }),
+  });
+  check('create app', createApp.status === 201);
+
+  const badName = await api('/v1/apps', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'Bad Name!' }),
+  });
+  check('invalid app name rejected', badName.status === 400);
+
+  const deploy = await fetch(`${BASE}/v1/apps/smoke-app/files?path=index.html`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/html', ...auth },
+    body: '<h1>smoke-hosted</h1>',
+  });
+  check('deploy index.html', deploy.status === 201);
+
+  const page = await fetch(`${BASE}/apps/smoke-app/`);
+  const pageBody = await page.text();
+  check('app served at /apps/smoke-app/', page.ok && pageBody.includes('smoke-hosted'));
+
+  const spa = await fetch(`${BASE}/apps/smoke-app/some/deep/route`);
+  check('SPA fallback serves index.html', spa.ok && (await spa.text()).includes('smoke-hosted'));
+
+  const gone = await fetch(`${BASE}/apps/does-not-exist/`);
+  check('unknown app returns 404 page', gone.status === 404);
+
+  const listFiles = await api('/v1/apps/smoke-app/files', { headers: auth });
+  const listBody = await listFiles.json();
+  check('file manifest lists deploy', listFiles.ok && listBody.files.length === 1);
+
+  const delApp = await api('/v1/apps/smoke-app', { method: 'DELETE', headers: auth });
+  check('delete app returns 204', delApp.status === 204);
+
+  const afterDel = await fetch(`${BASE}/apps/smoke-app/`);
+  check('deleted app no longer served', afterDel.status === 404);
 
   ws.close();
   server.kill('SIGTERM');
