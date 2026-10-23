@@ -1,0 +1,124 @@
+import type { ReactElement } from 'react';
+import { StatusDot } from './Glass.js';
+
+export type PageKey = 'overview' | 'database' | 'realtime' | 'storage' | 'auth';
+
+interface NavItem {
+  key: PageKey;
+  label: string;
+  hint: string;
+  icon: ReactElement;
+}
+
+const icons: Record<PageKey, ReactElement> = {
+  overview: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="7" height="9" rx="2" />
+      <rect x="14" y="3" width="7" height="5" rx="2" />
+      <rect x="14" y="12" width="7" height="9" rx="2" />
+      <rect x="3" y="16" width="7" height="5" rx="2" />
+    </svg>
+  ),
+  database: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+      <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+    </svg>
+  ),
+  realtime: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M2 12h4l3-8 4 16 3-8h6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  storage: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8" />
+      <path d="M2 8l10-5 10 5-10 5L2 8z" strokeLinejoin="round" />
+    </svg>
+  ),
+  auth: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 1 1 8 0v3" />
+    </svg>
+  ),
+};
+
+const items: Array<{ key: PageKey; label: string; hint: string }> = [
+  { key: 'overview', label: 'Command Center', hint: 'engine vitals' },
+  { key: 'database', label: 'Database', hint: '/v1/db' },
+  { key: 'realtime', label: 'Live Stream', hint: '/v1/realtime' },
+  { key: 'storage', label: 'Storage', hint: '/v1/storage' },
+  { key: 'auth', label: 'Auth & Token', hint: '/v1/auth' },
+];
+
+export function Sidebar({
+  active,
+  onNavigate,
+  email,
+  engineOnline,
+  onLogout,
+}: {
+  active: PageKey;
+  onNavigate: (key: PageKey) => void;
+  email: string;
+  engineOnline: boolean;
+  onLogout: () => void;
+}) {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-20 flex w-[248px] flex-col border-r border-white/[0.07] bg-white/[0.04] backdrop-blur-2xl">
+      {/* neon tracking line */}
+      <div className="tracking-line absolute inset-y-0 left-0 w-[2.5px]" />
+
+      <div className="flex items-center gap-3 px-5 pb-6 pt-5">
+        <div className="gradient-ring h-10 w-10 rounded-[12px]">
+          <div className="flex h-full w-full items-center justify-center rounded-[10.5px]">
+            <img src="/logo.png" alt="Vortex" className="h-7 w-7 object-contain" />
+          </div>
+        </div>
+        <div>
+          <div className="text-[15px] font-bold tracking-[0.18em] text-white">VORTEX</div>
+          <div className="font-mono text-[9px] tracking-widest text-slate-500">CONSOLE v0.1.0</div>
+        </div>
+      </div>
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+        <div className="px-3 pb-2 pt-1 text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+          Engine Modules
+        </div>
+        {items.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => onNavigate(item.key)}
+            className={`nav-item w-full text-left ${active === item.key ? 'active' : ''}`}
+          >
+            <span className={active === item.key ? 'text-spectrum-cyan' : ''}>{icons[item.key]}</span>
+            <span className="flex-1">
+              <span className="block text-[13px] font-medium leading-tight">{item.label}</span>
+              <span className="block font-mono text-[9px] text-slate-500">{item.hint}</span>
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="m-3 space-y-2 rounded-[14px] border border-white/[0.07] bg-white/[0.03] p-3">
+        <div className="flex items-center gap-2">
+          <StatusDot status={engineOnline ? 'live' : 'off'} />
+          <span className="text-[11px] text-slate-300">
+            {engineOnline ? 'Engine connected' : 'Engine offline'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-mono text-[10px] text-slate-500">{email}</span>
+          <button
+            onClick={onLogout}
+            className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-slate-400 transition hover:border-spectrum-coral/50 hover:text-spectrum-coral"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}

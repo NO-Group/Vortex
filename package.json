@@ -12,13 +12,15 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server",
+    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard",
     "dev": "npm run dev -w @vortex/server",
+    "dev:dashboard": "npm run dev -w @vortex/dashboard",
     "start": "npm run start -w @vortex/server",
-    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server",
+    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server && npm run typecheck -w @vortex/dashboard",
     "test": "npm run build -w @vortex/core && npm run test -w @vortex/server",
     "migrate": "npm run migrate -w @vortex/server",
     "smoke": "npm run build && node scripts/e2e-smoke.mjs",
-    "clean": "rm -rf packages/vortex-core/dist apps/vortex-server/dist"
+    "preview:stack": "node scripts/preview-stack.mjs",
+    "clean": "rm -rf packages/vortex-core/dist apps/vortex-server/dist apps/vortex-dashboard/dist"
   }
 }

@@ -45,8 +45,8 @@ export interface StorageDriver {
   exists(key: string): Promise<boolean>;
   list(prefix: string, limit: number): Promise<string[]>;
 
-  /** Presigned direct-upload URL (PUT). */
-  presignUpload(input: PresignUploadInput): Promise<PresignedUrl>;
-  /** Presigned direct-download URL (GET). */
-  presignDownload(key: string, expiresIn: number): Promise<PresignedUrl>;
+  /** Presigned direct-upload URL (PUT). `baseUrl` overrides the configured public base. */
+  presignUpload(input: PresignUploadInput, baseUrl?: string): Promise<PresignedUrl>;
+  /** Presigned direct-download URL (GET). `baseUrl` overrides the configured public base. */
+  presignDownload(key: string, expiresIn: number, baseUrl?: string): Promise<PresignedUrl>;
 }

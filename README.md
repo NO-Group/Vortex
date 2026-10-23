@@ -20,8 +20,9 @@ real-time sync core. Point it at PostgreSQL and you get instant REST/CRUD with
 row-level security, live table-change streams over WebSockets, and a storage
 gateway with presigned URLs — all behind one JWT.
 
-**Current status: `vortex-server` core engine v0.1.0 is complete and verified
-with a 22-step end-to-end suite against real PostgreSQL.**
+**Current status: the v0.1 core engine is complete and verified with a 22-step
+end-to-end suite against real PostgreSQL, and the v0.2 glassmorphic console is
+live.**
 
 ## Features
 
@@ -31,7 +32,7 @@ with a 22-step end-to-end suite against real PostgreSQL.**
 | Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · JSONB · RBAC + owner-scoping |
 | Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) |
 | Storage Gateway | `/v1/storage` | ✅ local disk + S3/R2/MinIO · presigned up/download |
-| Dashboard Console | `apps/vortex-dashboard` | 🔜 glassmorphic admin UI (design tokens ready) |
+| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — live engine vitals, DB explorer, event stream, storage browser |
 | Dart/Flutter SDK | `packages/sdk-dart` | 🔜 planned |
 
 ## Repository layout
@@ -40,12 +41,13 @@ with a 22-step end-to-end suite against real PostgreSQL.**
 vortex/
 ├── apps/
 │   ├── vortex-server/       # Core API gateway & real-time sync engine (TypeScript)
-│   └── vortex-dashboard/    # Glassmorphic admin web console (planned)
+│   └── vortex-dashboard/    # Glassmorphic admin web console (React + Tailwind)
 ├── packages/
 │   ├── vortex-core/         # Shared types, wire protocol, N.O Group brand tokens
 │   └── sdk-dart/            # Official Vortex Flutter/Dart client SDK (planned)
 ├── scripts/
-│   └── e2e-smoke.mjs        # Full end-to-end smoke suite (embedded Postgres)
+│   ├── e2e-smoke.mjs        # Full end-to-end smoke suite (embedded Postgres)
+│   └── preview-stack.mjs    # Self-contained live demo stack (PG + engine + seed)
 ├── docker-compose.yml       # Local Postgres + Redis + MinIO + engine
 └── docs/blueprint.md        # Original founding design spec
 ```
@@ -76,19 +78,49 @@ curl localhost:8080/healthz   # → {"status":"ok","engine":"vortex",...}
 npm install                   # workspace install (builds @vortex/core)
 docker compose up -d postgres # just the database (or point DATABASE_URL elsewhere)
 cp .env.example .env
-npm run dev                   # tsx watch → http://localhost:8080
+npm run dev                   # engine → http://localhost:8080
+npm run dev:dashboard         # console → http://localhost:5173 (proxies /v1 → :8080)
 ```
+
+No Docker? The self-contained demo stack runs the engine on an embedded
+Postgres with seeded data:
+
+```bash
+npm run build
+npm i --no-save embedded-postgres
+npm run preview:stack         # engine + demo account (sensei@no.group / vortex-secret-1)
+npm run dev:dashboard         # console on :5173
+```
+
+### The Vortex Console
+
+The dashboard is the glassmorphic admin console from the design spec —
+controlled glassmorphism over the AMOLED canvas:
+
+- **Command Center** — live vitals for every engine module (auth, database,
+  realtime, storage) with skeletons & status pulses
+- **Database explorer** — dynamic query builder, crisp data grid, quick
+  insert/delete with live RBAC feedback
+- **Live Stream** — pitch-black engine console showing table-change events
+  as they fan out (with measured latency)
+- **Storage browser** — drag-drop uploads, presigned GET links, object management
+- **Auth & Token** — session + decoded JWT claims inspector
+
+Demo account for the preview stack: `sensei@no.group` / `vortex-secret-1`
+(or create your own via the login screen).
 
 Useful scripts:
 
 | Script | What it does |
 | --- | --- |
 | `npm run dev` | watch-mode engine on `:8080` |
-| `npm run build` | compile `@vortex/core` + `@vortex/server` |
-| `npm run test` | unit suite (34 tests) |
+| `npm run dev:dashboard` | Vite console on `:5173` with `/v1` proxy |
+| `npm run build` | compile `@vortex/core`, server, and dashboard |
+| `npm run test` | unit suite (35 tests) |
 | `npm run typecheck` | strict TypeScript across the workspace |
 | `npm run migrate` | run knex migrations |
 | `npm run smoke` | full E2E suite vs embedded Postgres (needs `npm i --no-save embedded-postgres`) |
+| `npm run preview:stack` | self-contained live demo (PG + engine + seed data) |
 
 ## API reference
 
@@ -194,8 +226,7 @@ pure-black canvas; data-heavy surfaces (logs, SQL, tables) stay solid and sharp.
 
 ## Roadmap
 
-- **v0.2** — `vortex-dashboard`: glassmorphic admin console (auth, table
-  explorer, live event stream, storage browser)
+- ~~**v0.2** — `vortex-dashboard`: glassmorphic admin console~~ ✅ shipped
 - **v0.3** — `sdk-dart` Flutter/Dart client + SDK UI controllers on the brand tokens
 - **v0.4** — Redis pub/sub bridge for multi-node realtime fan-out
 - **v0.5** — Edge functions, custom claims, row policies UI

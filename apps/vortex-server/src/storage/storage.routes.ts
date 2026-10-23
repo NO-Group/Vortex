@@ -29,10 +29,22 @@ export function createStorageRoutes(ctx: AppContext): Router {
   const registry = new StorageRegistry(ctx.db);
   const driver = ctx.storage;
 
+  /**
+   * When PUBLIC_API_BASE=auto, presigned URLs are derived from the incoming
+   * request's protocol + Host so they work behind any proxy or preview host.
+   */
+  const baseFor = (req: { protocol: string; get: (name: string) => string | undefined }): string | undefined => {
+    if (ctx.env.storage.publicApiBase !== 'auto') return undefined;
+    const host = req.get('x-forwarded-host') ?? req.get('host');
+    if (!host) return undefined;
+    const proto = req.get('x-forwarded-proto') ?? req.protocol;
+    return `${proto}://${host}`;
+  };
+
   /** POST /v1/storage/presign-upload — get a direct-upload URL. */
   router.post('/presign-upload', auth, validateBody(presignUploadSchema), async (req, res, next) => {
     try {
-      const presigned = await driver.presignUpload(req.body);
+      const presigned = await driver.presignUpload(req.body, baseFor(req));
       res.json(presigned);
     } catch (err) {
       next(err);
@@ -42,7 +54,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
   /** POST /v1/storage/presign-download — get a direct-download URL. */
   router.post('/presign-download', auth, validateBody(presignDownloadSchema), async (req, res, next) => {
     try {
-      const presigned = await driver.presignDownload(req.body.key, req.body.expiresIn ?? 900);
+      const presigned = await driver.presignDownload(req.body.key, req.body.expiresIn ?? 900, baseFor(req));
       res.json(presigned);
     } catch (err) {
       next(err);

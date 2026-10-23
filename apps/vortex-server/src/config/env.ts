@@ -81,6 +81,10 @@ export function loadEnv(): ServerEnv {
     storage: {
       driver: driverRaw,
       localDir: required('STORAGE_LOCAL_DIR', './.vortex-data'),
+      /**
+       * Absolute base for presigned URLs. Set to `auto` to derive from each
+       * request's Host/protocol (correct behind reverse proxies & previews).
+       */
       publicApiBase: required('PUBLIC_API_BASE', 'http://localhost:8080').replace(/\/+$/, ''),
       s3: {
         bucket: required('S3_BUCKET', 'vortex'),

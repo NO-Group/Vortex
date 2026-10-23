@@ -154,33 +154,35 @@ export class LocalStorageDriver implements StorageDriver {
     return Math.min(Math.max(expiresIn ?? DEFAULT_EXPIRES, 1), MAX_EXPIRES);
   }
 
-  async presignUpload(input: PresignUploadInput): Promise<PresignedUrl> {
+  async presignUpload(input: PresignUploadInput, baseUrl?: string): Promise<PresignedUrl> {
     const key = input.key.replace(/^\/+/, '');
     this.resolveKey(key); // validate early
     const seconds = this.expiresInSeconds(input.expiresIn);
     const exp = Math.floor(Date.now() / 1000) + seconds;
     const token = this.sign({ key, op: 'put', exp, contentType: input.contentType });
+    const base = (baseUrl ?? this.publicApiBase).replace(/\/+$/, '');
 
     return {
       key,
       method: 'PUT',
-      url: `${this.publicApiBase}/v1/storage/local/upload?token=${encodeURIComponent(token)}`,
+      url: `${base}/v1/storage/local/upload?token=${encodeURIComponent(token)}`,
       headers: input.contentType ? { 'content-type': input.contentType } : {},
       expiresAt: new Date(exp * 1000).toISOString(),
     };
   }
 
-  async presignDownload(key: string, expiresIn: number): Promise<PresignedUrl> {
+  async presignDownload(key: string, expiresIn: number, baseUrl?: string): Promise<PresignedUrl> {
     const clean = key.replace(/^\/+/, '');
     this.resolveKey(clean);
     const seconds = this.expiresInSeconds(expiresIn);
     const exp = Math.floor(Date.now() / 1000) + seconds;
     const token = this.sign({ key: clean, op: 'get', exp });
+    const base = (baseUrl ?? this.publicApiBase).replace(/\/+$/, '');
 
     return {
       key: clean,
       method: 'GET',
-      url: `${this.publicApiBase}/v1/storage/local/object?token=${encodeURIComponent(token)}`,
+      url: `${base}/v1/storage/local/object?token=${encodeURIComponent(token)}`,
       headers: {},
       expiresAt: new Date(exp * 1000).toISOString(),
     };

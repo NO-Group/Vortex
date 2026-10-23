@@ -58,6 +58,11 @@ describe('LocalStorageDriver', () => {
     expect(payload.contentType).toBe('application/json');
   });
 
+  it('honors a per-request base URL override (PUBLIC_API_BASE=auto)', async () => {
+    const presigned = await driver.presignUpload({ key: 'a.txt' }, 'https://console.example.com');
+    expect(presigned.url.startsWith('https://console.example.com/v1/storage/local/upload?token=')).toBe(true);
+  });
+
   it('rejects tampered tokens', async () => {
     const presigned = await driver.presignDownload('private.txt', 60);
     const token = decodeURIComponent(presigned.url.split('token=')[1]!);

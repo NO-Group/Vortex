@@ -55,7 +55,7 @@ async function main() {
     databaseDir: path.join(TMP, 'pgdata'),
     user: 'postgres',
     password: 'postgres',
-    port: 55432,
+    port: 55433,
     persistent: false,
     onLog: () => {},
   });
@@ -69,7 +69,7 @@ async function main() {
       ...process.env,
       PORT: String(PORT),
       HOST: '0.0.0.0',
-      DATABASE_URL: 'postgres://postgres:postgres@localhost:55432/vortex',
+      DATABASE_URL: 'postgres://postgres:postgres@localhost:55433/vortex',
       JWT_SECRET: 'smoke-secret',
       AUTO_MIGRATE: 'true',
       STORAGE_DRIVER: 'local',
@@ -133,7 +133,7 @@ async function main() {
 
   console.log('[4/6] Database gateway (/v1/db) + RBAC...');
   const admin = new Client({
-    connectionString: 'postgres://postgres:postgres@localhost:55432/vortex',
+    connectionString: 'postgres://postgres:postgres@localhost:55433/vortex',
   });
   await admin.connect();
   await admin.query(`CREATE TABLE notes (
@@ -276,7 +276,7 @@ async function main() {
 }
 
 main().catch(async (err) => {
-  console.error('SMOKE FATAL:', err);
+  console.error('SMOKE FATAL:', err?.stack ?? err?.message ?? String(err));
   if (serverProc) serverProc.kill('SIGKILL');
   process.exit(1);
 });

@@ -106,13 +106,14 @@ export class S3StorageDriver implements StorageDriver {
     return Math.min(Math.max(expiresIn ?? DEFAULT_EXPIRES, 1), MAX_EXPIRES);
   }
 
-  async presignUpload(input: PresignUploadInput): Promise<PresignedUrl> {
+  async presignUpload(input: PresignUploadInput, _baseUrl?: string): Promise<PresignedUrl> {
     const seconds = this.expiresInSeconds(input.expiresIn);
     const command = new PutObjectCommand({
       Bucket: this.config.bucket,
       Key: input.key,
       ContentType: input.contentType,
     });
+    // S3/R2 presigned URLs are absolute — the request host is irrelevant.
     const url = await getSignedUrl(this.client, command, { expiresIn: seconds });
     return {
       key: input.key,
@@ -123,7 +124,7 @@ export class S3StorageDriver implements StorageDriver {
     };
   }
 
-  async presignDownload(key: string, expiresIn: number): Promise<PresignedUrl> {
+  async presignDownload(key: string, expiresIn: number, _baseUrl?: string): Promise<PresignedUrl> {
     const seconds = this.expiresInSeconds(expiresIn);
     const command = new GetObjectCommand({ Bucket: this.config.bucket, Key: key });
     const url = await getSignedUrl(this.client, command, { expiresIn: seconds });
