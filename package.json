@@ -1,0 +1,24 @@
+{
+  "name": "vortex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vortex — high-performance Backend-as-a-Service and real-time infrastructure engine by N.O Group",
+  "license": "Apache-2.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server",
+    "dev": "npm run dev -w @vortex/server",
+    "start": "npm run start -w @vortex/server",
+    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server",
+    "test": "npm run build -w @vortex/core && npm run test -w @vortex/server",
+    "migrate": "npm run migrate -w @vortex/server",
+    "smoke": "npm run build && node scripts/e2e-smoke.mjs",
+    "clean": "rm -rf packages/vortex-core/dist apps/vortex-server/dist"
+  }
+}
