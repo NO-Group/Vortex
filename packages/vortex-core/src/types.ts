@@ -14,6 +14,8 @@ export interface JwtClaims {
   sub: string;
   email: string;
   role: RoleName;
+  /** Custom claims from user metadata (attached at sign-in). */
+  meta?: Record<string, unknown>;
   /** Token issuer (default `vortex`). */
   iss: string;
   /** Issued-at (seconds). */
@@ -58,8 +60,10 @@ export type FilterOp =
   | 'lt'
   | 'lte'
   | 'like'
+  | 'ilike'
   | 'in'
-  | 'is';
+  | 'is'
+  | 'contains';
 
 export interface QueryFilter {
   column: string;
@@ -72,17 +76,69 @@ export interface QueryOrder {
   direction?: 'asc' | 'desc'; // default: 'asc'
 }
 
+/**
+ * Attach related rows from another table (explicit join — the query
+ * spells out the keys, no schema introspection magic).
+ */
+export interface QueryInclude {
+  /** Remote table to pull rows from. */
+  table: string;
+  /** Column on the parent rows carrying the join value. */
+  localKey: string;
+  /** Column on the remote table to match against. */
+  foreignKey: string;
+  /** Field name to attach the related rows under. */
+  as: string;
+  /** Remote columns to fetch (default: all). */
+  select?: string[];
+}
+
 export interface QueryRequest {
   select?: string[];
   filters?: QueryFilter[];
+  /** OR-groups: each group is AND-ed internally, groups are OR-ed together. */
+  or?: QueryFilter[][];
   orderBy?: QueryOrder[];
   limit?: number;
   offset?: number;
+  /** Related rows to attach via `include`. */
+  include?: QueryInclude[];
+  /** Return the total number of matching rows (ignores limit/offset). */
+  countTotal?: boolean;
 }
 
 export interface QueryResult {
   rows: Record<string, unknown>[];
   count: number;
+  /** Present when `countTotal` was requested. */
+  total?: number;
+}
+
+/** A storage bucket namespace. Object keys are `<bucket>/<path>`. */
+export interface Bucket {
+  name: string;
+  public: boolean;
+  ownerId: string | null;
+  createdAt: string;
+}
+
+/** A deployed server function (Vortex Functions). */
+export interface VortexFunctionMeta {
+  id: string;
+  name: string;
+  title: string;
+  status: 'active' | 'paused';
+  ownerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Result of a SQL console statement. */
+export interface SqlResult {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  durationMs: number;
 }
 
 /** A row-level RBAC grant for a role on a table. */

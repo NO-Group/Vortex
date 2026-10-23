@@ -12,12 +12,18 @@ export interface SignTokenInput {
   userId: string;
   email: string;
   role: RoleName;
+  /** Custom claims (from user metadata) — attached under `meta`. */
+  meta?: Record<string, unknown>;
 }
 
 /** Sign a Vortex access token for a user. */
 export function signToken(input: SignTokenInput, config: TokenConfig): string {
   return jwt.sign(
-    { email: input.email, role: input.role },
+    {
+      email: input.email,
+      role: input.role,
+      ...(input.meta && Object.keys(input.meta).length ? { meta: input.meta } : {}),
+    },
     config.secret,
     {
       subject: input.userId,
@@ -42,6 +48,7 @@ export function verifyToken(token: string, config: TokenConfig): JwtClaims {
       sub: claims.sub,
       email: String(claims.email ?? ''),
       role: (claims.role ?? 'user') as RoleName,
+      meta: (claims.meta ?? undefined) as Record<string, unknown> | undefined,
       iss: String(claims.iss ?? config.issuer),
       iat: Number(claims.iat ?? 0),
       exp: Number(claims.exp ?? 0),

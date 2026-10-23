@@ -9,7 +9,9 @@ import type { TokenConfig } from '../auth/tokens.js';
 
 const filterSchema = z.object({
   column: z.string().min(1),
-  op: z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'in', 'is']).optional(),
+  op: z
+    .enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'is', 'contains'])
+    .optional(),
   value: z.unknown(),
 });
 
@@ -18,12 +20,23 @@ const orderSchema = z.object({
   direction: z.enum(['asc', 'desc']).optional(),
 });
 
+const includeSchema = z.object({
+  table: z.string().min(1),
+  localKey: z.string().min(1),
+  foreignKey: z.string().min(1),
+  as: z.string().min(1),
+  select: z.array(z.string().min(1)).optional(),
+});
+
 const querySchema = z.object({
   select: z.array(z.string().min(1)).optional(),
   filters: z.array(filterSchema).optional(),
+  or: z.array(z.array(filterSchema)).optional(),
   orderBy: z.array(orderSchema).optional(),
   limit: z.number().int().positive().max(500).optional(),
   offset: z.number().int().min(0).optional(),
+  include: z.array(includeSchema).max(8).optional(),
+  countTotal: z.boolean().optional(),
 });
 
 const insertSchema = z.object({

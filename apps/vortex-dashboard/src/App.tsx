@@ -19,12 +19,23 @@ import { Sidebar, type PageKey } from './components/Sidebar.js';
 import { Login } from './pages/Login.js';
 import { Overview } from './pages/Overview.js';
 import { DatabasePage } from './pages/DatabasePage.js';
+import { SqlPage } from './pages/SqlPage.js';
 import { RealtimePage } from './pages/RealtimePage.js';
 import { StoragePage } from './pages/StoragePage.js';
 import { AppsPage } from './pages/AppsPage.js';
+import { FunctionsPage } from './pages/FunctionsPage.js';
 import { AuthPage } from './pages/AuthPage.js';
 
-const PAGES: PageKey[] = ['overview', 'database', 'realtime', 'storage', 'apps', 'auth'];
+const PAGES: PageKey[] = [
+  'overview',
+  'database',
+  'sql',
+  'realtime',
+  'storage',
+  'apps',
+  'functions',
+  'auth',
+];
 
 interface Session {
   user: StoredUser;
@@ -153,6 +164,8 @@ export default function App() {
     switch (page) {
       case 'database':
         return <DatabasePage />;
+      case 'sql':
+        return <SqlPage isAdmin={session?.user.role === 'admin'} />;
       case 'realtime':
         return client ? (
           <RealtimePage client={client} status={rtStatus} events={events} onClear={clearEvents} />
@@ -161,6 +174,8 @@ export default function App() {
         return <StoragePage />;
       case 'apps':
         return <AppsPage />;
+      case 'functions':
+        return <FunctionsPage />;
       case 'auth':
         return <AuthPage user={session?.user ?? null} onLogout={() => signOut()} />;
       default:

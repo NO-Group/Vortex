@@ -1,7 +1,15 @@
 import type { ReactElement } from 'react';
 import { StatusDot } from './Glass.js';
 
-export type PageKey = 'overview' | 'database' | 'realtime' | 'storage' | 'apps' | 'auth';
+export type PageKey =
+  | 'overview'
+  | 'database'
+  | 'sql'
+  | 'realtime'
+  | 'storage'
+  | 'apps'
+  | 'functions'
+  | 'auth';
 
 interface NavItem {
   key: PageKey;
@@ -45,6 +53,18 @@ const icons: Record<PageKey, ReactElement> = {
       <circle cx="17" cy="17" r="4" />
     </svg>
   ),
+  sql: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <ellipse cx="12" cy="5.5" rx="8" ry="3" />
+      <path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13" />
+      <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+    </svg>
+  ),
+  functions: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" strokeLinejoin="round" />
+    </svg>
+  ),
   auth: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="4" y="10" width="16" height="11" rx="2" />
@@ -56,9 +76,11 @@ const icons: Record<PageKey, ReactElement> = {
 const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'overview', label: 'Command Center', hint: 'engine vitals' },
   { key: 'database', label: 'Database', hint: '/v1/db' },
+  { key: 'sql', label: 'SQL Console', hint: '/v1/sql' },
   { key: 'realtime', label: 'Live Stream', hint: '/v1/realtime' },
   { key: 'storage', label: 'Storage', hint: '/v1/storage' },
   { key: 'apps', label: 'Apps', hint: 'hosting' },
+  { key: 'functions', label: 'Functions', hint: '/functions' },
   { key: 'auth', label: 'Auth & Token', hint: '/v1/auth' },
 ];
 

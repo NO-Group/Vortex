@@ -10,11 +10,14 @@
 export const tableChannel = (table: string): string => `table:${table}`;
 export const ALL_TABLES_CHANNEL = 'table:*';
 
+/** Channel namespace for freeform rooms (broadcast + presence). */
+export const roomChannel = (room: string): string => `room:${room}`;
+
 /** Message type constants. */
 export const PROTOCOL = {
   /** Client: authenticate this socket with a JWT. */
   auth: 'vortex:auth',
-  /** Client: subscribe to a channel (e.g. `table:notes`). */
+  /** Client: subscribe to a channel (e.g. `table:notes` or `room:lobby`). */
   subscribe: 'vortex:subscribe',
   /** Client: unsubscribe from a channel. */
   unsubscribe: 'vortex:unsubscribe',
@@ -27,6 +30,16 @@ export const PROTOCOL = {
   event: 'vortex:event',
   /** Server: error frame. */
   error: 'vortex:error',
+  /** Server: sent once on connect with the socket's presence identity. */
+  welcome: 'vortex:welcome',
+  /** Client→server→room: ephemeral pub/sub message on a subscribed channel. */
+  broadcast: 'vortex:broadcast',
+  /** Client: track/untrack presence state on a subscribed channel. */
+  presence: 'vortex:presence',
+  /** Server: full peer list for a channel after join/track. */
+  presence_sync: 'vortex:presence_sync',
+  /** Server: incremental peer join/leave. */
+  presence_diff: 'vortex:presence_diff',
 } as const;
 
 export type ProtocolMessageType = (typeof PROTOCOL)[keyof typeof PROTOCOL];
@@ -54,7 +67,13 @@ export interface PingMessage {
   id?: string;
 }
 
-export type ClientMessage = AuthMessage | SubscribeMessage | UnsubscribeMessage | PingMessage;
+export type ClientMessage =
+  | AuthMessage
+  | SubscribeMessage
+  | UnsubscribeMessage
+  | PingMessage
+  | BroadcastMessage
+  | PresenceMessage;
 
 export interface AckMessage {
   type: typeof PROTOCOL.ack;
@@ -90,4 +109,60 @@ export interface TableChangeMessage {
   timestamp: string;
 }
 
-export type ServerMessage = AckMessage | PongMessage | ErrorMessage | TableChangeMessage;
+/** Identity assigned to a socket at connect time (used by presence). */
+export interface WelcomeMessage {
+  type: typeof PROTOCOL.welcome;
+  clientId: string;
+  protocol: number;
+}
+
+/** Ephemeral room message — relayed to a channel's subscribers. */
+export interface BroadcastMessage {
+  type: typeof PROTOCOL.broadcast;
+  /** Subscribed channel the message is addressed to. */
+  channel: string;
+  /** Application event name. */
+  event: string;
+  payload: unknown;
+  /** Sending socket's client id (filled by the server on relay). */
+  from?: string;
+  id?: string;
+}
+
+export interface PresenceMessage {
+  type: typeof PROTOCOL.presence;
+  action: 'track' | 'untrack';
+  channel: string;
+  /** Arbitrary small JSON state (<= 4 KB) while tracking. */
+  state?: Record<string, unknown>;
+  id?: string;
+}
+
+export interface PresencePeer {
+  clientId: string;
+  userId: string | null;
+  state: Record<string, unknown>;
+}
+
+export interface PresenceSyncMessage {
+  type: typeof PROTOCOL.presence_sync;
+  channel: string;
+  peers: PresencePeer[];
+}
+
+export interface PresenceDiffMessage {
+  type: typeof PROTOCOL.presence_diff;
+  channel: string;
+  joins: PresencePeer[];
+  leaves: PresencePeer[];
+}
+
+export type ServerMessage =
+  | AckMessage
+  | PongMessage
+  | ErrorMessage
+  | TableChangeMessage
+  | WelcomeMessage
+  | BroadcastMessage
+  | PresenceSyncMessage
+  | PresenceDiffMessage;

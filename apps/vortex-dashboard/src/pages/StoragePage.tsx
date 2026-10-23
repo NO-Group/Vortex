@@ -15,13 +15,33 @@ import {
 } from '../components/Glass.js';
 import { formatBytes, formatDateTime, shortId } from '../lib/format.js';
 
+interface Bucket {
+  name: string;
+  public: boolean;
+  ownerId: string | null;
+  createdAt: string;
+}
+
 export function StoragePage() {
   const [objects, setObjects] = useState<StorageObject[] | null>(null);
+  const [buckets, setBuckets] = useState<Bucket[]>([]);
+  const [activeBucket, setActiveBucket] = useState('uploads');
+  const [newBucket, setNewBucket] = useState('');
+  const [newBucketPublic, setNewBucketPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const refreshBuckets = useCallback(async () => {
+    try {
+      const res = await api.get<{ buckets: Bucket[] }>('/v1/storage/buckets');
+      setBuckets(res.buckets);
+    } catch {
+      setBuckets([]);
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -35,14 +55,47 @@ export function StoragePage() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshBuckets();
+  }, [refresh, refreshBuckets]);
+
+  const createBucket = async () => {
+    if (!newBucket.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/v1/storage/buckets', {
+        name: newBucket.trim(),
+        public: newBucketPublic,
+      });
+      setNewBucket('');
+      setNotice(`Bucket created — keys go under "${newBucket.trim()}/…"`);
+      await refreshBuckets();
+    } catch (err) {
+      setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Create failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteBucket = async (name: string) => {
+    setBusy(true);
+    try {
+      await api.del(`/v1/storage/buckets/${encodeURIComponent(name)}`);
+      await refreshBuckets();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const upload = async (file: File) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      const key = `uploads/${Date.now()}-${file.name}`;
+      const key = `${activeBucket}/${Date.now()}-${file.name}`;
       await api.upload(key, file);
       setNotice(`Uploaded ${key} (${formatBytes(file.size)})`);
       await refresh();
@@ -91,8 +144,63 @@ export function StoragePage() {
       <PageTitle
         title="Storage"
         accent="Gateway"
-        subtitle="Presigned upload/download URLs — local disk or S3-compatible buckets."
+        subtitle="Bucket namespaces with presigned upload/download — local disk or S3-compatible."
       />
+
+      {/* Buckets */}
+      <div className="glass p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-[10px] uppercase tracking-widest text-slate-500">buckets</div>
+          {buckets.map((b) => (
+            <div
+              key={b.name}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] transition ${
+                activeBucket === b.name
+                  ? 'border-interactive-focus/60 bg-interactive-focus/10 text-white'
+                  : 'border-white/[0.08] text-slate-400 hover:border-white/20'
+              }`}
+            >
+              <button onClick={() => setActiveBucket(b.name)} className="font-mono">
+                {b.name}
+              </button>
+              {b.public && <Chip tone="green">public</Chip>}
+              <button
+                onClick={() => void deleteBucket(b.name)}
+                disabled={busy}
+                className="text-slate-500 transition hover:text-spectrum-coral"
+                title="delete bucket"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <div className="ml-auto flex items-center gap-2">
+            <input
+              value={newBucket}
+              onChange={(e) => setNewBucket(e.target.value)}
+              placeholder="new-bucket"
+              className="input-vortex w-36 px-3 py-1.5 font-mono text-[11px]"
+            />
+            <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-400">
+              <input
+                type="checkbox"
+                checked={newBucketPublic}
+                onChange={(e) => setNewBucketPublic(e.target.checked)}
+                className="accent-[#1BFF6B]"
+              />
+              public
+            </label>
+            <GlassButton onClick={() => void createBucket()} disabled={busy || !newBucket.trim()}>
+              + Bucket
+            </GlassButton>
+          </div>
+        </div>
+        <div className="mt-2 text-[10px] text-slate-500">
+          uploads land in <span className="font-mono text-slate-400">{activeBucket}/…</span> ·
+          public buckets are readable anonymously at{' '}
+          <span className="font-mono text-slate-400">/v1/storage/public/&lt;bucket&gt;/…</span>
+        </div>
+      </div>
 
       {/* Dropzone */}
       <div

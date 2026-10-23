@@ -69,6 +69,7 @@ async function main() {
       STORAGE_LOCAL_DIR: path.join(TMP, 'data'),
       PUBLIC_API_BASE: 'auto',
       REALTIME_HEARTBEAT_MS: '30000',
+      VORTEX_DEV_LINKS: '1',
     },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
@@ -142,6 +143,16 @@ async function main() {
 
   log('seeded demo account sensei@no.group / vortex-secret-1');
 
+  // Promote the demo account so the console's admin surfaces (SQL console,
+  // account administration) are explorable out of the box.
+  const pg = new Client({
+    connectionString: 'postgres://postgres:postgres@localhost:55432/vortex',
+  });
+  await pg.connect();
+  await pg.query(`UPDATE users SET role = 'admin' WHERE email = 'sensei@no.group'`);
+  await pg.end();
+  log('demo account promoted to admin');
+
   // ── Demo app: prove Vortex can carry apps — /apps/welcome/ ────────────
   const apps = await api('/v1/apps', { headers: auth });
   const hasWelcome = (apps.body.apps ?? []).some((a) => a.name === 'welcome');
@@ -191,6 +202,34 @@ async function main() {
       body: html,
     });
     log(`demo app deployed → /apps/welcome/ (upload ${up.status})`);
+  }
+
+  // ── Demo function: prove Vortex Functions — /functions/pulse ──────────
+  const fns = await api('/v1/functions', { headers: auth });
+  const hasPulse = (fns.body.functions ?? []).some((f) => f.name === 'pulse');
+  if (!hasPulse) {
+    await api('/v1/functions', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'pulse',
+        title: 'Engine Pulse',
+        source: `async (req, ctx) => {
+  const notes = await ctx.data.query('notes', { limit: 5, countTotal: true });
+  return {
+    status: 200,
+    body: {
+      message: 'The engine is alive.',
+      echo: req.query.ping ?? 'no ping given',
+      caller: req.user?.sub ?? 'anonymous',
+      notes: notes.total ?? notes.count,
+      at: new Date().toISOString(),
+    },
+  };
+}`,
+      }),
+    });
+    log('demo function deployed → /functions/pulse');
   }
 
   log('stack ready → http://localhost:' + PORT);

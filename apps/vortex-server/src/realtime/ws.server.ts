@@ -30,14 +30,21 @@ function parseClientMessage(raw: RawData): ClientMessage | null {
  *
  * Protocol summary:
  *   → `vortex:auth`        { token }            authenticate the socket
- *   → `vortex:subscribe`   { channel }          join `table:<name>` / `table:*`
+ *   → `vortex:subscribe`   { channel }          join `table:<name>` / `room:<name>`
  *   → `vortex:unsubscribe` { channel }          leave a channel
+ *   → `vortex:broadcast`   { channel, event, payload }   room pub/sub
+ *   → `vortex:presence`    { action, channel, state? }   track/untrack
  *   → `vortex:ping`        { id? }              heartbeat
- *   ← `vortex:ack` | `vortex:pong` | `vortex:error` | `vortex:event`
+ *   ← `vortex:welcome` | `vortex:ack` | `vortex:pong` | `vortex:error`
+ *   ← `vortex:event` | `vortex:broadcast`
+ *   ← `vortex:presence_sync` | `vortex:presence_diff`
  *
  * Database mutations are wired straight from the event bus to subscribed
  * sockets for sub-50ms fan-out latency.
  */
+
+const MAX_BROADCAST_BYTES = 64 * 1024;
+const MAX_PRESENCE_BYTES = 4 * 1024;
 export function attachRealtimeServer(httpServer: HttpServer, ctx: AppContext): WebSocketServer {
   const wss = new WebSocketServer({ server: httpServer, path: '/v1/realtime' });
   const tokenConfig = ctx.env.jwt as TokenConfig;
@@ -135,12 +142,71 @@ export function attachRealtimeServer(httpServer: HttpServer, ctx: AppContext): W
             send(socket, {
               type: PROTOCOL.error,
               code: 'bad_channel',
-              message: 'Channel must look like "table:<name>" or "table:*"',
+              message: 'Channel must look like "table:<name>", "table:*" or "room:<name>"',
               id: message.id,
             });
             break;
           }
           send(socket, { type: PROTOCOL.ack, ok: true, id: message.id, channel: message.channel });
+          break;
+        }
+
+        case PROTOCOL.broadcast: {
+          if (!client.channels.has(message.channel)) {
+            send(socket, {
+              type: PROTOCOL.error,
+              code: 'not_subscribed',
+              message: 'Subscribe to the channel before broadcasting',
+              id: message.id,
+            });
+            break;
+          }
+          if (JSON.stringify(message.payload ?? null).length > MAX_BROADCAST_BYTES) {
+            send(socket, {
+              type: PROTOCOL.error,
+              code: 'payload_too_large',
+              message: `Broadcast payloads are limited to ${MAX_BROADCAST_BYTES} bytes`,
+              id: message.id,
+            });
+            break;
+          }
+          ctx.hub.publishBroadcast(
+            message.channel,
+            String(message.event ?? 'message'),
+            message.payload ?? null,
+            client.clientId,
+          );
+          send(socket, { type: PROTOCOL.ack, ok: true, id: message.id, channel: message.channel });
+          break;
+        }
+
+        case PROTOCOL.presence: {
+          if (message.action === 'track') {
+            const state = message.state ?? {};
+            if (JSON.stringify(state).length > MAX_PRESENCE_BYTES) {
+              send(socket, {
+                type: PROTOCOL.error,
+                code: 'payload_too_large',
+                message: `Presence state is limited to ${MAX_PRESENCE_BYTES} bytes`,
+                id: message.id,
+              });
+              break;
+            }
+            const peers = ctx.hub.track(socket, message.channel, state);
+            if (!peers) {
+              send(socket, {
+                type: PROTOCOL.error,
+                code: 'not_subscribed',
+                message: 'Subscribe to the channel before tracking presence',
+                id: message.id,
+              });
+              break;
+            }
+            send(socket, { type: PROTOCOL.ack, ok: true, id: message.id, channel: message.channel });
+          } else {
+            ctx.hub.untrack(socket, message.channel);
+            send(socket, { type: PROTOCOL.ack, ok: true, id: message.id, channel: message.channel });
+          }
           break;
         }
 

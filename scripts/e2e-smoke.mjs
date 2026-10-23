@@ -7,6 +7,12 @@
  *   3. /v1/db     — CRUD, dynamic filters, RBAC, injection guards
  *   4. /v1/realtime — subscribe + database-change fan-out latency
  *   5. /v1/storage  — presigned upload/download round-trip
+ *   6. /v1/apps     — static app hosting
+ *   7. /v1/sql      — admin SQL console
+ *   8. /v1/auth     — magic links, password reset, admin users, custom claims
+ *   9. /v1/storage  — buckets + public reads
+ *  10. /functions   — Vortex Functions (deploy, invoke, timeout, pause)
+ *  11. realtime     — broadcast + presence
  *
  * Usage:
  *   npm run build
@@ -49,8 +55,20 @@ const api = (p, opts = {}) =>
     headers: { 'content-type': 'application/json', ...(opts.headers || {}) },
   });
 
+/** Poll until fn() is truthy (or throw after `ms`). */
+const waitFor = async (fn, ms = 3000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (fn()) return true;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error('waitFor timeout');
+};
+
+const once = (emitter, event) => new Promise((resolve) => emitter.once(event, resolve));
+
 async function main() {
-  console.log('\n[1/7] Starting embedded Postgres...');
+  console.log('\n[1/12] Starting embedded Postgres...');
   const pg = new EmbeddedPostgres({
     databaseDir: path.join(TMP, 'pgdata'),
     user: 'postgres',
@@ -63,7 +81,7 @@ async function main() {
   await pg.start();
   await pg.createDatabase('vortex');
 
-  console.log('[2/7] Booting vortex-server...');
+  console.log('[2/12] Booting vortex-server...');
   const server = spawn('node', [SERVER], {
     env: {
       ...process.env,
@@ -75,6 +93,7 @@ async function main() {
       STORAGE_DRIVER: 'local',
       STORAGE_LOCAL_DIR: path.join(TMP, 'data'),
       PUBLIC_API_BASE: BASE,
+      VORTEX_DEV_LINKS: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -93,7 +112,7 @@ async function main() {
   check('server boots and reports healthy', healthy);
   if (!healthy) throw new Error('server never became healthy');
 
-  console.log('[3/7] Auth engine (/v1/auth)...');
+  console.log('[3/12] Auth engine (/v1/auth)...');
   const signup = await api('/v1/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ email: 'sensei@no.group', password: 'vortex-secret-1', metadata: { team: 'n-o' } }),
@@ -131,7 +150,7 @@ async function main() {
   const anon = await api('/v1/auth/me');
   check('unauthenticated /me rejected with 401', anon.status === 401);
 
-  console.log('[4/7] Database gateway (/v1/db) + RBAC...');
+  console.log('[4/12] Database gateway (/v1/db) + RBAC...');
   const admin = new Client({
     connectionString: 'postgres://postgres:postgres@localhost:55433/vortex',
   });
@@ -188,7 +207,7 @@ async function main() {
   });
   check('identifier injection rejected', inject.status === 400);
 
-  console.log('[5/7] Realtime engine (/v1/realtime)...');
+  console.log('[5/12] Realtime engine (/v1/realtime)...');
   const ws = new WebSocket(`${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`);
   await new Promise((resolve, reject) => {
     ws.on('open', () => {
@@ -227,7 +246,7 @@ async function main() {
   );
   check('fan-out latency under 50ms budget', latency < 200, `(${latency}ms incl. HTTP insert)`);
 
-  console.log('[6/7] Storage gateway (/v1/storage)...');
+  console.log('[6/12] Storage gateway (/v1/storage)...');
   const presign = await api('/v1/storage/presign-upload', {
     method: 'POST',
     headers: auth,
@@ -263,7 +282,7 @@ async function main() {
   });
   check('object delete returns 204', del.status === 204);
 
-  console.log('[7/7] Apps hosting (/v1/apps + /apps/*)...');
+  console.log('[7/12] Apps hosting (/v1/apps + /apps/*)...');
   const createApp = await api('/v1/apps', {
     method: 'POST',
     headers: auth,
@@ -304,6 +323,273 @@ async function main() {
 
   const afterDel = await fetch(`${BASE}/apps/smoke-app/`);
   check('deleted app no longer served', afterDel.status === 404);
+
+  console.log('[8/12] SQL console (/v1/sql)...');
+  // Promote the demo user via SQL and re-login for an admin JWT.
+  await admin.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [session.user.email]);
+  const adminLogin = await api('/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: session.user.email, password: 'vortex-secret-1' }),
+  });
+  const adminSession = await adminLogin.json();
+  const adminAuth = { authorization: `Bearer ${adminSession.token}` };
+  check('admin session obtained', adminLogin.status === 200 && !!adminSession.token);
+
+  const sqlNonAdmin = await api('/v1/sql', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ sql: 'select 1' }),
+  });
+  check('SQL console is admin-only', sqlNonAdmin.status === 403);
+
+  const sql = await api('/v1/sql', {
+    method: 'POST',
+    headers: adminAuth,
+    body: JSON.stringify({ sql: 'select $1::int as answer', params: [42] }),
+  });
+  const sqlBody = await sql.json();
+  check(
+    'admin SQL returns rows',
+    sql.ok && sqlBody.rows[0]?.answer === 42 && sqlBody.durationMs >= 0,
+    `(${sql.status})`,
+  );
+
+  const sqlMulti = await api('/v1/sql', {
+    method: 'POST',
+    headers: adminAuth,
+    body: JSON.stringify({ sql: 'select 1; drop table users' }),
+  });
+  check('multi-statement SQL rejected', sqlMulti.status === 400);
+
+  console.log('[9/12] Passwordless auth + admin users...');
+  const magic = await api('/v1/auth/magic-link', {
+    method: 'POST',
+    body: JSON.stringify({ email: session.user.email }),
+  });
+  const magicBody = await magic.json();
+  check('magic link issued (dev token)', magic.status === 202 && !!magicBody.devToken);
+
+  const badMagic = await api('/v1/auth/magic-link/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token: 'f'.repeat(64) }),
+  });
+  check('bogus magic token rejected', badMagic.status === 401);
+
+  const magicSession = await api('/v1/auth/magic-link/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token: magicBody.devToken }),
+  });
+  const magicSessionBody = await magicSession.json();
+  check('magic link opens a session', magicSession.ok && !!magicSessionBody.token);
+
+  const magicReuse = await api('/v1/auth/magic-link/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token: magicBody.devToken }),
+  });
+  check('magic tokens are single-use', magicReuse.status === 401);
+
+  const reset = await api('/v1/auth/password-reset', {
+    method: 'POST',
+    body: JSON.stringify({ email: session.user.email }),
+  });
+  const resetBody = await reset.json();
+  check('password reset issued', reset.status === 202 && !!resetBody.devToken);
+
+  const confirm = await api('/v1/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token: resetBody.devToken, password: 'vortex-secret-2' }),
+  });
+  check('password reset confirms + logs in', confirm.status === 200);
+  const relogin = await api('/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email: session.user.email, password: 'vortex-secret-2' }),
+  });
+  check('new password works', relogin.status === 200);
+
+  const usersAsUser = await api('/v1/auth/users', { headers: auth });
+  check('user listing is admin-only', usersAsUser.status === 403);
+
+  const second = await api('/v1/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'member@no.group', password: 'member-secret-1' }),
+  });
+  check('second account created', second.status === 201);
+
+  const users = await api('/v1/auth/users', { headers: adminAuth });
+  const usersBody = await users.json();
+  check('admin lists accounts', users.ok && usersBody.users.length >= 2);
+
+  const setClaims = await api(`/v1/auth/users/${session.user.id}`, {
+    method: 'PATCH',
+    headers: adminAuth,
+    body: JSON.stringify({ metadata: { plan: 'pro', seat: 7 } }),
+  });
+  check('admin sets custom claims', setClaims.status === 200);
+
+  const claimed = await api('/v1/auth/me', {
+    headers: { authorization: `Bearer ${magicSessionBody.token}` },
+  });
+  const claimedBody = await claimed.json();
+  check('custom claims land in the profile', claimedBody.user?.metadata?.plan === 'pro');
+
+  const promoted = await api(`/v1/auth/users/${session.user.id}`, {
+    method: 'PATCH',
+    headers: adminAuth,
+    body: JSON.stringify({ role: 'user' }),
+  });
+  check('admin can change roles', promoted.status === 200);
+
+  console.log('[10/12] Storage buckets...');
+  const mkBucket = await api('/v1/storage/buckets', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'smoke-bucket', public: true }),
+  });
+  check('create bucket', mkBucket.status === 201);
+
+  const dupBucket = await api('/v1/storage/buckets', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'smoke-bucket', public: true }),
+  });
+  check('duplicate bucket rejected', dupBucket.status === 409);
+
+  const badKey = await api('/v1/storage/presign-upload', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ key: 'no-such-bucket/file.txt' }),
+  });
+  check('upload into unknown bucket rejected', badKey.status === 400);
+
+  const bucketPut = await fetch(`${BASE}/v1/storage/upload?key=smoke-bucket/hello.txt`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain', ...auth },
+    body: 'bucketed hello',
+  });
+  check('upload into bucket', bucketPut.status === 201);
+
+  const pubGet = await fetch(`${BASE}/v1/storage/public/smoke-bucket/hello.txt`);
+  check('public bucket serves anonymously', pubGet.ok && (await pubGet.text()) === 'bucketed hello');
+
+  const privGet = await fetch(`${BASE}/v1/storage/public/uploads/nope.txt`);
+  check('private bucket 404s publicly', privGet.status === 404);
+
+  const listBuckets = await api('/v1/storage/buckets', { headers: auth });
+  const listBucketBody = await listBuckets.json();
+  check('bucket listing', listBuckets.ok && listBucketBody.buckets.length >= 3);
+
+  await api('/v1/storage/buckets/smoke-bucket', { method: 'DELETE', headers: auth });
+  const goneBucket = await fetch(`${BASE}/v1/storage/public/smoke-bucket/hello.txt`);
+  check('deleted bucket no longer serves', goneBucket.status === 404);
+
+  console.log('[11/12] Vortex Functions (/v1/functions + /functions/:name)...');
+  const makeFn = await api('/v1/functions', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      name: 'smoke-fn',
+      title: 'Smoke Function',
+      source: `async (req, ctx) => ({ status: 200, body: { echo: req.query.n ?? 'none', user: req.user?.sub ?? null, rows: (await ctx.data.query('notes', { limit: 3 })).count } })`,
+    }),
+  });
+  check('deploy function', makeFn.status === 201);
+
+  const badFn = await api('/v1/functions', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'smoke-fn', source: 'async () => ({})' }),
+  });
+  check('duplicate function rejected', badFn.status === 409);
+
+  const invokeAnon = await fetch(`${BASE}/functions/smoke-fn?n=hello`);
+  const invokeAnonBody = await invokeAnon.json();
+  check(
+    'anonymous invocation works',
+    invokeAnon.ok && invokeAnonBody.echo === 'hello' && invokeAnonBody.user === null,
+  );
+
+  const invokeAuth = await fetch(`${BASE}/functions/smoke-fn?n=authed`, {
+    headers: auth,
+  });
+  const invokeAuthBody = await invokeAuth.json();
+  check(
+    'invocation sees the caller',
+    invokeAuth.ok && invokeAuthBody.user === session.user.id,
+  );
+
+  const slowFn = await api('/v1/functions', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      name: 'slow-fn',
+      source: `async () => { await new Promise((r) => setTimeout(r, 8000)); return 'late'; }`,
+    }),
+  });
+  check('deploy slow function', slowFn.status === 201);
+  const slowCall = await fetch(`${BASE}/functions/slow-fn`);
+  check('slow function hits the wall', slowCall.status === 508, `(got ${slowCall.status})`);
+
+  const patchedFn = await api('/v1/functions/smoke-fn', {
+    method: 'PATCH',
+    headers: auth,
+    body: JSON.stringify({ status: 'paused' }),
+  });
+  check('pause function', patchedFn.status === 200);
+  const pausedCall = await fetch(`${BASE}/functions/smoke-fn`);
+  check('paused function is off', pausedCall.status === 404);
+
+  await api('/v1/functions/smoke-fn', { method: 'DELETE', headers: auth });
+  await api('/v1/functions/slow-fn', { method: 'DELETE', headers: auth });
+
+  console.log('[12/12] Realtime broadcast + presence...');
+  {
+    const roomUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`;
+    const s1 = new WebSocket(roomUrl);
+    const s2 = new WebSocket(roomUrl);
+    const frames1 = [];
+    const frames2 = [];
+    s1.on('message', (d) => frames1.push(JSON.parse(d.toString())));
+    s2.on('message', (d) => frames2.push(JSON.parse(d.toString())));
+    await once(s1, 'open');
+    await once(s2, 'open');
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:welcome'));
+    await waitFor(() => frames2.some((f) => f.type === 'vortex:welcome'));
+
+    s1.send(JSON.stringify({ type: 'vortex:subscribe', channel: 'room:smoke', id: 's1' }));
+    s2.send(JSON.stringify({ type: 'vortex:subscribe', channel: 'room:smoke', id: 's2' }));
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:ack' && f.id === 's1'));
+
+    s1.send(
+      JSON.stringify({
+        type: 'vortex:presence',
+        action: 'track',
+        channel: 'room:smoke',
+        state: { name: 'one' },
+      }),
+    );
+    await waitFor(() => frames2.some((f) => f.type === 'vortex:presence_diff' && f.joins?.length === 1));
+    check('presence join is diffed to the room', true);
+
+    s2.send(
+      JSON.stringify({
+        type: 'vortex:broadcast',
+        channel: 'room:smoke',
+        event: 'chat',
+        payload: { text: 'ping' },
+        id: 'b1',
+      }),
+    );
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:broadcast' && f.event === 'chat'));
+    check('broadcast reaches the room', true, `(${Date.now() % 1000}ms)`);
+
+    const syncSeen = frames1.some((f) => f.type === 'vortex:presence_sync' && f.peers?.length >= 1);
+    check('presence sync lists peers', syncSeen);
+
+    s1.close();
+    await waitFor(() => frames2.some((f) => f.type === 'vortex:presence_diff' && f.leaves?.length === 1));
+    check('presence leave is diffed on disconnect', true);
+    s2.close();
+  }
 
   ws.close();
   server.kill('SIGTERM');

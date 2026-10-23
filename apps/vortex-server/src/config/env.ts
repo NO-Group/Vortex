@@ -33,6 +33,11 @@ export interface ServerEnv {
     /** Optional Redis URL enabling the multi-node fan-out bridge. */
     redisUrl: string | undefined;
   };
+  /**
+   * Expose magic-link / password-reset tokens in API responses (dev + demo
+   * environments without SMTP). MUST be false in production.
+   */
+  devLinks: boolean;
 }
 
 function required(name: string, fallback?: string): string {
@@ -101,5 +106,6 @@ export function loadEnv(): ServerEnv {
       heartbeatMs: int('REALTIME_HEARTBEAT_MS', 30_000),
       redisUrl: process.env.REDIS_URL || undefined,
     },
+    devLinks: bool('VORTEX_DEV_LINKS', process.env.NODE_ENV !== 'production'),
   };
 }

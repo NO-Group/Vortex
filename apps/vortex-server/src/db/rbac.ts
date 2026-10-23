@@ -9,6 +9,9 @@ export const SYSTEM_TABLES = new Set([
   'storage_objects',
   'apps',
   'app_files',
+  'auth_tokens',
+  'buckets',
+  'functions',
 ]);
 
 interface PermissionRow {

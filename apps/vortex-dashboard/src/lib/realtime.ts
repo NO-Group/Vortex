@@ -2,27 +2,54 @@ import type { TableEvent } from './api.js';
 
 export type RealtimeStatus = 'offline' | 'connecting' | 'online';
 
+export interface BroadcastFrame {
+  channel: string;
+  event: string;
+  payload: unknown;
+  from?: string;
+}
+
+export interface PresencePeerInfo {
+  clientId: string;
+  userId: string | null;
+  state: Record<string, unknown>;
+}
+
 interface RealtimeHandlers {
   onStatus?: (status: RealtimeStatus) => void;
   onEvent?: (event: TableEvent) => void;
+  onBroadcast?: (frame: BroadcastFrame) => void;
+  onPresence?: (info: {
+    channel: string;
+    kind: 'sync' | 'joins' | 'leaves';
+    peers: PresencePeerInfo[];
+  }) => void;
 }
 
 /**
- * Vortex realtime client — subscribe to `table:<name>` / `table:*` and
- * receive database-change events with automatic reconnect.
+ * Vortex realtime client — subscribe to `table:<name>` / `room:<name>`,
+ * receive database-change events, room broadcasts, and presence updates
+ * with automatic reconnect.
  */
 export class RealtimeClient {
   private ws: WebSocket | null = null;
   private status: RealtimeStatus = 'offline';
   private channels = new Set<string>();
+  private trackedRooms = new Map<string, Record<string, unknown>>();
   private reconnectDelay = 500;
   private closedByUser = false;
   private lastLatencyMs: number | null = null;
+  private myClientId: string | null = null;
 
   constructor(private readonly handlers: RealtimeHandlers = {}) {}
 
   getStatus(): RealtimeStatus {
     return this.status;
+  }
+
+  /** Presence identity assigned by the server at connect. */
+  getClientId(): string | null {
+    return this.myClientId;
   }
 
   /** Approximate fan-out latency of the last event (event.timestamp → now). */
@@ -44,18 +71,44 @@ export class RealtimeClient {
     ws.onopen = () => {
       this.reconnectDelay = 500;
       this.setStatus('online');
-      // Rejoin channels after reconnect.
+      // Rejoin channels + presence after reconnect.
       for (const channel of this.channels) {
         ws.send(JSON.stringify({ type: 'vortex:subscribe', channel }));
+      }
+      for (const [channel, state] of this.trackedRooms) {
+        ws.send(JSON.stringify({ type: 'vortex:presence', action: 'track', channel, state }));
       }
     };
 
     ws.onmessage = (frame) => {
       try {
         const msg = JSON.parse(String(frame.data));
-        if (msg.type === 'vortex:event') {
-          this.lastLatencyMs = Math.max(0, Date.now() - Date.parse(msg.timestamp));
-          this.handlers.onEvent?.(msg as TableEvent);
+        switch (msg.type) {
+          case 'vortex:welcome':
+            this.myClientId = msg.clientId ?? null;
+            break;
+          case 'vortex:event':
+            this.lastLatencyMs = Math.max(0, Date.now() - Date.parse(msg.timestamp));
+            this.handlers.onEvent?.(msg as TableEvent);
+            break;
+          case 'vortex:broadcast':
+            this.handlers.onBroadcast?.(msg as BroadcastFrame);
+            break;
+          case 'vortex:presence_sync':
+            this.handlers.onPresence?.({
+              channel: msg.channel,
+              kind: 'sync',
+              peers: msg.peers ?? [],
+            });
+            break;
+          case 'vortex:presence_diff':
+            if (msg.joins?.length) {
+              this.handlers.onPresence?.({ channel: msg.channel, kind: 'joins', peers: msg.joins });
+            }
+            if (msg.leaves?.length) {
+              this.handlers.onPresence?.({ channel: msg.channel, kind: 'leaves', peers: msg.leaves });
+            }
+            break;
         }
       } catch {
         // ignore malformed frames
@@ -84,8 +137,31 @@ export class RealtimeClient {
 
   unsubscribe(channel: string): void {
     this.channels.delete(channel);
+    this.trackedRooms.delete(channel);
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'vortex:unsubscribe', channel }));
+    }
+  }
+
+  /** Relay an ephemeral message to a subscribed channel. */
+  broadcast(channel: string, event: string, payload: unknown): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'vortex:broadcast', channel, event, payload }));
+    }
+  }
+
+  /** Track presence state on a subscribed channel. */
+  track(channel: string, state: Record<string, unknown> = {}): void {
+    this.trackedRooms.set(channel, state);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'vortex:presence', action: 'track', channel, state }));
+    }
+  }
+
+  untrack(channel: string): void {
+    this.trackedRooms.delete(channel);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'vortex:presence', action: 'untrack', channel }));
     }
   }
 

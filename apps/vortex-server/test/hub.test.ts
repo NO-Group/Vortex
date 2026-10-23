@@ -15,6 +15,13 @@ function fakeSocket() {
   return socket;
 }
 
+/** Frames of a given type (welcome frames are ignored by default). */
+function framesOf(socket: WebSocket, type: string): Record<string, unknown>[] {
+  return (socket as unknown as { sent: string[] }).sent
+    .map((s) => JSON.parse(s) as Record<string, unknown>)
+    .filter((f) => f.type === type);
+}
+
 const change = (table: string): TableChange => ({
   id: 'evt-1',
   table,
@@ -37,10 +44,10 @@ describe('RealtimeHub', () => {
     const delivered = hub.publishTableChange(change('notes'));
 
     expect(delivered).toBe(1);
-    const frame = JSON.parse((a as unknown as { sent: string[] }).sent[0]!);
-    expect(frame.type).toBe(PROTOCOL.event);
-    expect(frame.table).toBe('notes');
-    expect((b as unknown as { sent: string[] }).sent).toHaveLength(0);
+    const events = framesOf(a, PROTOCOL.event);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.table).toBe('notes');
+    expect(framesOf(b, PROTOCOL.event)).toHaveLength(0);
   });
 
   it('fans out to wildcard subscribers too', () => {
@@ -53,8 +60,8 @@ describe('RealtimeHub', () => {
     hub.subscribe(b, 'table:notes');
 
     expect(hub.publishTableChange(change('notes'))).toBe(2);
-    expect((a as unknown as { sent: string[] }).sent).toHaveLength(1);
-    expect((b as unknown as { sent: string[] }).sent).toHaveLength(1);
+    expect(framesOf(a, PROTOCOL.event)).toHaveLength(1);
+    expect(framesOf(b, PROTOCOL.event)).toHaveLength(1);
   });
 
   it('rejects malformed channel names', () => {

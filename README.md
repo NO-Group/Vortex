@@ -28,12 +28,14 @@ live.**
 
 | Module | Endpoint | Status |
 | --- | --- | --- |
-| Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT · bcrypt (12 rounds) |
-| Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · JSONB · RBAC + owner-scoping |
-| Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) · Redis multi-node bridge |
-| Storage Gateway | `/v1/storage` | ✅ local disk + S3/R2/MinIO · presigned up/download |
+| Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT + custom claims · bcrypt (12 rounds) · magic links · password reset · admin user management |
+| Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · OR-groups · JSONB contains · embeds · RBAC + owner-scoping |
+| SQL Console | `/v1/sql` | ✅ admin SQL over the engine database — parameterized, single statement, timed |
+| Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) · room broadcast · presence · Redis multi-node bridge |
+| Storage Gateway | `/v1/storage` | ✅ buckets (public/private) · local disk + S3/R2/MinIO · presigned up/download |
 | Apps Hosting | `/v1/apps` + `/apps/:name/*` | ✅ deploy static web apps — file manifest, SPA fallback, public serving |
-| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — live engine vitals, DB explorer, event stream, storage browser, app deploys |
+| Vortex Functions | `/functions/:name` | ✅ server functions run by the engine — deploy source, invoke over HTTP, wall-clock budget |
+| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — vitals, DB explorer, SQL console, event stream + rooms, storage, apps, functions, auth admin |
 | Dart/Flutter SDK | `packages/sdk-dart` | ✅ auth/db/realtime/storage client + N.O Group design system + UI controllers* |
 
 \* Dart code is authored in-repo; verify with a local Flutter SDK (`flutter pub get && flutter test`).
@@ -122,10 +124,10 @@ Useful scripts:
 | `npm run dev` | watch-mode engine on `:8080` |
 | `npm run dev:dashboard` | Vite console on `:5173` with `/v1` + `/apps` proxy |
 | `npm run build` | compile `@vortex/core`, server, and dashboard |
-| `npm run test` | unit suite (50 tests) |
+| `npm run test` | unit suite (71 tests) |
 | `npm run typecheck` | strict TypeScript across the workspace |
 | `npm run migrate` | run knex migrations |
-| `npm run smoke` | full 31-step E2E suite vs embedded Postgres |
+| `npm run smoke` | full 68-step E2E suite vs embedded Postgres |
 | `npm run preview:stack` | self-contained live demo (PG + engine + seed data) |
 
 ## API reference
@@ -149,12 +151,35 @@ curl -X POST localhost:8080/v1/auth/login \
 curl localhost:8080/v1/auth/me -H "authorization: Bearer $TOKEN"
 ```
 
+Passwordless sign-in, recovery, and account administration:
+
+```bash
+# Magic link (in dev-links mode the token is returned inline)
+curl -X POST localhost:8080/v1/auth/magic-link \
+  -H 'content-type: application/json' -d '{"email":"you@no.group"}'
+curl -X POST localhost:8080/v1/auth/magic-link/verify \
+  -H 'content-type: application/json' -d '{"token":"<devToken>"}'   # → session
+
+# Password reset
+curl -X POST localhost:8080/v1/auth/password-reset \
+  -H 'content-type: application/json' -d '{"email":"you@no.group"}'
+curl -X POST localhost:8080/v1/auth/password-reset/confirm \
+  -H 'content-type: application/json' \
+  -d '{"token":"<devToken>","password":"new-secret-1"}'               # → session
+
+# Admin: list accounts, set roles / custom claims (land in new JWTs as "meta")
+curl localhost:8080/v1/auth/users -H "authorization: Bearer $ADMIN_TOKEN"
+curl -X PATCH localhost:8080/v1/auth/users/<id> -H "authorization: Bearer $ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{"role":"admin","metadata":{"plan":"pro"}}'
+```
+
 ### Database — `/v1/db/:table`
 
-CRUD with dynamic filters (`eq neq gt gte lt lte like in is`), ordering, and
-pagination. Every mutation is broadcast to realtime subscribers. RBAC grants
-come from the `table_permissions` table; rows with an `owner_column` are
-automatically scoped to the caller.
+CRUD with dynamic filters (`eq neq gt gte lt lte like ilike in is contains`),
+OR-groups, multi-column ordering, total counts, and explicit embeds. Every
+mutation is broadcast to realtime subscribers. RBAC grants come from the
+`table_permissions` table; rows with an `owner_column` are automatically
+scoped to the caller.
 
 ```bash
 # Insert (owner_id is auto-filled from the JWT)
@@ -162,10 +187,14 @@ curl -X POST localhost:8080/v1/db/notes \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d '{"rows":[{"title":"hello","body":{"tags":["v0.1"]}}]}'
 
-# Query
+# Query — filters, OR-groups, embeds, total count
 curl -X POST localhost:8080/v1/db/notes/query \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"filters":[{"column":"title","op":"like","value":"%hel%"}],"limit":10}'
+  -d '{"filters":[{"column":"title","op":"ilike","value":"%hel%"}],
+       "or":[[{"column":"pinned","value":true}],[{"column":"archived","value":false}]],
+       "include":[{"table":"users","localKey":"owner_id","foreignKey":"id","as":"author",
+                   "select":["id","email"]}],
+       "countTotal":true,"limit":10}'
 
 # Update / delete (filters are mandatory on delete)
 curl -X PATCH localhost:8080/v1/db/notes \
@@ -187,16 +216,28 @@ ws.onmessage = (frame) => {
 ```
 
 Protocol frames: `vortex:auth`, `vortex:subscribe`, `vortex:unsubscribe`,
-`vortex:ping` → answered with `vortex:ack`, `vortex:pong`, `vortex:event`,
-`vortex:error`. Channels follow `table:<name>` or `table:*` (wildcard).
+`vortex:ping`, `vortex:broadcast`, `vortex:presence` → answered with
+`vortex:welcome`, `vortex:ack`, `vortex:pong`, `vortex:event`, `vortex:broadcast`,
+`vortex:presence_sync`, `vortex:presence_diff`, `vortex:error`. Channels follow
+`table:<name>`, `table:*`, or `room:<name>` — rooms carry ephemeral
+**broadcasts** (pub/sub) and **presence** (who is here, with small state).
 
 ### Storage — `/v1/storage`
 
+Object keys live in **buckets**: `uploads/…` (private) and `public/…` (public)
+exist by default; create your own. Public buckets are readable anonymously at
+`/v1/storage/public/<bucket>/<path>`.
+
 ```bash
+# 0. Create a bucket (public is optional)
+curl -X POST localhost:8080/v1/storage/buckets \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"assets","public":true}'
+
 # 1. Presign a direct upload (local driver → HMAC token URL, S3 → bucket URL)
 curl -X POST localhost:8080/v1/storage/presign-upload \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"key":"uploads/report.pdf","contentType":"application/pdf"}'
+  -d '{"key":"assets/report.pdf","contentType":"application/pdf"}'
 
 # 2. PUT the bytes straight to the returned URL
 curl -X PUT --data-binary @report.pdf "$PRESIGNED_URL"
@@ -229,6 +270,48 @@ curl -X POST "localhost:8080/v1/apps/my-next-app/files?path=index.html" \
 
 The console **Apps** page does all of this with drag-and-drop: create an app,
 drop a build folder, hit *Open*. The live demo ships with `/apps/welcome/`.
+
+### SQL Console — `POST /v1/sql` (admins)
+
+Raw SQL against the engine database for migrations, analytics, and ops —
+parameterized (`$1..$n` or `?`), single statement, 10s timeout.
+
+```bash
+curl -X POST localhost:8080/v1/sql \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"sql":"select id, email, role from users where role = $1","params":["admin"]}'
+# → { "columns": [...], "rows": [...], "rowCount": 1, "durationMs": 2 }
+```
+
+### Vortex Functions — `/v1/functions` (deploy) + `/functions/:name` (invoke)
+
+Server functions executed by the engine — a function source is an
+`async (req, ctx)` expression returning an HTTP response (or any JSON value):
+
+```js
+// deployed source
+async (req, ctx) => {
+  // req: { method, path, query, headers, body, user }
+  // ctx: { data: { query, insert, update, delete }, storage, env }
+  const rows = await ctx.data.query('notes', { limit: 5, countTotal: true });
+  return { status: 200, body: { hello: req.query.name ?? 'world', total: rows.total } };
+}
+```
+
+```bash
+# Deploy
+curl -X POST localhost:8080/v1/functions \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"hello","title":"Hello","source":"async (req) => ({ body: { hi: 1 } })"}'
+
+# Invoke — public, with optional JWT for identity
+curl "localhost:8080/functions/hello?name=vortex" -H "authorization: Bearer $TOKEN"
+```
+
+Functions run with a 5s wall-clock budget (`508 function_timeout` beyond it),
+can be paused (`status: "paused"` → 404), and are **operator code**: the `ctx`
+helpers execute with service-level access. The live demo ships with
+`/functions/pulse`. Manage and run them from the console **Functions** page.
 
 ## Client SDK (Dart / Flutter)
 
@@ -287,7 +370,10 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
 - ~~**v0.3** — `sdk-dart` Flutter/Dart client + SDK UI controllers~~ ✅ shipped
 - ~~**v0.4** — Redis pub/sub bridge for multi-node realtime fan-out~~ ✅ shipped
 - ~~**v0.5** — Vortex Apps: deploy & host static web apps from the console~~ ✅ shipped
-- **v0.6** — Edge functions, custom claims, row policies UI
+- ~~**v0.6** — Platform parity: SQL console, Vortex Functions, magic links + password
+  reset + account admin, custom claims, storage buckets, room broadcast + presence,
+  relational query upgrades (embeds, OR, counts)~~ ✅ shipped
+- **v0.7** — TypeScript/JS client SDK, row-policy editor UI, OAuth providers, image transforms
 
 ## License
 

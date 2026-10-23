@@ -14,6 +14,7 @@ export function Login({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [magicToken, setMagicToken] = useState<string | null>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -40,6 +41,47 @@ export function Login({
     setEmail('sensei@no.group');
     setPassword('vortex-secret-1');
     setMode('login');
+  };
+
+  /** Passwordless sign-in: request a one-time link for the email. */
+  const sendMagicLink = async () => {
+    if (!email.trim()) {
+      setError('Enter your email first, then request a sign-in link');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMagicToken(null);
+    try {
+      const res = await api.post<{ ok: true; devToken?: string }>('/v1/auth/magic-link', {
+        email: email.trim(),
+      });
+      if (res.devToken) {
+        setMagicToken(res.devToken);
+      } else {
+        setError(null);
+        alert('If that account exists, a sign-in link is on its way.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the link');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const useMagicLink = async () => {
+    if (!magicToken) return;
+    setBusy(true);
+    try {
+      const session = await api.post<AuthSession>('/v1/auth/magic-link/verify', {
+        token: magicToken,
+      });
+      if (session?.token) onLogin(session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Link is invalid or expired');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -115,6 +157,31 @@ export function Login({
             <GlassButton onClick={useDemo} className="px-3 py-1.5 text-[11px]">
               Use demo account
             </GlassButton>
+          </div>
+
+          <div className="mt-4 border-t border-white/[0.07] pt-4">
+            {magicToken ? (
+              <div className="space-y-2">
+                <div className="text-[11px] text-slate-400">
+                  Sign-in link ready (dev mode delivers it inline).
+                </div>
+                <GradientButton
+                  onClick={() => void useMagicLink()}
+                  disabled={busy}
+                  className="w-full py-2.5 text-[12px]"
+                >
+                  Open sign-in link →
+                </GradientButton>
+              </div>
+            ) : (
+              <button
+                onClick={() => void sendMagicLink()}
+                disabled={busy}
+                className="w-full text-[12px] text-slate-400 transition hover:text-spectrum-mint"
+              >
+                ✉ Email me a sign-in link instead
+              </button>
+            )}
           </div>
         </div>
 

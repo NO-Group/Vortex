@@ -119,11 +119,11 @@ describe('RedisEventBridge', () => {
       JSON.stringify({ nodeId: 'node-b', change: change('evt-remote') }),
     );
 
-    const sent = (socket as unknown as { sent: string[] }).sent;
-    expect(sent).toHaveLength(1);
-    const frame = JSON.parse(sent[0]!);
-    expect(frame.type).toBe(PROTOCOL.event);
-    expect(frame.id).toBe('evt-remote');
+    const frames = (socket as unknown as { sent: string[] }).sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((f) => f.type === PROTOCOL.event);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]!.id).toBe('evt-remote');
   });
 
   it('suppresses echoes of its own changes (already fanned out locally)', async () => {
@@ -142,7 +142,10 @@ describe('RedisEventBridge', () => {
       JSON.stringify({ nodeId: 'node-a', change: change('evt-own') }),
     );
 
-    expect((socket as unknown as { sent: string[] }).sent).toHaveLength(0);
+    const events = (socket as unknown as { sent: string[] }).sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((f) => f.type === PROTOCOL.event);
+    expect(events).toHaveLength(0);
   });
 
   it('ignores malformed envelopes', async () => {

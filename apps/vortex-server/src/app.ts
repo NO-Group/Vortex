@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import type { AppContext } from './context.js';
 import { createApiRouter } from './routes/index.js';
 import { createPublicAppRoutes } from './apps/public.routes.js';
+import { createPublicStorageRoutes } from './storage/public.routes.js';
+import { createPublicFunctionRoutes } from './functions/functions.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 
 /** Build the express application (factored out for testability). */
@@ -42,6 +44,14 @@ export function createApp(ctx: AppContext): Express {
 
   // Public static hosting for deployed apps: GET /apps/<name>/*
   app.use('/apps', createPublicAppRoutes(ctx));
+
+  // Public function invocation: ALL /functions/<name>
+  app.use('/functions', createPublicFunctionRoutes(ctx));
+
+  // Anonymous reads for public buckets: /v1/storage/public/<bucket>/*
+  // (mounted via the api router would require auth middleware context — kept
+  // here as its own family for a clean public surface.)
+  app.use('/v1/storage/public', createPublicStorageRoutes(ctx));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   api,
   getToken,
@@ -99,6 +99,163 @@ export function AuthPage({ user, onLogout }: { user: StoredUser | null; onLogout
             </p>
           </div>
         </GlassCard>
+      </div>
+
+      <UserAdmin isAdmin={profile?.role === 'admin'} />
+    </div>
+  );
+}
+
+interface AdminUserRow {
+  id: string;
+  email: string;
+  role: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** Admin-only account management: roles + custom claims. */
+function UserAdmin({ isAdmin }: { isAdmin: boolean }) {
+  const [users, setUsers] = useState<AdminUserRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [claimsDrafts, setClaimsDrafts] = useState<Record<string, string>>({});
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await api.get<{ users: AdminUserRow[] }>('/v1/auth/users');
+      setUsers(res.users);
+    } catch (err) {
+      setUsers([]);
+      setError(err instanceof Error ? err.message : 'Could not list users');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) void refresh();
+  }, [isAdmin, refresh]);
+
+  if (!isAdmin) {
+    return (
+      <div className="glass flex h-24 items-center justify-center text-[12px] text-slate-500">
+        account administration unlocks for <b className="mx-1 text-slate-300">admin</b> roles
+      </div>
+    );
+  }
+
+  const setRole = async (u: AdminUserRow, role: string) => {
+    try {
+      await api.patch(`/v1/auth/users/${u.id}`, { role });
+      setNotice(`${u.email} → ${role}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update failed');
+    }
+  };
+
+  const saveClaims = async (u: AdminUserRow) => {
+    const raw = claimsDrafts[u.id];
+    if (raw === undefined) return;
+    try {
+      const metadata = JSON.parse(raw) as Record<string, unknown>;
+      await api.patch(`/v1/auth/users/${u.id}`, { metadata });
+      setNotice(`Claims updated for ${u.email} — they land in new JWTs as "meta".`);
+      setError(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Claims must be valid JSON');
+    }
+  };
+
+  const remove = async (u: AdminUserRow) => {
+    try {
+      await api.del(`/v1/auth/users/${u.id}`);
+      setNotice(`Deleted ${u.email}`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Account administration
+        </div>
+        <Chip tone="green">admin</Chip>
+      </div>
+
+      {error && <Banner tone="error">{error}</Banner>}
+      {notice && <Banner tone="ok">{notice}</Banner>}
+
+      <div className="glass overflow-hidden">
+        {users === null ? (
+          <div className="p-5 text-[12px] text-slate-500">loading accounts…</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>email</th>
+                <th>role</th>
+                <th>claims</th>
+                <th>created</th>
+                <th aria-label="actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td className="font-mono">{u.email}</td>
+                  <td>
+                    <select
+                      value={u.role}
+                      onChange={(e) => void setRole(u, e.target.value)}
+                      className="input-vortex px-2 py-1 text-[11px]"
+                    >
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        value={
+                          claimsDrafts[u.id] ??
+                          (Object.keys(u.metadata ?? {}).length
+                            ? JSON.stringify(u.metadata)
+                            : '')
+                        }
+                        onChange={(e) =>
+                          setClaimsDrafts((d) => ({ ...d, [u.id]: e.target.value }))
+                        }
+                        placeholder='{"plan":"pro"}'
+                        className="input-vortex w-56 px-2 py-1 font-mono text-[10px]"
+                      />
+                      <button
+                        onClick={() => void saveClaims(u)}
+                        className="btn-glass px-2 py-1 text-[10px]"
+                      >
+                        save
+                      </button>
+                    </div>
+                  </td>
+                  <td className="text-slate-500">{formatDateTime(u.createdAt)}</td>
+                  <td>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => void remove(u)}
+                        className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-spectrum-coral/10 hover:text-spectrum-coral"
+                      >
+                        delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

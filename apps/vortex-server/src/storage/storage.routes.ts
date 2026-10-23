@@ -7,11 +7,17 @@ import { validateBody } from '../middleware/validate.js';
 import type { TokenConfig } from '../auth/tokens.js';
 import { LocalStorageDriver } from './local.driver.js';
 import { StorageRegistry } from './storage.service.js';
+import { BucketService } from './buckets.service.js';
 
 const presignUploadSchema = z.object({
   key: z.string().min(1).max(1024),
   contentType: z.string().min(1).max(255).optional(),
   expiresIn: z.number().int().positive().max(3600).optional(),
+});
+
+const bucketSchema = z.object({
+  name: z.string().min(2).max(32),
+  public: z.boolean().optional(),
 });
 
 const presignDownloadSchema = z.object({
@@ -27,6 +33,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
   const router = Router();
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
   const registry = new StorageRegistry(ctx.db);
+  const bucketService = new BucketService(ctx.db);
   const driver = ctx.storage;
 
   /**
@@ -44,6 +51,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
   /** POST /v1/storage/presign-upload — get a direct-upload URL. */
   router.post('/presign-upload', auth, validateBody(presignUploadSchema), async (req, res, next) => {
     try {
+      await bucketService.assertKeyAllowed(req.body.key);
       const presigned = await driver.presignUpload(req.body, baseFor(req));
       res.json(presigned);
     } catch (err) {
@@ -70,6 +78,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       try {
         const key = String(req.query.key ?? '');
         if (!key) throw ApiError.badRequest('Missing "key" query parameter');
+        await bucketService.assertKeyAllowed(key);
         const contentType = req.header('content-type') ?? 'application/octet-stream';
         const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
 
@@ -113,6 +122,47 @@ export function createStorageRoutes(ctx: AppContext): Router {
       const registry = new StorageRegistry(ctx.db);
       const objects = await registry.listForOwner(req.auth!.sub);
       res.json({ objects });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** POST /v1/storage/buckets — create a bucket namespace. */
+  router.post('/buckets', auth, validateBody(bucketSchema), async (req, res, next) => {
+    try {
+      const bucket = await bucketService.create(
+        req.body.name,
+        req.body.public ?? false,
+        req.auth!.sub,
+      );
+      res.status(201).json({ bucket });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** GET /v1/storage/buckets — list buckets. */
+  router.get('/buckets', auth, async (_req, res, next) => {
+    try {
+      const buckets = await bucketService.list();
+      res.json({ buckets });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** DELETE /v1/storage/buckets/:name — remove a bucket and its objects. */
+  router.delete('/buckets/:name', auth, async (req, res, next) => {
+    try {
+      const removedKeys = await bucketService.remove(
+        req.params.name!,
+        req.auth!.sub,
+        req.auth!.role === 'admin',
+      );
+      for (const key of removedKeys) {
+        await driver.delete(key).catch(() => undefined);
+      }
+      res.status(204).end();
     } catch (err) {
       next(err);
     }
