@@ -1,8 +1,14 @@
 import { useState, type FormEvent } from 'react';
-import { api, setStoredUser, setToken, type AuthSession } from '../lib/api.js';
+import { api, type AuthSession } from '../lib/api.js';
 import { Banner, GlassButton, GradientButton } from '../components/Glass.js';
 
-export function Login({ onLogin }: { onLogin: (session: AuthSession) => void }) {
+export function Login({
+  onLogin,
+  notice,
+}: {
+  onLogin: (session: AuthSession) => void;
+  notice?: string | null;
+}) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,8 +24,10 @@ export function Login({ onLogin }: { onLogin: (session: AuthSession) => void }) 
         mode === 'login'
           ? await api.post<AuthSession>('/v1/auth/login', { email, password })
           : await api.post<AuthSession>('/v1/auth/signup', { email, password });
-      setToken(session.token);
-      setStoredUser(session.user);
+      if (!session?.token || !session?.user) {
+        setError('Unexpected server response — please try again');
+        return;
+      }
       onLogin(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -53,6 +61,7 @@ export function Login({ onLogin }: { onLogin: (session: AuthSession) => void }) 
           </div>
 
           <form onSubmit={submit} className="mt-8 space-y-4">
+            {notice && <Banner tone="info">{notice}</Banner>}
             {error && <Banner tone="error">{error}</Banner>}
 
             <div>

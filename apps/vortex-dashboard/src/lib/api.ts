@@ -2,22 +2,68 @@
  * Vortex Console API client.
  * All calls are same-origin (the dev server proxies /v1 → vortex-server),
  * so the browser never touches localhost directly.
+ *
+ * Session model: an in-memory token is the source of truth while the tab is
+ * alive; localStorage is a best-effort persistence layer (the console may run
+ * inside sandboxed iframes where storage is partitioned or unavailable).
  */
 
 const TOKEN_KEY = 'vortex.token';
 const USER_KEY = 'vortex.user';
 
+/** In-memory session token — survives storage being flaky or blocked. */
+let memoryToken: string | null = null;
+
+function safeGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable — session stays in memory */
+  }
+}
+
+function safeRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return memoryToken ?? safeGet(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  memoryToken = token;
+  safeSet(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  memoryToken = null;
+  safeRemove(TOKEN_KEY);
+  safeRemove(USER_KEY);
+}
+
+/** True when a JWT's `exp` is in the past (or missing/invalid). */
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(
+      atob(token.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: number };
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true; // undecodable = unusable
+  }
 }
 
 export interface StoredUser {
@@ -38,7 +84,7 @@ export function getStoredUser(): StoredUser | null {
 }
 
 export function setStoredUser(user: StoredUser): void {
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  safeSet(USER_KEY, JSON.stringify(user));
 }
 
 export class ApiError extends Error {
@@ -53,13 +99,34 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A 401 may only end the session when ALL of these hold:
+ *  1. the failing call is not a login/signup attempt (those 401s mean
+ *     "wrong credentials", not "you were signed in"),
+ *  2. the failing call actually carried a token,
+ *  3. that token is still the CURRENT token (a stale in-flight request
+ *     from a previous session must never clear a fresh login).
+ */
+function shouldEndSession(path: string, sentToken: string | null): boolean {
+  if (path.startsWith('/v1/auth/login') || path.startsWith('/v1/auth/signup')) {
+    return false;
+  }
+  if (!sentToken) return false;
+  return sentToken === getToken();
+}
+
+function endSession(): void {
+  clearToken();
+  window.dispatchEvent(new CustomEvent('vortex:logout', { detail: { reason: 'expired' } }));
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has('content-type') && init.body && typeof init.body === 'string') {
     headers.set('content-type', 'application/json');
   }
-  const token = getToken();
-  if (token) headers.set('authorization', `Bearer ${token}`);
+  const sentToken = getToken();
+  if (sentToken) headers.set('authorization', `Bearer ${sentToken}`);
 
   const res = await fetch(path, { ...init, headers });
 
@@ -68,9 +135,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = (body as { error?: { code?: string; message?: string; details?: unknown } }).error;
-    if (res.status === 401) {
-      clearToken();
-      window.dispatchEvent(new Event('vortex:logout'));
+    if (res.status === 401 && shouldEndSession(path, sentToken)) {
+      endSession();
     }
     throw new ApiError(
       res.status,

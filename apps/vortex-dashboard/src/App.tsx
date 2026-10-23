@@ -4,6 +4,9 @@ import {
   clearToken,
   getStoredUser,
   getToken,
+  isTokenExpired,
+  setStoredUser,
+  setToken,
   type AuthSession,
   type Health,
   type StoredUser,
@@ -21,20 +24,42 @@ import { AuthPage } from './pages/AuthPage.js';
 
 const PAGES: PageKey[] = ['overview', 'database', 'realtime', 'storage', 'auth'];
 
+interface Session {
+  user: StoredUser;
+  token: string;
+}
+
 function pageFromHash(): PageKey {
   const key = window.location.hash.replace(/^#\/?/, '') as PageKey;
   return PAGES.includes(key) ? key : 'overview';
 }
 
+/**
+ * Restore a persisted session — but only if the JWT is still alive.
+ * An expired token is cleared up front so we never flash the dashboard
+ * only to 401-storm the user back to login.
+ */
+function restoreSession(): Session | null {
+  const token = getToken();
+  const user = getStoredUser();
+  if (!token || !user) return null;
+  if (isTokenExpired(token)) {
+    clearToken();
+    return null;
+  }
+  return { user, token };
+}
+
 export default function App() {
-  const [user, setUser] = useState<StoredUser | null>(() => getStoredUser());
+  const [session, setSession] = useState<Session | null>(() => restoreSession());
   const [page, setPage] = useState<PageKey>(pageFromHash);
   const [events, setEvents] = useState<TableEvent[]>([]);
   const [rtStatus, setRtStatus] = useState<RealtimeStatus>('offline');
   const [wsConnections, setWsConnections] = useState<number | null>(null);
   const [client, setClient] = useState<RealtimeClient | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const authed = user !== null && getToken() !== null;
+  const authed = session !== null;
 
   // ── Realtime client — one WS for the whole session ─────────────────────
   useEffect(() => {
@@ -88,23 +113,36 @@ export default function App() {
   }, []);
 
   // ── Session lifecycle ─────────────────────────────────────────────────
-  const logout = useCallback(() => {
+  const signIn = useCallback((next: AuthSession) => {
+    setToken(next.token);
+    setStoredUser(next.user);
+    setSession({ user: next.user, token: next.token });
+    setNotice(null);
+  }, []);
+
+  const signOut = useCallback((reason?: string) => {
     clearToken();
-    setUser(null);
+    setSession(null);
     setEvents([]);
     setRtStatus('offline');
+    setClient(null);
+    setNotice(
+      reason === 'expired'
+        ? 'Your session expired — please sign in again.'
+        : null,
+    );
     window.location.hash = '#/overview';
   }, []);
 
+  // Auto-logout events (401 with the current token) land here.
   useEffect(() => {
-    const onLogout = () => logout();
+    const onLogout = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
+      signOut(reason);
+    };
     window.addEventListener('vortex:logout', onLogout);
     return () => window.removeEventListener('vortex:logout', onLogout);
-  }, [logout]);
-
-  const onLogin = useCallback((session: AuthSession) => {
-    setUser(session.user);
-  }, []);
+  }, [signOut]);
 
   const clearEvents = useCallback(() => setEvents([]), []);
 
@@ -119,25 +157,25 @@ export default function App() {
       case 'storage':
         return <StoragePage />;
       case 'auth':
-        return <AuthPage user={user} onLogout={logout} />;
+        return <AuthPage user={session?.user ?? null} onLogout={() => signOut()} />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }
-  }, [page, client, rtStatus, events, clearEvents, user, logout, wsConnections]);
+  }, [page, client, rtStatus, events, clearEvents, session, signOut, wsConnections]);
 
   return (
     <>
       <Background />
       {!authed ? (
-        <Login onLogin={onLogin} />
+        <Login onLogin={signIn} notice={notice} />
       ) : (
         <div className="min-h-screen">
           <Sidebar
             active={page}
             onNavigate={navigate}
-            email={user?.email ?? ''}
+            email={session.user.email}
             engineOnline={rtStatus === 'online'}
-            onLogout={logout}
+            onLogout={() => signOut()}
           />
           <main className="ml-[248px] min-h-screen p-8">{content}</main>
         </div>
