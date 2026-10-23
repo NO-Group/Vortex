@@ -43,7 +43,107 @@ Live Stream Engine Console	Pitch-black solid backgrounds surrounded by a frosted
 To capture the signature look of a premier tech suite, add functional visual cues that emphasize raw performance:
 1. The Dynamic Grid Map: Incorporate an interactive, subtle grid background that warps slightly or displays active data ripples when a microservice receives heavy traffic.
 2. Glass Core Micro-Interactions: Buttons shouldn’t just click; they should absorb light. When hovering over main primary CTA buttons, implement a smooth refraction flare effect or a inner-shadow glow that fills the glass container.
-3. Skeleton Shimmers & Glass Loading: When fetching server states, use translucent glass skeletons that shimmer with a fast-paced kinetic blur, reinforcing the concept of instant developer response.) 
+3. Skeleton Shimmers & Glass Loading: When fetching server states, use translucent glass skeletons that shimmer with a fast-paced kinetic blur, reinforcing the concept of instant developer response.
+4.
+5. Here is the exact Arena Implementation Prompt converted specifically for Vortex.
+It incorporates the brand tokens, glassmorphic dark-mode design rules, and technical specifications into a clear set of instructions that Arena can execute directly.
+📋 COPY & PASTE TO ARENA:
+========================================================================
+                  ARENA TASK PROMPT: VORTEX ENGINE & UI
+          * N.O Group Official Design System & BaaS Scaffolding *
+========================================================================
+
+We are building **Vortex**, the high-performance Backend-as-a-Service (BaaS) and real-time infrastructure engine under N.O Group.
+
+Please scaffold and build the core engine modules along with the official frontend design system for the Vortex Web Console / SDKs based on the technical specifications below.
+
+---
+
+### PART 1: N.O GROUP OFFICIAL DESIGN SYSTEM (VORTEX THEME CONFIG)
+
+Implement the design tokens below into the frontend dashboard theme (`vortex-dashboard`) and SDK UI controllers:
+
+```dart
+import 'package:flutter/material.dart';
+
+/// ========================================================================
+///                     N.O GROUP OFFICIAL BRAND SYSTEM
+///           * Combined Spectrum Palette (Pure Dark Canvas Edition) *
+/// ========================================================================
+/// Global design token library for Vortex BaaS Console & N.O Group Applications.
+/// ========================================================================
+
+class NOGroupDesignSystem {
+  NOGroupDesignSystem._();
+
+  // 1. SURFACE & CANVAS TOKENS (AMOLED Pure Black Stack)
+  static const Color pureBlackCanvas       = Color(0xFF000000); // Deepest Canvas
+  static const Color surfaceElevatedDark   = Color(0xFF090C10); // Container cards / panels
+  static const Color structuralBorderDark  = Color(0xFF161B22); // Layout borders & lines
+
+  // 2. THE 6-STOP GRADIENT TOKENS
+  static const Color anchorBlue           = Color(0xFF004BFF); // Stop 0.0
+  static const Color iridescentLavender   = Color(0xFFA38CFF); // Stop 0.2
+  static const Color coralPink            = Color(0xFFFFA1C5); // Stop 0.4
+  static const Color cyberCyan            = Color(0xFF00D2FF); // Stop 0.6
+  static const Color neonMint             = Color(0xFF00E6A6); // Stop 0.8
+  static const Color flagshipTechGreen    = Color(0xFF1BFF6B); // Stop 1.0
+
+  // 3. INTERACTIVE STATE ACCENTS
+  static const Color interactiveFocusBlue   = Color(0xFF3379FF); // Input focus / active cursors
+  static const Color interactiveSuccessGreen = Color(0xFF00FF66); // Live WebSocket status
+
+  // 4. PRODUCTION-READY GRADIENT ENGINES
+  static const LinearGradient unifiedLinearGradient = LinearGradient(
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+    colors: [
+      anchorBlue,
+      iridescentLavender,
+      coralPink,
+      cyberCyan,
+      neonMint,
+      flagshipTechGreen,
+    ],
+    stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+  );
+
+  static const SweepGradient unifiedLogoSweepGradient = SweepGradient(
+    center: Alignment.center,
+    startAngle: 0.0,
+    endAngle: 3.141592653589793 * 2,
+    colors: [
+      anchorBlue,
+      iridescentLavender,
+      coralPink,
+      cyberCyan,
+      neonMint,
+      flagshipTechGreen,
+      anchorBlue,
+    ],
+    stops: [0.0, 0.16, 0.33, 0.5, 0.66, 0.83, 1.0],
+  );
+}
+
+PART 2: VORTEX CORE BACKEND ENGINE ARCHITECTURE
+Scaffold the core backend in TypeScript/Node.js under apps/vortex-server:
+ * Authentication Gateway (/v1/auth)
+   * JWT creation, verification middleware, and Argon2/Bcrypt password hashing.
+   * Endpoints: POST /v1/auth/signup, POST /v1/auth/login, GET /v1/auth/me.
+ * Database API Driver (/v1/db)
+   * Dynamic query execution over PostgreSQL with JSONB support.
+   * Built-in Role-Based Access Control (RBAC) middleware verifying JWT user IDs against table permissions.
+ * Real-Time WebSocket Engine (/v1/realtime)
+   * Pub/Sub architecture supporting client subscriptions (vortex:subscribe -> table_name).
+   * Automatically broadcasts database inserts, updates, and deletes to connected clients with sub-50ms latency.
+ * Storage Controller Gateway (/v1/storage)
+   * Abstract S3 interface defaulted to Cloudflare R2 / Local Disk fallback.
+   * Endpoint generating presigned upload/download URLs directly to storage buckets.
+REQUIREMENTS:
+ * Ensure all backend code is modular, type-safe, and ready for Docker containerization.
+ * Apply glassmorphic UI elements using #090C10 cards and #161B22 crisp borders over #000000 AMOLED canvas backgrounds in the dashboard mockup.
+   ========================================================================
+) 
  
 ##Initial Prompt Blueprint for Arena
 Arena Prompt — Task 1: Building Vortex Core Engine v0.1
