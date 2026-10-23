@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { Redis } from 'ioredis';
 import { loadEnv } from './config/env.js';
 import { createApp } from './app.js';
 import { createDb } from './db/db.js';
@@ -6,6 +8,7 @@ import { runMigrations } from './db/migrate.js';
 import { VortexEventBus } from './realtime/bus.js';
 import { RealtimeHub } from './realtime/hub.js';
 import { attachRealtimeServer } from './realtime/ws.server.js';
+import { RedisEventBridge, type RedisPubSubClient } from './realtime/redis-bridge.js';
 import { createStorageDriver } from './storage/storage.service.js';
 import type { AppContext } from './context.js';
 
@@ -28,6 +31,26 @@ async function main(): Promise<void> {
   const app = createApp(ctx);
   const server = http.createServer(app);
   attachRealtimeServer(server, ctx);
+
+  // Optional multi-node fan-out: sharing one Redis makes a cluster of
+  // engines behave as a single realtime fabric.
+  let bridge: RedisEventBridge | null = null;
+  if (env.realtime.redisUrl) {
+    const publisher = new Redis(env.realtime.redisUrl, { lazyConnect: true });
+    const subscriber = new Redis(env.realtime.redisUrl, { lazyConnect: true });
+    await publisher.connect();
+    await subscriber.connect();
+    bridge = new RedisEventBridge(
+      ctx.bus,
+      ctx.hub,
+      publisher as unknown as RedisPubSubClient,
+      subscriber as unknown as RedisPubSubClient,
+      randomUUID(),
+    );
+    await bridge.start();
+    // eslint-disable-next-line no-console
+    console.log(`[vortex] redis fan-out bridge online (node ${bridge.nodeId})`);
+  }
 
   server.listen(env.port, env.host, () => {
     // eslint-disable-next-line no-console
@@ -54,6 +77,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[vortex] ${signal} received, shutting down...`);
     server.close();
+    await bridge?.stop();
     await db.destroy();
     process.exit(0);
   };

@@ -22,5 +22,8 @@
     "smoke": "npm run build && node scripts/e2e-smoke.mjs",
     "preview:stack": "node scripts/preview-stack.mjs",
     "clean": "rm -rf packages/vortex-core/dist apps/vortex-server/dist apps/vortex-dashboard/dist"
+  },
+  "devDependencies": {
+    "embedded-postgres": "18.4.0-beta.17"
   }
 }

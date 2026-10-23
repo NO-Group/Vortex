@@ -30,6 +30,8 @@ export interface ServerEnv {
   };
   realtime: {
     heartbeatMs: number;
+    /** Optional Redis URL enabling the multi-node fan-out bridge. */
+    redisUrl: string | undefined;
   };
 }
 
@@ -97,6 +99,7 @@ export function loadEnv(): ServerEnv {
     },
     realtime: {
       heartbeatMs: int('REALTIME_HEARTBEAT_MS', 30_000),
+      redisUrl: process.env.REDIS_URL || undefined,
     },
   };
 }
