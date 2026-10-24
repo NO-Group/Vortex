@@ -11,13 +11,17 @@
  *   npm run admin -- policies                — list row policies
  *   npm run admin -- storage                 — storage usage stats
  *   npm run admin -- migrate                 — run database migrations
+ *   npm run admin -- stats                   — platform health overview
+ *   npm run admin -- functions               — list deployed functions
+ *   npm run admin -- devices                 — list registered push devices
+ *   npm run admin -- query-log               — recent query log entries
  */
 import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 
 const [command, ...rest] = process.argv.slice(2);
 
-const COMMANDS = ['list', 'promote', 'demote', 'create-user', 'tables', 'policies', 'storage', 'migrate'];
+const COMMANDS = ['list', 'promote', 'demote', 'create-user', 'tables', 'policies', 'storage', 'migrate', 'stats', 'functions', 'devices', 'query-log'];
 
 if (!command || !COMMANDS.includes(command)) {
   console.error('usage: npm run admin -- <' + COMMANDS.join('|') + '> [args]');
@@ -128,6 +132,64 @@ try {
     }
     console.log(`${'─'.repeat(50)}`);
     console.log(`${'TOTAL'.padEnd(24)} ${String(totalCount).padStart(6)} objects  ${formatBytes(totalSize)}`);
+  } else if (command === 'stats') {
+    const { rows: userRows } = await db.query('SELECT count(*)::int as count FROM users');
+    const { rows: tableRows } = await db.query(
+      `SELECT count(*)::int as count FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+       AND table_name NOT IN ('users','table_permissions','storage_objects','apps','app_files',
+         'auth_tokens','buckets','functions','vortex_policies','vortex_query_log',
+         'vortex_devices','vortex_notifications')`,
+    );
+    const { rows: policyRows } = await db.query('SELECT count(*)::int as count FROM vortex_policies');
+    const { rows: bucketRows } = await db.query('SELECT count(*)::int as count FROM buckets');
+    const { rows: objectRows } = await db.query(
+      'SELECT count(*)::int as count, coalesce(sum(size),0)::bigint as total FROM storage_objects',
+    );
+    const { rows: funcRows } = await db.query('SELECT count(*)::int as count FROM functions');
+    const { rows: deviceRows } = await db.query('SELECT count(*)::int as count FROM vortex_devices');
+    const { rows: notificationRows } = await db.query('SELECT count(*)::int as count FROM vortex_notifications');
+
+    console.log('── Vortex Platform Status ──');
+    console.log(`users        ${userRows[0].count}`);
+    console.log(`tables       ${tableRows[0].count}`);
+    console.log(`policies     ${policyRows[0].count}`);
+    console.log(`buckets      ${bucketRows[0].count}`);
+    console.log(`objects      ${objectRows[0].count} (${formatBytes(Number(objectRows[0].total))})`);
+    console.log(`functions    ${funcRows[0].count}`);
+    console.log(`devices      ${deviceRows[0].count}`);
+    console.log(`notifications ${notificationRows[0].count}`);
+  } else if (command === 'functions') {
+    const { rows } = await db.query('SELECT name, schedule, last_invoked_at FROM functions ORDER BY name');
+    if (!rows.length) {
+      console.log('no functions deployed');
+    }
+    for (const row of rows) {
+      const last = row.last_invoked_at ? row.last_invoked_at.toISOString() : 'never';
+      console.log(`${row.name.padEnd(30)} schedule: ${row.schedule ?? 'manual'}  last: ${last}`);
+    }
+  } else if (command === 'devices') {
+    const { rows } = await db.query(
+      'SELECT platform, push_service, count(*)::int as count FROM vortex_devices GROUP BY platform, push_service ORDER BY platform',
+    );
+    if (!rows.length) {
+      console.log('no devices registered');
+    }
+    for (const row of rows) {
+      console.log(`${row.platform.padEnd(8)} ${row.push_service.padEnd(12)} ${row.count} devices`);
+    }
+  } else if (command === 'query-log') {
+    const { rows } = await db.query(
+      `SELECT created_at, username, command, cost, rows_read
+       FROM vortex_query_log ORDER BY created_at DESC LIMIT 20`,
+    );
+    if (!rows.length) {
+      console.log('no queries logged yet');
+    }
+    for (const row of rows) {
+      const cost = row.cost != null ? `cost=${row.cost.toFixed(2)}` : '';
+      console.log(`${row.created_at.toISOString()}  ${(row.username ?? 'anon').padEnd(20)}  ${cost.padEnd(12)}  ${row.command.slice(0, 60)}`);
+    }
   } else if (command === 'migrate') {
     console.log('running database migrations…');
     // Delegate to the server's migrate command
