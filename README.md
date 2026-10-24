@@ -28,6 +28,8 @@ live.**
 
 | Module | Endpoint | Status |
 | --- | --- | --- |
+| Push Notifications | `/v1/notifications` | ✅ **v0.9** — FCM-compatible push · device registration · notification history · admin broadcast |
+| Edge Cache | `/v1/storage` | ✅ **v0.9** — ETag + conditional GET · Cache-Control · auto-invalidation · stats |
 | Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT + custom claims · bcrypt (12 rounds) · magic links · password reset · admin user management · **OAuth (Google, GitHub, GitLab, Discord, Apple, Microsoft)** |
 | Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · OR-groups · JSONB contains · embeds · RBAC + owner-scoping · **row policies (compiled once)** · **explain + cost ceiling** |
 | SQL Console | `/v1/sql` | ✅ admin SQL over the engine database — parameterized, single statement, timed |
@@ -172,6 +174,10 @@ const preview = await vortex.admin.previewPolicy({
 - Query builder with filters, OR-groups, embeds, countTotal, explain
 - Storage with image transforms (`w`, `h`, `fit`, `fmt`, `quality`, `crop`, `grayscale`, `rotate`, `padding`, etc.)
 - Works in browser and Node.js 18+
+
+## Complete Guide
+
+**[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
 
 ## Launch (go live)
 
@@ -548,7 +554,19 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
     Users see "Sign in with…" buttons. OAuth accounts auto-link to Vortex users
     (by email or provider ID); new users are auto-created from OAuth profiles.
     SDK: `vortex.auth.listOAuthProviders()`, `vortex.auth.handleOAuthCallback()`.
-  - Next: push notifications (FCM parity), edge caching, image transforms on S3.
+  - Next: multi-provider auth extensions.
+- ~~**v0.9** — Push Notifications + Edge Cache + Complete Guide~~ ✅ shipped
+  - **Push Notifications** — FCM-compatible push delivery. Device registration,
+    notification history, stats, admin broadcast. Set `FCM_SERVER_KEY` for real
+    delivery; without it, notifications are recorded as "pending".
+  - **Edge Cache** — Cloudflare CDN parity. ETag generation, conditional GET
+    (If-None-Match → 304), Cache-Control headers, auto-invalidation on writes,
+    cache statistics, disk persistence for warm restarts.
+  - **Complete Guide** (`docs/HOWTO.md`) — 20-section "how to use" guide covering
+    everything from quick start to multi-node deployment, with API references,
+    code examples, and comparisons against Supabase, Firebase, Cloudflare, and
+    Cloudinary.
+  - Next: multi-provider auth extensions, edge workers, Web Push.
 
 ## License
 

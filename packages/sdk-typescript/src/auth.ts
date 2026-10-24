@@ -2,6 +2,7 @@ import type { HttpClient } from './http.js';
 import type {
   AuthSession, AuthUser, SignupInput, LoginInput, MagicLinkResult,
   OAuthProvider, OAuthAccount, OAuthLoginResult,
+  NotificationDevice, Notification,
 } from './types.js';
 
 /**
@@ -119,6 +120,54 @@ export class Auth {
   /** Unlink an OAuth provider from your account. */
   async unlinkOAuthAccount(provider: string): Promise<void> {
     await this.http.request(`/v1/auth/oauth/accounts/${provider}`, { method: 'DELETE' });
+  }
+
+  // ── Push Notifications ─────────────────────────────────────────────────
+
+  /** Register a device for push notifications. */
+  async registerDevice(input: {
+    token: string;
+    platform?: 'web' | 'ios' | 'android';
+    pushService?: 'fcm' | 'apns' | 'web_push';
+    metadata?: Record<string, unknown>;
+  }): Promise<{ device: { id: string; platform: string; active: boolean } }> {
+    return this.http.request('/v1/notifications/devices', { method: 'POST', body: input });
+  }
+
+  /** List registered devices. */
+  async listDevices(): Promise<NotificationDevice[]> {
+    const { devices } = await this.http.request<{ devices: NotificationDevice[] }>(
+      '/v1/notifications/devices',
+    );
+    return devices;
+  }
+
+  /** Deactivate a device. */
+  async deactivateDevice(deviceId: string): Promise<void> {
+    await this.http.request(`/v1/notifications/devices/${deviceId}`, { method: 'DELETE' });
+  }
+
+  /** Send a push notification to yourself. */
+  async sendNotification(input: {
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+    target?: 'all' | 'web' | 'ios' | 'android';
+  }): Promise<{ notification: { id: string; status: string; deliveredAt: string | null } }> {
+    return this.http.request('/v1/notifications', { method: 'POST', body: input });
+  }
+
+  /** List your notifications. */
+  async listNotifications(limit = 50): Promise<Notification[]> {
+    const { notifications } = await this.http.request<{ notifications: Notification[] }>(
+      `/v1/notifications?limit=${limit}`,
+    );
+    return notifications;
+  }
+
+  /** Get notification stats. */
+  async notificationStats(): Promise<{ total: number; sent: number; pending: number; failed: number }> {
+    return this.http.request('/v1/notifications/stats');
   }
 
   // ── Admin OAuth management ─────────────────────────────────────────────

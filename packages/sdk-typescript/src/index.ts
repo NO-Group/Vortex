@@ -32,6 +32,7 @@ export type {
   TableEvent, PresencePeer, TableChangeHandler, PresenceHandler,
   BroadcastHandler, ReplayHandler, StatusHandler,
   OAuthProvider, OAuthAccount, OAuthLoginResult,
+  NotificationDevice, Notification,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

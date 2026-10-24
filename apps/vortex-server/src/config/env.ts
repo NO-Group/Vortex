@@ -43,6 +43,14 @@ export interface ServerEnv {
   maxQueryCost: number | undefined;
   /** Log queries at or above this duration (ms) to the audit table. */
   slowQueryMs: number;
+  /** FCM server key for push notifications (optional). */
+  fcmServerKey: string | undefined;
+  /** Notification delivery target. */
+  notificationTarget: string;
+  /** Edge cache TTL in seconds. */
+  edgeCacheTtl: number;
+  /** Edge cache max entries. */
+  edgeCacheMaxEntries: number;
   /**
    * Expose magic-link / password-reset tokens in API responses (dev + demo
    * environments without SMTP). MUST be false in production.
@@ -139,6 +147,14 @@ export function loadEnv(): ServerEnv {
     maxQueryCost: process.env.MAX_QUERY_COST ? Number(process.env.MAX_QUERY_COST) : undefined,
     /** Log queries at or above this duration (ms) to the audit table. */
     slowQueryMs: int('SLOW_QUERY_MS', 250),
+    /** FCM server key for push notifications (optional). */
+    fcmServerKey: process.env.FCM_SERVER_KEY || undefined,
+    /** Notification delivery target (all/web/ios/android). */
+    notificationTarget: process.env.NOTIFICATION_TARGET || 'all',
+    /** Edge cache TTL in seconds (default: 300). */
+    edgeCacheTtl: int('EDGE_CACHE_TTL', 300),
+    /** Edge cache max entries (default: 10000). */
+    edgeCacheMaxEntries: int('EDGE_CACHE_MAX_ENTRIES', 10000),
   };
 
   // Production safety rails — refuse to boot a publicly reachable engine

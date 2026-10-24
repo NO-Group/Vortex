@@ -295,3 +295,23 @@ export interface OAuthLoginResult {
   isNewUser: boolean;
   linkedProvider: string;
 }
+
+// ── Push Notifications ───────────────────────────────────────────────────
+
+export interface NotificationDevice {
+  id: string;
+  platform: string;
+  pushService: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  status: string;
+  createdAt: string;
+  deliveredAt: string | null;
+}
