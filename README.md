@@ -179,6 +179,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
 
+## Deploy to Production
+
+**[docs/DEPLOY.md](docs/DEPLOY.md)** — full production deployment guide. Server setup, domain + SSL, Caddy reverse proxy, database, backups, security checklist, and troubleshooting.
+
 ## Launch (go live)
 
 One container serves the whole platform — console, API, hosted apps, and

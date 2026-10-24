@@ -1,6 +1,8 @@
 import express, { raw, type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -20,17 +22,39 @@ export function createApp(ctx: AppContext): Express {
   // real client IPs).
   app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  app.use(compression());
   app.use(
     cors({
       origin: ctx.env.corsOrigins === '*' ? true : ctx.env.corsOrigins,
     }),
   );
 
+  // Rate limiting — protects auth, DB, and storage endpoints.
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per IP per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'rate_limit_exceeded', message: 'Too many requests. Try again later.' },
+  });
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 300, // 300 requests per IP per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 200, // 200 uploads per IP per hour
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Raw body capture for storage/app uploads MUST run before the JSON parser
   // so binary/JSON file payloads land intact instead of being re-serialized.
-  app.use('/v1/storage/upload', raw({ type: () => true, limit: '64mb' }));
-  app.use('/v1/storage/local/upload', raw({ type: () => true, limit: '64mb' }));
-  app.use('/v1/apps/:name/files', raw({ type: () => true, limit: '64mb' }));
+  app.use('/v1/storage/upload', uploadLimiter, raw({ type: () => true, limit: '64mb' }));
+  app.use('/v1/storage/local/upload', uploadLimiter, raw({ type: () => true, limit: '64mb' }));
+  app.use('/v1/apps/:name/files', uploadLimiter, raw({ type: () => true, limit: '64mb' }));
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -46,7 +70,8 @@ export function createApp(ctx: AppContext): Express {
     });
   });
 
-  app.use('/v1', createApiRouter(ctx));
+  // Rate-limited API surface — auth gets a stricter limit.
+  app.use('/v1', apiLimiter, createApiRouter(ctx));
 
   // Public static hosting for deployed apps: GET /apps/<name>/*
   app.use('/apps', createPublicAppRoutes(ctx));

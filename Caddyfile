@@ -1,0 +1,66 @@
+# ── Vortex Caddy reverse proxy ──────────────────────────────────────────────
+# Caddy handles TLS automatically (Let's Encrypt) and reverse-proxies to the
+# Vortex engine on port 8080. This is the production deployment pattern.
+#
+# Prerequisites:
+#   1. Install Caddy: https://caddyserver.com/docs/install
+#   2. Point your domain's DNS A record to this server's IP
+#   3. Place this Caddyfile at /etc/caddy/Caddyfile
+#   4. caddy start (or systemctl restart caddy)
+#
+# Caddy auto-obtains SSL certificates. No manual cert management needed.
+
+vortex.example.com {
+    # Reverse proxy to the Vortex engine
+    reverse_proxy localhost:8080
+
+    # Security headers
+    header {
+        # Remove server header
+        -Server
+        # HSTS — force HTTPS for 1 year
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # X-Content-Type-Options
+        X-Content-Type-Options "nosniff"
+        # X-Frame-Options
+        X-Frame-Options "SAMEORIGIN"
+        # Referrer Policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Compression
+    encode zstd gzip
+
+    # Rate limiting at the edge (before hitting the engine)
+    # 100 requests per 15 seconds per IP for /v1/auth
+    @auth_limit path /v1/auth/*
+    limit @auth_limit {
+        burst 20
+        period 15s
+    }
+
+    # 500 requests per minute for general API
+    @api_limit path /v1/*
+    limit @api_limit {
+        burst 100
+        period 1m
+    }
+
+    # 20 uploads per hour per IP
+    @upload_limit path /v1/storage/upload*
+    limit @upload_limit {
+        burst 5
+        period 1h
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/vortex.log
+        format json
+    }
+}
+
+# Optional: redirect HTTP to HTTPS (Caddy does this automatically)
+# http://vortex.example.com {
+#     redir https://vortex.example.com{uri}
+# }
