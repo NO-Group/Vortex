@@ -25,6 +25,7 @@ import { StoragePage } from './pages/StoragePage.js';
 import { AppsPage } from './pages/AppsPage.js';
 import { FunctionsPage } from './pages/FunctionsPage.js';
 import { AuthPage } from './pages/AuthPage.js';
+import { PolicyPage } from './pages/PolicyPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -35,6 +36,7 @@ const PAGES: PageKey[] = [
   'apps',
   'functions',
   'auth',
+  'policies',
 ];
 
 interface Session {
@@ -202,6 +204,8 @@ export default function App() {
         return <FunctionsPage />;
       case 'auth':
         return <AuthPage user={session?.user ?? null} onLogout={() => signOut()} />;
+      case 'policies':
+        return <PolicyPage isAdmin={session?.user.role === 'admin'} />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

@@ -46,4 +46,18 @@ export class ApiError extends Error {
   static conflict(message: string, details?: unknown): ApiError {
     return new ApiError(409, 'conflict', message, details);
   }
+
+  /**
+   * The planner says this query costs more than the operator allows.
+   * Supabase would have run it and billed you; Vortex declines up front
+   * with the cost it measured and the ceiling it breached.
+   */
+  static tooExpensive(cost: number, limit: number, details?: unknown): ApiError {
+    return new ApiError(
+      429,
+      'query_too_expensive',
+      `Query plan cost ${cost} exceeds the configured ceiling of ${limit}`,
+      details,
+    );
+  }
 }

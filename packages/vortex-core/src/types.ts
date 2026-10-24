@@ -105,6 +105,11 @@ export interface QueryRequest {
   include?: QueryInclude[];
   /** Return the total number of matching rows (ignores limit/offset). */
   countTotal?: boolean;
+  /**
+   * Return the planner's assessment of this query (cost + plan summary)
+   * alongside the rows, instead of running it blind.
+   */
+  explain?: boolean;
 }
 
 export interface QueryResult {
@@ -112,6 +117,8 @@ export interface QueryResult {
   count: number;
   /** Present when `countTotal` was requested. */
   total?: number;
+  /** Present when `explain` was requested. */
+  explain?: QueryExplain;
 }
 
 /** A storage bucket namespace. Object keys are `<bucket>/<path>`. */
@@ -154,6 +161,107 @@ export interface TablePermission {
    * the caller's user id (unless the caller is an admin).
    */
   ownerColumn: string | null;
+}
+
+// ── Row policies (the Vortex Policy Engine) ────────────────────────────────
+//
+// Supabase's row policies call `auth.uid()` once per scanned row — their most
+// documented performance footgun, which their own docs work around by telling
+// you to hand-wrap it as `(select auth.uid())`. Forget that and your table
+// crawls.
+//
+// Vortex policies compile to a single parameterized predicate instead: caller
+// identity is resolved to a literal ONCE per query and bound as a parameter,
+// so the planner sees a constant and can use an index. There is no per-row
+// function call, and therefore no footgun to remember.
+
+/** Values a policy can compare a column against, resolved once per query. */
+export type PolicyValueRef =
+  | 'user.id'
+  | 'user.role'
+  | 'user.email'
+  | 'now'
+  | `user.meta.${string}`;
+
+/** A single column constraint inside a policy. */
+export interface PolicyPredicate {
+  /** Column on the target row. */
+  column: string;
+  /** Comparison operator (default `eq`). */
+  op?: FilterOp;
+  /** Literal value — mutually exclusive with `valueRef`. */
+  value?: unknown;
+  /** Identity reference, resolved to a literal once per query. */
+  valueRef?: PolicyValueRef;
+}
+
+/** A boolean group of predicates. */
+export interface PolicyPredicateGroup {
+  and?: PolicyNode[];
+  or?: PolicyNode[];
+  not?: PolicyNode;
+}
+
+/** Any node in a policy expression tree. */
+export type PolicyNode = PolicyPredicate | PolicyPredicateGroup;
+
+/** A stored row policy. */
+export interface VortexPolicy {
+  id: string;
+  name: string;
+  tableName: string;
+  action: PermissionAction;
+  /** Roles this policy applies to. `['*']` matches every role. */
+  roles: RoleName[];
+  /** USING predicate — which existing rows the caller can see. */
+  using: PolicyNode;
+  /** WITH CHECK predicate — which new rows the caller may write. */
+  withCheck?: PolicyNode | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Caller identity available to policy compilation. */
+export interface PolicyIdentity {
+  userId: string | null;
+  role: RoleName;
+  email: string | null;
+  meta?: Record<string, unknown>;
+}
+
+/** A compiled policy — ready to bind into a SQL fragment. */
+export interface CompiledPredicate {
+  /**
+   * SQL fragment: column identifiers are quoted inline (strictly validated),
+   * every value is a `?` placeholder.
+   */
+  sql: string;
+  /** Bound values only — every identity ref already resolved to a literal. */
+  bindings: unknown[];
+}
+
+// ── Query governance ───────────────────────────────────────────────────────
+//
+// Supabase will happily run an accidental full-table scan into the ground and
+// bill you for it. Vortex measures every query the planner sees and can
+// refuse to execute one past a cost ceiling you set.
+
+/** Planner output for a governed query. */
+export interface QueryPlan {
+  /** Planner cost estimate (Postgres `Total Cost`). */
+  cost: number | null;
+  /** Human-readable plan summary. */
+  summary: string[];
+}
+
+/** Explain metadata returned when a query asks for it. */
+export interface QueryExplain {
+  plan: QueryPlan;
+  /** The SQL Vortex generated for the query. */
+  sql: string;
+  /** Bind values applied to that SQL. */
+  bindings: unknown[];
 }
 
 /** Storage object metadata persisted in the `storage_objects` table. */

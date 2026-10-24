@@ -3,6 +3,8 @@ import type { ServerEnv } from './config/env.js';
 import type { VortexEventBus } from './realtime/bus.js';
 import type { RealtimeHub } from './realtime/hub.js';
 import type { StorageDriver } from './storage/storage.types.js';
+import type { PolicyService } from './policies/policy.service.js';
+import type { QueryGovernor } from './governance/query-governor.js';
 
 /**
  * Application-wide dependencies, injected into routes/services so the
@@ -14,4 +16,8 @@ export interface AppContext {
   bus: VortexEventBus;
   hub: RealtimeHub;
   storage: StorageDriver;
+  /** Row policies (v0.7). */
+  policies: PolicyService;
+  /** Cost governance + query audit log (v0.7). */
+  governor: QueryGovernor;
 }

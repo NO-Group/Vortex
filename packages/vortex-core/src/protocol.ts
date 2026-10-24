@@ -4,6 +4,11 @@
  * All frames are JSON text messages:
  *   client → server: `ClientMessage`
  *   server → client: `ServerMessage`
+ *
+ * Durability: every event carries a monotonic per-channel `seq`. Clients
+ * remember the last seq they saw and re-subscribe with `since` after a
+ * dropped connection, so a reconnect replays what was missed instead of
+ * silently losing it (the way fire-and-forget realtime does).
  */
 
 /** Channel namespace for table-change streams: `table:<name>` and `table:*`. */
@@ -40,6 +45,11 @@ export const PROTOCOL = {
   presence_sync: 'vortex:presence_sync',
   /** Server: incremental peer join/leave. */
   presence_diff: 'vortex:presence_diff',
+  /**
+   * Server: marks the end of a catch-up burst after a `since` subscribe.
+   * Everything before it is history; everything after it is live.
+   */
+  replay: 'vortex:replay',
 } as const;
 
 export type ProtocolMessageType = (typeof PROTOCOL)[keyof typeof PROTOCOL];
@@ -54,6 +64,11 @@ export interface SubscribeMessage {
   /** Channel id, e.g. `table:notes` or `table:*`. */
   channel: string;
   id?: string;
+  /**
+   * Resume cursor: replay buffered events with `seq > since` before going
+   * live. Omit (or 0) for live-only.
+   */
+  since?: number;
 }
 
 export interface UnsubscribeMessage {
@@ -107,6 +122,10 @@ export interface TableChangeMessage {
   rows: Record<string, unknown>[];
   actorId: string | null;
   timestamp: string;
+  /** Monotonic per-channel sequence number (used to resume after a drop). */
+  seq?: number;
+  /** True when this event was replayed from the backlog, not live. */
+  replay?: boolean;
 }
 
 /** Identity assigned to a socket at connect time (used by presence). */
@@ -157,6 +176,23 @@ export interface PresenceDiffMessage {
   leaves: PresencePeer[];
 }
 
+/**
+ * Sent after a replay burst so a client can tell history from live traffic
+ * (and know whether the gap it suffered was fully covered).
+ */
+export interface ReplayMessage {
+  type: typeof PROTOCOL.replay;
+  channel: string;
+  /** How many buffered events were replayed. */
+  count: number;
+  /** True when the backlog still held events older than `since` — i.e. the
+   *  client was disconnected long enough to miss some permanently. */
+  truncated: boolean;
+  /** Current head sequence for the channel (resume from here next time). */
+  cursor: number;
+  id?: string;
+}
+
 export type ServerMessage =
   | AckMessage
   | PongMessage
@@ -165,4 +201,5 @@ export type ServerMessage =
   | WelcomeMessage
   | BroadcastMessage
   | PresenceSyncMessage
-  | PresenceDiffMessage;
+  | PresenceDiffMessage
+  | ReplayMessage;

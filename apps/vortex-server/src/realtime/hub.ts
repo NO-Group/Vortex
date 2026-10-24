@@ -5,8 +5,10 @@ import {
   tableChannel,
   type PresencePeer,
   type ServerMessage,
+  type TableChangeMessage,
 } from '@vortex/core';
 import type { TableChange } from './bus.js';
+import { EventBacklog } from './backlog.js';
 
 export interface HubClient {
   socket: WebSocket;
@@ -25,6 +27,17 @@ function sendJson(socket: WebSocket, message: ServerMessage): void {
   }
 }
 
+/** Outcome of a `since`-based resume (replay after a dropped connection). */
+export interface ResumeResult {
+  ok: boolean;
+  /** How many buffered events were replayed. */
+  replayed: number;
+  /** True when events older than `since` were already evicted. */
+  truncated: boolean;
+  /** Latest sequence for the channel — resume from here next time. */
+  cursor: number;
+}
+
 /**
  * Channel-based pub/sub hub over WebSocket connections.
  *
@@ -32,12 +45,23 @@ function sendJson(socket: WebSocket, message: ServerMessage): void {
  *   `table:<name>` — change events for one table
  *   `table:*`      — change events for every table
  *   `room:<name>`  — freeform rooms: broadcast + presence
+ *
+ * Durability: table changes are recorded in a per-channel ring buffer with a
+ * monotonic sequence number. A client that reconnects with `since: <seq>` is
+ * replayed everything it missed, then told where history ended. Fire-and-
+ * forget realtime just drops those events.
  */
 export class RealtimeHub {
   private readonly clients = new Map<WebSocket, HubClient>();
   private readonly channels = new Map<string, Set<HubClient>>();
   /** channel → clientId → presence state. */
   private readonly presence = new Map<string, Map<string, PresencePeer>>();
+  /** Durable event buffer for reconnect catch-up. */
+  private readonly backlog: EventBacklog;
+
+  constructor(backlogSize = 500) {
+    this.backlog = new EventBacklog(backlogSize);
+  }
 
   /** Register a socket (optionally authenticated). */
   register(socket: WebSocket, userId: string | null = null): HubClient {
@@ -94,6 +118,35 @@ export class RealtimeHub {
     return true;
   }
 
+  /**
+   * Subscribe and catch the client up: replay buffered events with
+   * `seq > since` (flagged `replay: true`) before live traffic resumes.
+   */
+  resume(socket: WebSocket, channel: string, since: number): ResumeResult {
+    const ok = this.subscribe(socket, channel);
+    if (!ok) return { ok: false, replayed: 0, truncated: false, cursor: 0 };
+
+    const client = this.clients.get(socket);
+    if (!client) return { ok: false, replayed: 0, truncated: false, cursor: 0 };
+
+    const missed = this.backlog.since(channel, since);
+    for (const event of missed) {
+      sendJson(socket, { ...event.message, replay: true });
+    }
+
+    return {
+      ok: true,
+      replayed: missed.length,
+      truncated: this.backlog.isTruncated(channel, since),
+      cursor: this.backlog.cursor(channel),
+    };
+  }
+
+  /** Current head sequence for a channel (0 when nothing has happened yet). */
+  cursor(channel: string): number {
+    return this.backlog.cursor(channel);
+  }
+
   /** Unsubscribe a socket from a channel (also untracks presence). */
   unsubscribe(socket: WebSocket, channel: string): boolean {
     const client = this.clients.get(socket);
@@ -106,9 +159,13 @@ export class RealtimeHub {
     return removed;
   }
 
-  /** Fan a table-change out to `table:<name>` and `table:*` subscribers. */
+  /**
+   * Fan a table-change out to `table:<name>` and `table:*` subscribers.
+   * Each channel records its own sequence number, so a client resuming on
+   * `table:notes` and one resuming on `table:*` both get a correct cursor.
+   */
   publishTableChange(change: TableChange): number {
-    const payload = JSON.stringify({
+    const base: Omit<TableChangeMessage, 'seq'> = {
       type: 'vortex:event',
       id: change.id,
       action: change.action,
@@ -116,19 +173,27 @@ export class RealtimeHub {
       rows: change.rows,
       actorId: change.actorId,
       timestamp: change.timestamp,
-    });
+    };
 
-    const targets = new Set<HubClient>();
-    for (const client of this.channels.get(tableChannel(change.table)) ?? []) targets.add(client);
-    for (const client of this.channels.get(ALL_TABLES_CHANNEL) ?? []) targets.add(client);
-
+    const alreadySent = new Set<HubClient>();
     let delivered = 0;
-    for (const client of targets) {
-      if (client.socket.readyState === client.socket.OPEN) {
-        client.socket.send(payload);
-        delivered += 1;
+
+    for (const channel of [tableChannel(change.table), ALL_TABLES_CHANNEL]) {
+      const event = this.backlog.push(channel, base);
+      const body = JSON.stringify(event.message);
+
+      for (const client of this.channels.get(channel) ?? []) {
+        // A client subscribed to both channels sees the event once, stamped
+        // with the specific channel's sequence number.
+        if (alreadySent.has(client)) continue;
+        if (client.socket.readyState === client.socket.OPEN) {
+          client.socket.send(body);
+          alreadySent.add(client);
+          delivered += 1;
+        }
       }
     }
+
     return delivered;
   }
 

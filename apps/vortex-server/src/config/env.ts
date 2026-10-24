@@ -32,7 +32,17 @@ export interface ServerEnv {
     heartbeatMs: number;
     /** Optional Redis URL enabling the multi-node fan-out bridge. */
     redisUrl: string | undefined;
+    /** Per-channel event buffer depth for reconnect replay. */
+    backlogSize: number;
   };
+  /**
+   * Cost ceiling for governed queries. When set, every /v1/db query is
+   * EXPLAINed before execution and rejected past this cost — the guardrail
+   * Supabase doesn't have.
+   */
+  maxQueryCost: number | undefined;
+  /** Log queries at or above this duration (ms) to the audit table. */
+  slowQueryMs: number;
   /**
    * Expose magic-link / password-reset tokens in API responses (dev + demo
    * environments without SMTP). MUST be false in production.
@@ -113,12 +123,22 @@ export function loadEnv(): ServerEnv {
     realtime: {
       heartbeatMs: int('REALTIME_HEARTBEAT_MS', 30_000),
       redisUrl: process.env.REDIS_URL || undefined,
+      /** Per-channel event buffer depth for reconnect replay. */
+      backlogSize: int('REALTIME_BACKLOG', 500),
     },
     devLinks: bool('VORTEX_DEV_LINKS', process.env.NODE_ENV !== 'production'),
     publicAppUrl: required('PUBLIC_APP_URL', 'http://localhost:8080').replace(/\/+$/, ''),
     smtpUrl: process.env.SMTP_URL || undefined,
     mailFrom: required('MAIL_FROM', 'Vortex <no-reply@vortex.local>'),
     serveConsole: bool('SERVE_CONSOLE', true),
+    /**
+     * Cost ceiling for governed queries. When set, every /v1/db query is
+     * EXPLAINed before execution and rejected past this cost — the guardrail
+     * Supabase doesn't have. Leave unset for no ceiling (dev default).
+     */
+    maxQueryCost: process.env.MAX_QUERY_COST ? Number(process.env.MAX_QUERY_COST) : undefined,
+    /** Log queries at or above this duration (ms) to the audit table. */
+    slowQueryMs: int('SLOW_QUERY_MS', 250),
   };
 
   // Production safety rails — refuse to boot a publicly reachable engine

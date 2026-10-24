@@ -10,6 +10,8 @@ import { RealtimeHub } from './realtime/hub.js';
 import { attachRealtimeServer } from './realtime/ws.server.js';
 import { RedisEventBridge, type RedisPubSubClient } from './realtime/redis-bridge.js';
 import { createStorageDriver } from './storage/storage.service.js';
+import { PolicyService } from './policies/policy.service.js';
+import { QueryGovernor } from './governance/query-governor.js';
 import type { AppContext } from './context.js';
 
 async function main(): Promise<void> {
@@ -24,8 +26,13 @@ async function main(): Promise<void> {
     env,
     db,
     bus: new VortexEventBus(),
-    hub: new RealtimeHub(),
+    hub: new RealtimeHub(env.realtime.backlogSize),
     storage: createStorageDriver(env),
+    policies: new PolicyService(db),
+    governor: new QueryGovernor(db, {
+      maxCost: env.maxQueryCost,
+      slowQueryMs: env.slowQueryMs,
+    }),
   };
 
   const app = createApp(ctx);

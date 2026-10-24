@@ -37,6 +37,8 @@ const querySchema = z.object({
   offset: z.number().int().min(0).optional(),
   include: z.array(includeSchema).max(8).optional(),
   countTotal: z.boolean().optional(),
+  /** Return the planner's cost + plan summary alongside the rows. */
+  explain: z.boolean().optional(),
 });
 
 const insertSchema = z.object({
@@ -55,11 +57,21 @@ const deleteSchema = z.object({
 export function createDbRoutes(ctx: AppContext): Router {
   const router = Router();
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
-  const service = new QueryService(ctx.db, new RbacService(ctx.db), ctx.bus);
 
-  const actorOf = (req: { auth?: { sub: string; role: string } }) => ({
+  // v0.7: queries run through compiled row policies and, when a cost ceiling
+  // is configured, are EXPLAINed before they're allowed to execute.
+  const service = new QueryService(ctx.db, new RbacService(ctx.db), ctx.bus, {
+    policies: ctx.policies,
+    governor: ctx.governor,
+  });
+
+  const actorOf = (req: {
+    auth?: { sub: string; role: string; email?: string; meta?: Record<string, unknown> };
+  }) => ({
     userId: req.auth!.sub,
     role: req.auth!.role,
+    email: req.auth!.email ?? null,
+    meta: req.auth!.meta ?? {},
   });
 
   /** POST /v1/db/:table/query — run a dynamic SELECT. */
@@ -102,6 +114,32 @@ export function createDbRoutes(ctx: AppContext): Router {
     try {
       const result = await service.delete(actorOf(req), req.params.table!, req.body.filters);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** GET /v1/db/tables — list non-system table names (for policy UIs). */
+  router.get('/tables', auth, async (_req, res, next) => {
+    try {
+      const rows = await ctx.db<{ table_name: string }>('information_schema.tables')
+        .select('table_name')
+        .whereRaw("table_schema = 'public' AND table_type = 'BASE TABLE'")
+        .whereNotIn('table_name', [
+          'users',
+          'table_permissions',
+          'storage_objects',
+          'apps',
+          'app_files',
+          'auth_tokens',
+          'buckets',
+          'functions',
+          'vortex_policies',
+          'vortex_query_log',
+        ])
+        .orderBy('table_name');
+
+      res.json({ tables: rows.map((r) => r.table_name) });
     } catch (err) {
       next(err);
     }

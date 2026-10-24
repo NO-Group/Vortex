@@ -137,8 +137,24 @@ export function attachRealtimeServer(httpServer: HttpServer, ctx: AppContext): W
             });
             break;
           }
-          const ok = ctx.hub.subscribe(socket, message.channel);
-          if (!ok) {
+          // `since` turns a plain subscribe into a resume: the server replays
+          // buffered events after that cursor, then marks where history ended.
+          const since =
+            typeof message.since === 'number' && Number.isFinite(message.since) && message.since > 0
+              ? Math.floor(message.since)
+              : 0;
+
+          const result =
+            since > 0
+              ? ctx.hub.resume(socket, message.channel, since)
+              : {
+                  ok: ctx.hub.subscribe(socket, message.channel),
+                  replayed: 0,
+                  truncated: false,
+                  cursor: ctx.hub.cursor(message.channel),
+                };
+
+          if (!result.ok) {
             send(socket, {
               type: PROTOCOL.error,
               code: 'bad_channel',
@@ -147,7 +163,21 @@ export function attachRealtimeServer(httpServer: HttpServer, ctx: AppContext): W
             });
             break;
           }
+
           send(socket, { type: PROTOCOL.ack, ok: true, id: message.id, channel: message.channel });
+
+          // Only announce a replay when the client asked to resume — that way
+          // it can tell "you missed nothing" from "you missed 12 events".
+          if (since > 0) {
+            send(socket, {
+              type: PROTOCOL.replay,
+              channel: message.channel,
+              count: result.replayed,
+              truncated: result.truncated,
+              cursor: result.cursor,
+              id: message.id,
+            });
+          }
           break;
         }
 

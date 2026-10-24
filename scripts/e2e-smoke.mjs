@@ -541,7 +541,7 @@ async function main() {
   await api('/v1/functions/smoke-fn', { method: 'DELETE', headers: auth });
   await api('/v1/functions/slow-fn', { method: 'DELETE', headers: auth });
 
-  console.log('[12/12] Realtime broadcast + presence...');
+  console.log('[12/15] Realtime broadcast + presence...');
   {
     const roomUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`;
     const s1 = new WebSocket(roomUrl);
@@ -588,6 +588,309 @@ async function main() {
     s1.close();
     await waitFor(() => frames2.some((f) => f.type === 'vortex:presence_diff' && f.leaves?.length === 1));
     check('presence leave is diffed on disconnect', true);
+    s2.close();
+  }
+
+  console.log('[13/15] Row policies — compiled once, not called per row...');
+  {
+    const usersAll = await (await api('/v1/auth/users', { headers: adminAuth })).json();
+    const member = usersAll.users.find((u) => u.email === 'member@no.group');
+
+    // A table with NO owner scoping, so the policy is the only thing filtering.
+    await api('/v1/sql', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        sql: `create table if not exists reports (
+                id uuid primary key default gen_random_uuid(),
+                title text not null,
+                owner_id uuid,
+                created_at timestamptz not null default now()
+              )`,
+      }),
+    });
+    await api('/v1/sql', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        sql: `insert into table_permissions
+                (role, table_name, can_select, can_insert, can_update, can_delete, owner_column)
+              values ('user','reports',true,true,true,true,null)
+              on conflict do nothing`,
+      }),
+    });
+
+    const memberLogin = await api('/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'member@no.group', password: 'member-secret-1' }),
+    });
+    const memberToken = (await memberLogin.json()).token;
+    const memberAuth = { authorization: `Bearer ${memberToken}` };
+
+    await api('/v1/db/reports', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        rows: [
+          { title: 'sensei report', owner_id: adminSession.user.id },
+          { title: 'member report', owner_id: member.id },
+        ],
+      }),
+    });
+
+    const before = await (
+      await api('/v1/db/reports/query', {
+        method: 'POST',
+        headers: memberAuth,
+        body: JSON.stringify({ countTotal: true }),
+      })
+    ).json();
+    check('before a policy: tenant sees every row', before.total === 2, `(got ${before.total})`);
+
+    const created = await api('/v1/policies', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        name: 'reports are private',
+        tableName: 'reports',
+        action: 'select',
+        roles: ['user'],
+        using: { column: 'owner_id', valueRef: 'user.id' },
+      }),
+    });
+    check('admin creates a row policy over the API', created.status === 201);
+
+    const preview = await (
+      await api('/v1/policies/preview', {
+        method: 'POST',
+        headers: adminAuth,
+        body: JSON.stringify({ tableName: 'reports', action: 'select', role: 'user' }),
+      })
+    ).json();
+    check(
+      'policy compiles identity to a bound literal (not auth.uid())',
+      preview.using?.sql === '"owner_id" = ?' && Array.isArray(preview.using?.bindings),
+      `(got ${JSON.stringify(preview.using)})`,
+    );
+    check(
+      'preview shows the per-row form Vortex replaces',
+      /auth\.uid\(\)/.test(preview.comparison?.perRowEquivalent ?? ''),
+      `(got ${JSON.stringify(preview.comparison?.perRowEquivalent)})`,
+    );
+
+    const after = await (
+      await api('/v1/db/reports/query', {
+        method: 'POST',
+        headers: memberAuth,
+        body: JSON.stringify({ countTotal: true }),
+      })
+    ).json();
+    check('policy hides other tenants rows', after.total === 1, `(got ${after.total})`);
+
+    const adminView = await (
+      await api('/v1/db/reports/query', {
+        method: 'POST',
+        headers: adminAuth,
+        body: JSON.stringify({ countTotal: true }),
+      })
+    ).json();
+    check('admin bypasses row policies', adminView.total === 2, `(got ${adminView.total})`);
+
+    await api('/v1/policies', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        name: 'reports stay owned',
+        tableName: 'reports',
+        action: 'insert',
+        roles: ['user'],
+        using: { column: 'owner_id', valueRef: 'user.id' },
+      }),
+    });
+
+    const forged = await api('/v1/db/reports', {
+      method: 'POST',
+      headers: memberAuth,
+      body: JSON.stringify({ rows: [{ title: 'forged', owner_id: adminSession.user.id }] }),
+    });
+    check('with-check blocks writing a row owned by someone else', forged.status === 403, `(got ${forged.status})`);
+
+    const own = await api('/v1/db/reports', {
+      method: 'POST',
+      headers: memberAuth,
+      body: JSON.stringify({ rows: [{ title: 'mine', owner_id: member.id }] }),
+    });
+    check('with-check allows writing your own row', own.status === 201, `(got ${own.status})`);
+
+    const policyAsUser = await api('/v1/policies', { headers: memberAuth });
+    check('policy management is admin-only', policyAsUser.status === 403);
+  }
+
+  console.log('[14/15] Query governance — measured plans + a cost ceiling...');
+  {
+    const explained = await (
+      await api('/v1/db/reports/query', {
+        method: 'POST',
+        headers: adminAuth,
+        body: JSON.stringify({ limit: 5, explain: true }),
+      })
+    ).json();
+
+    check(
+      'explain returns a real planner cost',
+      typeof explained.explain?.plan?.cost === 'number' && explained.explain.plan.cost > 0,
+      `(got ${JSON.stringify(explained.explain?.plan?.cost)})`,
+    );
+    check(
+      'explain returns a readable plan summary',
+      Array.isArray(explained.explain?.plan?.summary) && explained.explain.plan.summary.length > 0,
+    );
+    check(
+      'explain reports the SQL that ran',
+      typeof explained.explain?.sql === 'string' && explained.explain.sql.includes('reports'),
+    );
+
+    const overview = await (await api('/v1/insights/overview', { headers: adminAuth })).json();
+    check('insights overview is served to admins', overview.window === '1 hour' && typeof overview.total === 'number');
+
+    const memberToken2 = (await (
+      await api('/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'member@no.group', password: 'member-secret-1' }),
+      })
+    ).json()).token;
+    const insightsAsUser = await api('/v1/insights/overview', {
+      headers: { authorization: `Bearer ${memberToken2}` },
+    });
+    check('insights are admin-only', insightsAsUser.status === 403);
+
+    // A second engine with the ceiling set to the floor: nothing may run.
+    const CAPPED_PORT = PORT + 1;
+    const cappedBase = `http://127.0.0.1:${CAPPED_PORT}`;
+    const capped = spawn('node', [SERVER], {
+      env: {
+        ...process.env,
+        PORT: String(CAPPED_PORT),
+        HOST: '127.0.0.1',
+        DATABASE_URL: 'postgres://postgres:postgres@localhost:55433/vortex',
+        JWT_SECRET: 'smoke-secret',
+        AUTO_MIGRATE: 'false',
+        STORAGE_DRIVER: 'local',
+        STORAGE_LOCAL_DIR: path.join(TMP, 'data'),
+        PUBLIC_API_BASE: cappedBase,
+        MAX_QUERY_COST: '0',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let cappedUp = false;
+    for (let i = 0; i < 40 && !cappedUp; i++) {
+      try {
+        cappedUp = (await fetch(`${cappedBase}/healthz`)).ok;
+      } catch {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+    check('engine with a cost ceiling boots', cappedUp);
+
+    if (cappedUp) {
+      const cappedRes = await fetch(`${cappedBase}/v1/db/reports/query`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${adminSession.token}`,
+        },
+        body: JSON.stringify({ limit: 5 }),
+      });
+      const cappedBody = await cappedRes.json();
+      check(
+        'cost ceiling refuses the query (429 query_too_expensive)',
+        cappedRes.status === 429 && cappedBody.error?.code === 'query_too_expensive',
+        `(got ${cappedRes.status} ${JSON.stringify(cappedBody.error?.code)})`,
+      );
+      check(
+        'refusal explains the cost it measured',
+        /exceeds the configured ceiling/.test(cappedBody.error?.message ?? ''),
+      );
+
+      const cappedSql = await fetch(`${cappedBase}/v1/sql`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${adminSession.token}`,
+        },
+        body: JSON.stringify({ sql: 'select 1 as ok' }),
+      });
+      check('the SQL console stays usable under a ceiling', cappedSql.status === 200, `(got ${cappedSql.status})`);
+    }
+    capped.kill('SIGKILL');
+  }
+
+  console.log('[15/15] Durable realtime — replay after a disconnect...');
+  {
+    const rtUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${adminSession.token}`;
+    const waitSoft = async (fn, ms = 3000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        if (fn()) return true;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      return false;
+    };
+
+    const s1 = new WebSocket(rtUrl);
+    const frames1 = [];
+    s1.on('message', (d) => frames1.push(JSON.parse(d.toString())));
+    await once(s1, 'open');
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:welcome'));
+    s1.send(JSON.stringify({ type: 'vortex:subscribe', channel: 'table:reports', id: 'r1' }));
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:ack' && f.id === 'r1'));
+
+    await api('/v1/db/reports', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({ rows: [{ title: 'live-1', owner_id: adminSession.user.id }] }),
+    });
+    await waitFor(() => frames1.some((f) => f.type === 'vortex:event' && f.seq > 0));
+    const lastSeq = Math.max(...frames1.filter((f) => f.type === 'vortex:event').map((f) => f.seq));
+    check('live events carry a sequence number', Number.isFinite(lastSeq) && lastSeq > 0, `(got ${lastSeq})`);
+
+    // Drop the connection and change rows while nobody is listening.
+    s1.close();
+    await new Promise((r) => setTimeout(r, 300));
+    await api('/v1/db/reports', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({ rows: [{ title: 'missed-1', owner_id: adminSession.user.id }] }),
+    });
+    await api('/v1/db/reports', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({ rows: [{ title: 'missed-2', owner_id: adminSession.user.id }] }),
+    });
+
+    const s2 = new WebSocket(rtUrl);
+    const frames2 = [];
+    s2.on('message', (d) => frames2.push(JSON.parse(d.toString())));
+    await once(s2, 'open');
+    await waitFor(() => frames2.some((f) => f.type === 'vortex:welcome'));
+    s2.send(JSON.stringify({ type: 'vortex:subscribe', channel: 'table:reports', since: lastSeq, id: 'r2' }));
+
+    const gotReplay = await waitSoft(() => frames2.some((f) => f.type === 'vortex:replay'), 4000);
+    const replayed = frames2.filter((f) => f.type === 'vortex:event' && f.replay === true);
+    const replayFrame = frames2.find((f) => f.type === 'vortex:replay');
+
+    check('reconnect replays the events it missed', gotReplay && replayed.length >= 2, `(got ${replayed.length})`);
+    check(
+      'replayed frames are flagged as history, not live',
+      replayed.length > 0 && replayed.every((f) => f.seq > lastSeq),
+    );
+    check(
+      'server reports the replay window and cursor',
+      replayFrame?.count === replayed.length && typeof replayFrame?.cursor === 'number',
+      `(count=${replayFrame?.count} cursor=${replayFrame?.cursor})`,
+    );
+    check('a short gap is not silently truncated', replayFrame?.truncated === false);
     s2.close();
   }
 

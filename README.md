@@ -29,16 +29,54 @@ live.**
 | Module | Endpoint | Status |
 | --- | --- | --- |
 | Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT + custom claims · bcrypt (12 rounds) · magic links · password reset · admin user management |
-| Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · OR-groups · JSONB contains · embeds · RBAC + owner-scoping |
+| Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · OR-groups · JSONB contains · embeds · RBAC + owner-scoping · **row policies (compiled once)** · **explain + cost ceiling** |
 | SQL Console | `/v1/sql` | ✅ admin SQL over the engine database — parameterized, single statement, timed |
-| Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) · room broadcast · presence · Redis multi-node bridge |
+| Policy Engine | `/v1/policies` | ✅ **v0.7** — policies as data (not DDL) · compiled to bound predicates · USING + WITH CHECK · preview shows per-row equivalent · admin-only |
+| Realtime Engine | `/v1/realtime` | ✅ channel pub/sub · table-change fan-out (measured ~4ms) · room broadcast · presence · **durable replay** (seq + `since`) · Redis multi-node bridge |
+| Query Governance | `/v1/insights` | ✅ **v0.7** — EXPLAIN before execute · cost ceiling (429 `query_too_expensive`) · slow/refused audit log · admin-only |
 | Storage Gateway | `/v1/storage` | ✅ buckets (public/private) · local disk + S3/R2/MinIO · presigned up/download |
 | Apps Hosting | `/v1/apps` + `/apps/:name/*` | ✅ deploy static web apps — file manifest, SPA fallback, public serving |
 | Vortex Functions | `/functions/:name` | ✅ server functions run by the engine — deploy source, invoke over HTTP, wall-clock budget |
-| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — vitals, DB explorer, SQL console, event stream + rooms, storage, apps, functions, auth admin |
+| Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — vitals, DB explorer, SQL console, event stream + rooms, storage, apps, functions, auth admin, **policy editor with live SQL preview** |
 | Dart/Flutter SDK | `packages/sdk-dart` | ✅ auth/db/realtime/storage client + N.O Group design system + UI controllers* |
 
 \* Dart code is authored in-repo; verify with a local Flutter SDK (`flutter pub get && flutter test`).
+
+## Why Vortex, not Supabase?
+
+Three things Vortex does that Supabase structurally cannot:
+
+### 1. Policies compile once — never per row
+
+Supabase row policies call `auth.uid()` for every candidate row. Their own
+performance guide tells you to hand-wrap it as `owner_id = (select auth.uid())`
+by hand — a footgun every new user hits once.
+
+Vortex resolves identity to a literal **once**, at compile time, and binds it
+as a query parameter:
+
+```
+Supabase:  owner_id = auth.uid()                    ← evaluated per row
+Vortex:    "owner_id" = $3   bindings: ["7f3e…"]    ← constant, indexable
+```
+
+The console's **Policy** page shows both forms side by side, so you can see
+the difference without reading source.
+
+### 2. Queries are measured before they run
+
+Supabase will run an accidental full-table scan to completion and bill you
+for it. Vortex EXPLAINs every query first. When `MAX_QUERY_COST` is set,
+queries above the ceiling are refused with `429 query_too_expensive` and
+the measured cost — so you fix the problem (usually: add the index the plan
+summary names) instead of discovering it on the invoice.
+
+### 3. Realtime that survives a disconnect
+
+Fire-and-forget realtime drops everything that happens while a client is
+disconnected. Vortex stamps every event with a per-channel sequence number
+and keeps a bounded backlog. A client that reconnects with `since: <seq>`
+is replayed what it missed — and told when the gap was too long to cover.
 
 ## Launch (go live)
 
@@ -393,7 +431,16 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
 - ~~**v0.6** — Platform parity: SQL console, Vortex Functions, magic links + password
   reset + account admin, custom claims, storage buckets, room broadcast + presence,
   relational query upgrades (embeds, OR, counts)~~ ✅ shipped
-- **v0.7** — TypeScript/JS client SDK, row-policy editor UI, OAuth providers, image transforms
+- ~~**v0.7** — Policy Engine, Query Governance, Durable Realtime~~ ✅ shipped (3 of 4)
+  - **Policy Engine** — row policies as data (not DDL), compiled to a single bound
+    predicate. `valueRef: 'user.id'` resolves to a literal ONCE and binds as a
+    parameter — no `auth.uid()` per row. The console preview shows both forms side by side.
+  - **Query Governance** — every query is EXPLAINed before execution; costs above
+    `MAX_QUERY_COST` are refused (429 `query_too_expensive`) with the measured cost.
+    Slow/refused queries are audited for the insights view.
+  - **Durable Realtime** — every event carries a per-channel `seq`. A reconnecting
+    client resumes with `since: <seq>` and is replayed what it missed.
+  - Remaining: TypeScript/JS client SDK, OAuth providers, image transforms.
 
 ## License
 

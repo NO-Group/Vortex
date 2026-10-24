@@ -6,6 +6,8 @@ import { createStorageRoutes } from '../storage/storage.routes.js';
 import { createAppsRoutes } from '../apps/apps.routes.js';
 import { createFunctionsRoutes } from '../functions/functions.routes.js';
 import { createSqlRoutes } from '../sql/sql.routes.js';
+import { createPolicyRoutes } from '../policies/policies.routes.js';
+import { createInsightsRoutes } from '../governance/insights.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -16,5 +18,7 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/apps', createAppsRoutes(ctx));
   router.use('/functions', createFunctionsRoutes(ctx));
   router.use('/sql', createSqlRoutes(ctx));
+  router.use('/policies', createPolicyRoutes(ctx));
+  router.use('/insights', createInsightsRoutes(ctx));
   return router;
 }
