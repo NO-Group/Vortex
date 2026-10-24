@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { OAUTH_PROVIDERS, type OAuthProviderDef } from '../src/auth/oauth.types.js';
 
 describe('OAuth provider definitions', () => {
-  it('defines all six built-in providers', () => {
+  it('defines all built-in providers', () => {
     expect(Object.keys(OAUTH_PROVIDERS)).toEqual(
-      expect.arrayContaining(['google', 'github', 'gitlab', 'discord', 'apple', 'microsoft']),
+      expect.arrayContaining(['google', 'github', 'gitlab', 'discord', 'apple', 'microsoft', 'twitter', 'facebook', 'oidc']),
     );
   });
 
@@ -12,6 +12,8 @@ describe('OAuth provider definitions', () => {
     for (const [name, def] of Object.entries(OAUTH_PROVIDERS)) {
       expect(def.name, `${name} name`).toBe(name);
       expect(def.displayName, `${name} displayName`).toBeTruthy();
+      // OIDC is generic — URLs are provided at configuration time
+      if (name === 'oidc') continue;
       expect(def.authUrl, `${name} authUrl`).toMatch(/^https?:\/\//);
       expect(def.tokenUrl, `${name} tokenUrl`).toMatch(/^https?:\/\//);
       expect(def.userinfoUrl, `${name} userinfoUrl`).toMatch(/^https?:\/\//);
@@ -73,6 +75,8 @@ describe('OAuth provider def shape', () => {
 
   it('no provider has empty URLs', () => {
     for (const [name, def] of Object.entries(OAUTH_PROVIDERS)) {
+      // OIDC is generic — URLs are provided at configuration time
+      if (name === 'oidc') continue;
       expect(def.authUrl.length, `${name} authUrl length`).toBeGreaterThan(10);
       expect(def.tokenUrl.length, `${name} tokenUrl length`).toBeGreaterThan(10);
       expect(def.userinfoUrl.length, `${name} userinfoUrl length`).toBeGreaterThan(10);

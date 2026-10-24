@@ -62,6 +62,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderDef> = {
     userinfoUrl: 'https://graph.microsoft.com/oidc/userinfo',
     scopes: 'openid profile email User.Read',
   },
+  twitter: {
+    name: 'twitter',
+    displayName: 'Twitter / X',
+    authUrl: 'https://twitter.com/i/oauth2/authorize',
+    tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+    userinfoUrl: 'https://api.twitter.com/2/users/me',
+    scopes: 'users.read tweet.read',
+  },
+  facebook: {
+    name: 'facebook',
+    displayName: 'Facebook',
+    authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
+    tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token',
+    userinfoUrl: 'https://graph.facebook.com/me?fields=id,name,email,picture',
+    scopes: 'public_profile,email',
+  },
+  oidc: {
+    name: 'oidc',
+    displayName: 'Generic OIDC',
+    authUrl: '', // Must be provided when configuring the provider
+    tokenUrl: '',
+    userinfoUrl: '',
+    scopes: 'openid profile email',
+  },
 };
 
 /** OAuth provider as stored in the database. */

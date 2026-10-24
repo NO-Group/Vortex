@@ -9,6 +9,9 @@ const ALL_PROVIDERS = [
   { name: 'discord', label: 'Discord', color: '#5865F2', icon: '' },
   { name: 'apple', label: 'Apple', color: '#333', icon: '' },
   { name: 'microsoft', label: 'Microsoft', color: '#0078D4', icon: '' },
+  { name: 'twitter', label: 'Twitter / X', color: '#1DA1F2', icon: '' },
+  { name: 'facebook', label: 'Facebook', color: '#1877F2', icon: 'f' },
+  { name: 'oidc', label: 'Generic OIDC', color: '#5E8CFF', icon: '⚡' },
 ];
 
 interface Provider {
