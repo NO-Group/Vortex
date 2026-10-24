@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 /**
- * Vortex admin CLI — bootstrap and manage admin accounts.
+ * Vortex admin CLI — bootstrap and manage the platform.
  *
  * Usage (from the repo root, with DATABASE_URL set):
- *   npm run admin -- list
- *   npm run admin -- promote you@example.com
- *   npm run admin -- demote someone@example.com
+ *   npm run admin -- list                    — list all users
+ *   npm run admin -- promote you@example.com — promote to admin
+ *   npm run admin -- demote someone@example.com — demote to user
+ *   npm run admin -- create-user email password [role] — create a user
+ *   npm run admin -- tables                  — list user tables
+ *   npm run admin -- policies                — list row policies
+ *   npm run admin -- storage                 — storage usage stats
+ *   npm run admin -- migrate                 — run database migrations
  */
 import { Client } from 'pg';
+import { randomUUID } from 'node:crypto';
 
-const [command, email] = process.argv.slice(2);
+const [command, ...rest] = process.argv.slice(2);
 
-if (!command || !['list', 'promote', 'demote'].includes(command)) {
-  console.error('usage: npm run admin -- <list|promote|demote> [email]');
-  process.exit(1);
-}
-if (command !== 'list' && !email) {
-  console.error(`usage: npm run admin -- ${command} you@example.com`);
+const COMMANDS = ['list', 'promote', 'demote', 'create-user', 'tables', 'policies', 'storage', 'migrate'];
+
+if (!command || !COMMANDS.includes(command)) {
+  console.error('usage: npm run admin -- <' + COMMANDS.join('|') + '> [args]');
   process.exit(1);
 }
 
@@ -38,7 +42,12 @@ try {
     for (const row of rows) {
       console.log(`${row.role.padEnd(6)}  ${row.email.padEnd(36)}  ${row.created_at.toISOString()}`);
     }
-  } else {
+  } else if (command === 'promote' || command === 'demote') {
+    const email = rest[0];
+    if (!email) {
+      console.error(`usage: npm run admin -- ${command} you@example.com`);
+      process.exit(1);
+    }
     const role = command === 'promote' ? 'admin' : 'user';
     const result = await db.query('UPDATE users SET role = $1 WHERE email = $2', [
       role,
@@ -50,7 +59,89 @@ try {
     }
     console.log(`${email} → ${role}`);
     console.log('note: existing sessions keep their old role claim until they sign in again');
+  } else if (command === 'create-user') {
+    const [email, password, roleArg] = rest;
+    if (!email || !password) {
+      console.error('usage: npm run admin -- create-user email password [role]');
+      process.exit(1);
+    }
+    const role = (roleArg ?? 'user').toLowerCase();
+    if (!['user', 'admin'].includes(role)) {
+      console.error('role must be "user" or "admin"');
+      process.exit(1);
+    }
+
+    // Hash password with bcryptjs (same as the server)
+    const bcrypt = await import('bcryptjs');
+    const hashed = await bcrypt.hash(password, 12);
+
+    // Insert user (email unique)
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length) {
+      console.error(`user ${email} already exists`);
+      process.exit(1);
+    }
+
+    const id = randomUUID();
+    const { rows } = await db.query(
+      'INSERT INTO users (id, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, email, role',
+      [id, email.toLowerCase(), hashed, role],
+    );
+    console.log(`created user: ${rows[0].email} (${rows[0].role})`);
+  } else if (command === 'tables') {
+    const { rows } = await db.query(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+       AND table_name NOT IN ('users','table_permissions','storage_objects','apps','app_files',
+         'auth_tokens','buckets','functions','vortex_policies','vortex_query_log',
+         'vortex_devices','vortex_notifications')
+       ORDER BY table_name`,
+    );
+    if (!rows.length) {
+      console.log('no user tables yet — create one from the console or with the SDK');
+    }
+    for (const row of rows) {
+      const count = await db.query(`SELECT count(*)::int as count FROM "${row.table_name}"`);
+      console.log(`${row.table_name.padEnd(30)} ${count.rows[0].count} rows`);
+    }
+  } else if (command === 'policies') {
+    const { rows } = await db.query(
+      'SELECT name, table_name, action, roles, enabled FROM vortex_policies ORDER BY table_name, action',
+    );
+    if (!rows.length) {
+      console.log('no policies configured');
+    }
+    for (const row of rows) {
+      const status = row.enabled ? '●' : '○';
+      console.log(`${status} ${row.name.padEnd(24)} ${row.table_name.padEnd(20)} ${row.action.padEnd(7)} [${row.roles ?? 'all'}]`);
+    }
+  } else if (command === 'storage') {
+    const { rows } = await db.query(
+      'SELECT bucket_name, count(*)::int as count, coalesce(sum(size), 0)::bigint as size FROM storage_objects GROUP BY bucket_name ORDER BY bucket_name',
+    );
+    let totalSize = 0;
+    let totalCount = 0;
+    for (const row of rows) {
+      totalSize += Number(row.size);
+      totalCount += row.count;
+      console.log(`${row.bucket_name.padEnd(24)} ${String(row.count).padStart(6)} objects  ${formatBytes(Number(row.size))}`);
+    }
+    console.log(`${'─'.repeat(50)}`);
+    console.log(`${'TOTAL'.padEnd(24)} ${String(totalCount).padStart(6)} objects  ${formatBytes(totalSize)}`);
+  } else if (command === 'migrate') {
+    console.log('running database migrations…');
+    // Delegate to the server's migrate command
+    const { execSync } = await import('node:child_process');
+    execSync('npm run migrate -w @vortex/server', { stdio: 'inherit' });
+    console.log('migrations complete');
   }
 } finally {
   await db.end();
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
