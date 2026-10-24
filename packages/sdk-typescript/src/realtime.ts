@@ -102,6 +102,34 @@ export class Realtime {
     }
   }
 
+  /** Subscribe to all changes on a table (convenience for `table:<name>`). */
+  subscribeToTable(table: string): void {
+    this.subscribe(`table:${table}`);
+  }
+
+  /** Subscribe to a room channel (convenience for `room:<name>`). */
+  subscribeToRoom(room: string): void {
+    this.subscribe(`room:${room}`);
+  }
+
+  /** Set a handler for table-change events. */
+  onTableChange(handler: TableChangeHandler): void {
+    this.handlers.onTableChange = handler;
+  }
+
+  /** Set a handler for broadcast messages on a specific room channel. */
+  onBroadcast(channel: string, handler: BroadcastHandler): void {
+    const room = `room:${channel}`;
+    const existing = this.handlers.onBroadcast;
+    this.handlers.onBroadcast = ((msg: never) => {
+      if (msg && typeof msg === 'object' && (msg as { channel?: string }).channel === room) {
+        handler(msg);
+      } else if (existing) {
+        existing(msg);
+      }
+    }) as BroadcastHandler;
+  }
+
   /** Unsubscribe from a channel. */
   unsubscribe(channel: string): void {
     this.channels.delete(channel);
@@ -109,6 +137,16 @@ export class Realtime {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'vortex:unsubscribe', channel }));
     }
+  }
+
+  /** Unsubscribe from all changes on a table. */
+  unsubscribeFromTable(table: string): void {
+    this.unsubscribe(`table:${table}`);
+  }
+
+  /** Unsubscribe from a room. */
+  unsubscribeFromRoom(room: string): void {
+    this.unsubscribe(`room:${room}`);
   }
 
   /** Broadcast an ephemeral message to a subscribed room. */
