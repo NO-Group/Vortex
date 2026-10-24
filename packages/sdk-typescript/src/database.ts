@@ -48,6 +48,30 @@ export class Database {
     });
   }
 
+  /**
+   * Upsert rows — insert or update on conflict.
+   *
+   * Uses ON CONFLICT DO UPDATE SET — the row is updated if it already
+   * exists (matching the conflict target), otherwise inserted.
+   *
+   * ```ts
+   * await vortex.database.upsert('notes', [
+   *   { id: '1', title: 'Hello', owner_id: userId },
+   * ], ['id']);
+   * ```
+   */
+  async upsert(
+    table: string,
+    rows: Record<string, unknown>[],
+    conflictKeys: string[],
+    patch?: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.http.request<QueryResult>(`/v1/db/${table}/upsert`, {
+      method: 'POST',
+      body: { rows, conflictKeys, patch },
+    });
+  }
+
   /** Update rows matching filters. */
   async update(
     table: string,

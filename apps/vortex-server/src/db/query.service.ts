@@ -334,6 +334,67 @@ export class QueryService {
     return { rows: inserted, count: inserted.length };
   }
 
+  /**
+   * Upsert rows — insert or update on conflict.
+   *
+   * Uses ON CONFLICT DO UPDATE SET: if a row with the conflict key already
+   * exists, the row is updated with the patch (or the row itself if no patch
+   * is provided). Otherwise the row is inserted.
+   */
+  async upsert(
+    actor: MutationActor,
+    table: string,
+    rows: Record<string, unknown>[],
+    conflictKeys: string[],
+    patch?: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    assertIdentifier(table, 'table');
+    if (!rows.length) throw ApiError.badRequest('Upsert requires at least one row');
+    if (!conflictKeys.length) throw ApiError.badRequest('Upsert requires conflict keys');
+    conflictKeys.forEach((k) => assertIdentifier(k, 'conflict key'));
+
+    const { ownerColumn } = await this.rbac.authorize({
+      role: actor.role,
+      userId: actor.userId,
+      table,
+      action: 'insert',
+    });
+
+    const identity = identityOf(actor);
+    const policies = this.extras.policies
+      ? await this.extras.policies.compile({ table, action: 'insert', identity })
+      : null;
+
+    const prepared = rows.map((row) => {
+      const copy = { ...row };
+      if (ownerColumn) copy[ownerColumn] = actor.userId;
+      return copy;
+    });
+
+    // WITH CHECK runs before the write.
+    if (policies?.checkNodes.length) {
+      for (const row of prepared) {
+        for (const node of policies.checkNodes) {
+          if (!(await this.passesCheck(node, identity, row))) {
+            throw ApiError.forbidden('Row rejected by write policy (with check)');
+          }
+        }
+      }
+    }
+
+    // ON CONFLICT DO UPDATE SET — merge the patch into the existing row.
+    // If no patch is provided, use the row itself (all columns update).
+    const updateSet = patch ?? {};
+    const upserted = (await this.db(table)
+      .insert(prepared)
+      .onConflict(conflictKeys)
+      .merge(updateSet)
+      .returning('*')) as Record<string, unknown>[];
+
+    this.bus.emitTableChange({ table, action: 'INSERT', rows: upserted, actorId: actor.userId });
+    return { rows: upserted, count: upserted.length };
+  }
+
   /** UPDATE rows matching filters (owner-scoped + policy-scoped). */
   async update(
     actor: MutationActor,

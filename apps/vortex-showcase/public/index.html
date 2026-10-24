@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vortex Notes — Built on Vortex BaaS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #090C10;
+      --surface: #161B22;
+      --glass: rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.07);
+      --text: #E6E9EE;
+      --text-muted: #8B949E;
+      --cyan: #5E8CFF;
+      --green: #10B981;
+      --coral: #EF4444;
+      --amber: #F59E0B;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--glass-border);
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: 0.05em;
+    }
+    .logo-badge {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--cyan), #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 65px);
+      padding: 20px;
+    }
+    .login-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 380px;
+      backdrop-filter: blur(20px);
+    }
+    .login-card h2 {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+    .login-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .field input:focus {
+      border-color: var(--cyan);
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cyan), #8B5CF6);
+      color: white;
+    }
+    .btn-secondary {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--text);
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--coral);
+      padding: 6px 12px;
+      width: auto;
+      font-size: 12px;
+    }
+    .error {
+      color: var(--coral);
+      font-size: 13px;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+    }
+    .app-container {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 0;
+      min-height: calc(100vh - 65px);
+    }
+    .notes-area {
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .notes-header h2 {
+      font-size: 18px;
+    }
+    .new-note-btn {
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .new-note-btn:hover { border-color: var(--cyan); }
+    .notes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .note-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .note-card:hover { border-color: rgba(94,140,255,0.3); }
+    .note-card h3 {
+      font-size: 14px;
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+    .note-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .note-card .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    .note-card .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .note-card img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+    .sidebar {
+      border-left: 1px solid var(--glass-border);
+      padding: 20px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+    }
+    .sidebar h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .stat-item .value { font-weight: 600; }
+    .realtime-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 16px;
+    }
+    .upload-area {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px dashed var(--glass-border);
+      border-radius: 10px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .upload-area:hover { border-color: var(--cyan); }
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .empty-state .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 500px;
+    }
+    .modal h3 {
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+    .modal .field input,
+    .modal .field textarea {
+      width: 100%;
+      margin-bottom: 12px;
+    }
+    .modal textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      font-size: 14px;
+      min-height: 80px;
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+      margin-bottom: 16px;
+    }
+    .user-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), #8B5CF6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .user-info .name { font-size: 13px; font-weight: 600; }
+    .user-info .email { font-size: 11px; color: var(--text-muted); }
+    @media (max-width: 768px) {
+      .app-container { grid-template-columns: 1fr; }
+      .sidebar { border-left: none; border-top: 1px solid var(--glass-border); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-badge">V</div>
+    <span>Vortex Notes</span>
+  </div>
+  <div class="live-badge">
+    <span class="live-dot"></span>
+    <span id="realtime-status">Realtime: connecting…</span>
+  </div>
+</div>
+
+<!-- Login / Signup screen -->
+<div id="auth-screen" class="login-screen">
+  <div class="login-card">
+    <h2 id="auth-title">Welcome to Vortex Notes</h2>
+    <p id="auth-subtitle">A demo app built entirely on Vortex BaaS — auth, database, realtime, storage, and push.</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••">
+    </div>
+    <div id="auth-error"></div>
+    <button class="btn btn-primary" id="auth-btn" onclick="handleAuth()">Sign Up</button>
+    <button class="btn btn-secondary" id="auth-toggle" onclick="toggleAuthMode()">Already have an account? Sign In</button>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app-screen" style="display:none">
+  <div class="app-container">
+    <div class="notes-area">
+      <div class="notes-header">
+        <h2>Your Notes</h2>
+        <button class="new-note-btn" onclick="openNoteModal()">+ New Note</button>
+      </div>
+      <div id="notes-grid" class="notes-grid">
+        <div class="empty-state">
+          <div class="icon">📝</div>
+          <div>Create your first note to see realtime in action.</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">U</div>
+        <div>
+          <div class="name" id="user-name">User</div>
+          <div class="email" id="user-email">user@example.com</div>
+        </div>
+      </div>
+      <h3>Stats</h3>
+      <div class="stat-item">
+        <span>Total Notes</span>
+        <span class="value" id="stat-total">0</span>
+      </div>
+      <div class="stat-item">
+        <span>Storage Used</span>
+        <span class="value" id="stat-storage">0 KB</span>
+      </div>
+      <div class="stat-item">
+        <span>Realtime</span>
+        <span class="value" id="stat-realtime">Connecting</span>
+      </div>
+      <div class="realtime-indicator">
+        <span class="live-dot"></span>
+        <span>Live updates across tabs</span>
+      </div>
+      <div class="upload-area" onclick="document.getElementById('file-upload').click()">
+        <div>📎 Upload Image</div>
+        <div style="font-size:10px;margin-top:4px;opacity:0.5">Attach to a new note</div>
+        <input type="file" id="file-upload" accept="image/*" style="display:none" onchange="handleFileUpload(event)">
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="signOut()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Note modal -->
+<div id="note-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3 id="modal-title">New Note</h3>
+    <div class="field">
+      <input type="text" id="note-title" placeholder="Note title">
+    </div>
+    <textarea id="note-body" placeholder="Write your note…"></textarea>
+    <div id="note-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeNoteModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNote()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Vortex API client ───────────────────────────────────────────────────
+const VORTEX_URL = window.location.origin; // Same origin — Vortex serves this app
+let token = localStorage.getItem('vortex_token');
+let user = JSON.parse(localStorage.getItem('vortex_user') || 'null');
+let authMode = 'signup';
+let realtimeChannel = null;
+
+async function api(path, opts = {}) {
+  const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers['authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${VORTEX_URL}${path}`, { ...opts, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `Request failed: ${res.status}`);
+  return data;
+}
+
+// ── Auth ────────────────────────────────────────────────────────────────
+function toggleAuthMode() {
+  authMode = authMode === 'signup' ? 'signin' : 'signup';
+  document.getElementById('auth-title').textContent =
+    authMode === 'signup' ? 'Create your account' : 'Welcome back';
+  document.getElementById('auth-btn').textContent =
+    authMode === 'signup' ? 'Sign Up' : 'Sign In';
+  document.getElementById('auth-toggle').textContent =
+    authMode === 'signup' ? 'Already have an account? Sign In' : 'New here? Sign Up';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) { showError('Enter email and password'); return; }
+  try {
+    if (authMode === 'signup') {
+      const data = await api('/v1/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      token = data.token;
+      user = data.user;
+    } else {
+      const data = await api('/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      token = data.token;
+      user = data.user;
+    }
+    localStorage.setItem('vortex_token', token);
+    localStorage.setItem('vortex_user', JSON.stringify(user));
+    showApp();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById('auth-error').innerHTML = `<div class="error">${msg}</div>`;
+}
+
+function signOut() {
+  token = null;
+  user = null;
+  localStorage.removeItem('vortex_token');
+  localStorage.removeItem('vortex_user');
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+
+// ── App ──────────────────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('user-name').textContent = user.email.split('@')[0];
+  document.getElementById('user-email').textContent = user.email;
+  document.getElementById('user-avatar').textContent = user.email[0].toUpperCase();
+  loadNotes();
+  connectRealtime();
+  updateStats();
+}
+
+async function loadNotes() {
+  try {
+    const data = await api('/v1/db/notes/query', {
+      method: 'POST',
+      body: JSON.stringify({
+        select: ['id', 'title', 'body', 'owner_id', 'created_at'],
+        filters: [{ column: 'owner_id', op: 'eq', value: user.id }],
+        orderBy: [{ column: 'created_at', direction: 'desc' }],
+        limit: 50,
+      }),
+    });
+    renderNotes(data.rows || []);
+  } catch (err) {
+    console.error('Failed to load notes:', err);
+  }
+}
+
+function renderNotes(notes) {
+  const grid = document.getElementById('notes-grid');
+  if (notes.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="icon">📝</div>
+        <div>Create your first note to see realtime in action.</div>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = notes.map(n => `
+    <div class="note-card" id="note-${n.id}">
+      <h3>${escapeHtml(n.title || 'Untitled')}</h3>
+      <p>${escapeHtml(n.body || '')}</p>
+      ${n.image_url ? `<img src="${n.image_url}" alt="attachment">` : ''}
+      <div class="meta">
+        <span>${new Date(n.created_at).toLocaleString()}</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-danger" onclick="deleteNote('${n.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Note CRUD ─────────────────────────────────────────────────────────────
+let editingNoteId = null;
+
+function openNoteModal(noteId = null) {
+  editingNoteId = noteId;
+  document.getElementById('modal-title').textContent = noteId ? 'Edit Note' : 'New Note';
+  document.getElementById('note-title').value = '';
+  document.getElementById('note-body').value = '';
+  document.getElementById('note-preview').innerHTML = '';
+  document.getElementById('note-modal').style.display = 'flex';
+}
+
+function closeNoteModal() {
+  document.getElementById('note-modal').style.display = 'none';
+  editingNoteId = null;
+}
+
+async function saveNote() {
+  const title = document.getElementById('note-title').value.trim();
+  const body = document.getElementById('note-body').value.trim();
+  if (!title && !body) { closeNoteModal(); return; }
+
+  try {
+    if (editingNoteId) {
+      await api('/v1/db/notes', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          patch: { title, body },
+          filters: [{ column: 'id', op: 'eq', value: editingNoteId }],
+        }),
+      });
+    } else {
+      await api('/v1/db/notes', {
+        method: 'POST',
+        body: JSON.stringify({
+          rows: [{ title, body, owner_id: user.id }],
+        }),
+      });
+      // Try to send a push notification to all the user's devices
+      try {
+        await api('/v1/notifications', {
+          method: 'POST',
+          body: JSON.stringify({ title: 'New Note', body: title, target: 'all' }),
+        });
+      } catch {}
+    }
+    closeNoteModal();
+    await loadNotes();
+  } catch (err) {
+    alert('Failed to save note: ' + err.message);
+  }
+}
+
+async function deleteNote(id) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    await api('/v1/db/notes', {
+      method: 'DELETE',
+      body: JSON.stringify({ filters: [{ column: 'id', op: 'eq', value: id }] }),
+    });
+    await loadNotes();
+  } catch (err) {
+    alert('Failed to delete note: ' + err.message);
+  }
+}
+
+// ── Image Upload ─────────────────────────────────────────────────────────
+async function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Upload to Vortex storage
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch(`${VORTEX_URL}/v1/storage/object?bucket=uploads&path=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'x-vortex-token': token },
+      body: file,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    const imageUrl = `${VORTEX_URL}/v1/storage/public/uploads/${encodeURIComponent(file.name)}`;
+    openNoteModal();
+    document.getElementById('note-preview').innerHTML = `<img src="${imageUrl}" style="max-height:120px;border-radius:8px;margin-top:8px">`;
+    // Store the image URL for when the note is saved
+    document.getElementById('note-title').value = '';
+    document.getElementById('note-body').value = '';
+    document.getElementById('note-body').dataset.imageUrl = imageUrl;
+  } catch (err) {
+    alert('Upload failed: ' + err.message);
+  }
+}
+
+// ── Realtime ─────────────────────────────────────────────────────────────
+let ws = null;
+
+function connectRealtime() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/v1/realtime?token=${token}`);
+
+  ws.onopen = () => {
+    document.getElementById('realtime-status').textContent = 'Realtime: connected';
+    document.getElementById('stat-realtime').textContent = 'Online';
+    ws.send(JSON.stringify({
+      type: 'subscribe',
+      table: 'notes',
+      filters: [{ column: 'owner_id', op: 'eq', value: user.id }],
+    }));
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'vortex:event' && msg.table === 'notes') {
+      // Realtime event — refresh notes to show live updates
+      loadNotes();
+      updateStats();
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('realtime-status').textContent = 'Realtime: reconnecting…';
+    document.getElementById('stat-realtime').textContent = 'Offline';
+    setTimeout(connectRealtime, 3000);
+  };
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────
+async function updateStats() {
+  try {
+    const notesData = await api('/v1/db/notes/query', {
+      method: 'POST',
+      body: JSON.stringify({
+        select: ['id'],
+        filters: [{ column: 'owner_id', op: 'eq', value: user.id }],
+        countTotal: true,
+      }),
+    });
+    document.getElementById('stat-total').textContent = notesData.countTotal || 0;
+  } catch {}
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+if (token && user) {
+  showApp();
+} else {
+  document.getElementById('auth-screen').style.display = 'flex';
+}
+</script>
+</body>
+</html>

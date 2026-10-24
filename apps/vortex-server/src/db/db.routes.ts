@@ -45,6 +45,12 @@ const insertSchema = z.object({
   rows: z.array(z.record(z.unknown())).min(1).max(200),
 });
 
+const upsertSchema = z.object({
+  rows: z.array(z.record(z.unknown())).min(1).max(200),
+  conflictKeys: z.array(z.string().min(1)).min(1),
+  patch: z.record(z.unknown()).optional(),
+});
+
 const updateSchema = z.object({
   patch: z.record(z.unknown()),
   filters: z.array(filterSchema).min(1),
@@ -88,6 +94,22 @@ export function createDbRoutes(ctx: AppContext): Router {
   router.post('/:table', auth, validateBody(insertSchema), async (req, res, next) => {
     try {
       const result = await service.insert(actorOf(req), req.params.table!, req.body.rows);
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** POST /v1/db/:table/upsert — insert or update on conflict. */
+  router.post('/:table/upsert', auth, validateBody(upsertSchema), async (req, res, next) => {
+    try {
+      const result = await service.upsert(
+        actorOf(req),
+        req.params.table!,
+        req.body.rows,
+        req.body.conflictKeys,
+        req.body.patch,
+      );
       res.status(201).json(result);
     } catch (err) {
       next(err);
