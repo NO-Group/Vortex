@@ -20,6 +20,7 @@ export { Storage, type ImageTransforms } from './storage.js';
 export { Functions } from './functions.js';
 export { Apps } from './apps.js';
 export { Admin } from './admin.js';
+export { Webhooks } from './webhooks.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
