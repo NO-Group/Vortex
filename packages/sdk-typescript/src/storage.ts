@@ -88,6 +88,15 @@ export class Storage {
     return objects;
   }
 
+  /** Get storage usage statistics. */
+  async stats(): Promise<{
+    totalObjects: number;
+    totalSize: number;
+    byBucket: Record<string, { count: number; size: number }>;
+  }> {
+    return this.http.request(`/v1/storage/stats`);
+  }
+
   /** Delete an object. */
   async deleteObject(bucket: string, path: string): Promise<void> {
     await this.http.request('/v1/storage/object', {

@@ -262,3 +262,9 @@ export interface NotificationStats {
   pending: number;
   failed: number;
 }
+
+export interface StorageStats {
+  totalObjects: number;
+  totalSize: number;
+  byBucket: Record<string, { count: number; size: number }>;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { api, getToken, type Health, type QueryResult, type StorageObject } from '../lib/api.js';
+import { api, getToken, type Health, type QueryResult, type StorageObject, type StorageStats } from '../lib/api.js';
+import { formatBytes } from '../lib/format.js';
 import { PageTitle, Chip, GlassCard, Skeleton } from '../components/Glass.js';
 import { NodeCard, LoadBar } from '../components/NodeCard.js';
 
@@ -33,6 +34,7 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [objects, setObjects] = useState<StorageObject[] | null>(null);
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +60,12 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
         if (alive) setObjects(list.objects);
       } catch {
         if (alive) setObjects(null);
+      }
+      try {
+        const stats = await api.get<StorageStats>('/v1/storage/stats');
+        if (alive) setStorageStats(stats);
+      } catch {
+        if (alive) setStorageStats(null);
       }
     };
 
@@ -144,6 +152,7 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
             metrics={[
               { label: 'driver', value: 'local disk' },
               { label: 'objects', value: objects === null ? 'n/a' : String(objects.length) },
+              { label: 'usage', value: storageStats ? formatBytes(storageStats.totalSize) : 'n/a' },
               { label: 'presign', value: 'HMAC · 15 min' },
             ]}
             footer={<LoadBar color="#FFA1C5" delay={1.2} />}

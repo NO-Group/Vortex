@@ -127,6 +127,32 @@ export function createStorageRoutes(ctx: AppContext): Router {
     }
   });
 
+  /** GET /v1/storage/stats — aggregate storage usage stats. */
+  router.get('/stats', auth, async (req, res, next) => {
+    try {
+      const registry = new StorageRegistry(ctx.db);
+      const objects = await registry.listForOwner(req.auth!.sub);
+      const totalSize = objects.reduce((sum, o) => sum + o.size, 0);
+      const byBucket = objects.reduce<Record<string, { count: number; size: number }>>(
+        (acc, o) => {
+          const bucket = o.key.split('/')[0] || 'unknown';
+          if (!acc[bucket]) acc[bucket] = { count: 0, size: 0 };
+          acc[bucket].count++;
+          acc[bucket].size += o.size;
+          return acc;
+        },
+        {},
+      );
+      res.json({
+        totalObjects: objects.length,
+        totalSize,
+        byBucket,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   /** POST /v1/storage/buckets — create a bucket namespace. */
   router.post('/buckets', auth, validateBody(bucketSchema), async (req, res, next) => {
     try {
