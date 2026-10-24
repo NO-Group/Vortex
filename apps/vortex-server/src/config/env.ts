@@ -49,6 +49,16 @@ export interface ServerEnv {
   fcmProjectId: string | undefined;
   /** FCM HTTP v1: service account private key (PEM). */
   fcmPrivateKey: string | undefined;
+  /** APNs: Apple team ID (10-character). */
+  apnsTeamId: string | undefined;
+  /** APNs: Key ID (10-character identifier from Apple Developer portal). */
+  apnsKeyId: string | undefined;
+  /** APNs: App bundle ID (e.g. com.example.app). */
+  apnsBundleId: string | undefined;
+  /** APNs: AuthKey .p8 file contents (base64 PKCS#8). */
+  apnsPrivateKey: string | undefined;
+  /** APNs: use sandbox endpoint (default: false = production). */
+  apnsSandbox: boolean;
   /** VAPID public key for Web Push (auto-generated if not set). */
   vapidPublicKey: string | undefined;
   /** VAPID private key for Web Push (auto-generated if not set). */
@@ -161,6 +171,11 @@ export function loadEnv(): ServerEnv {
     fcmServerKey: process.env.FCM_SERVER_KEY || undefined,
     fcmProjectId: process.env.FCM_PROJECT_ID || undefined,
     fcmPrivateKey: process.env.FCM_PRIVATE_KEY || undefined,
+    apnsTeamId: process.env.APNS_TEAM_ID || undefined,
+    apnsKeyId: process.env.APNS_KEY_ID || undefined,
+    apnsBundleId: process.env.APNS_BUNDLE_ID || undefined,
+    apnsPrivateKey: process.env.APNS_PRIVATE_KEY || undefined,
+    apnsSandbox: (process.env.APNS_SANDBOX || 'false').toLowerCase() === 'true',
     vapidPublicKey: process.env.VAPID_PUBLIC_KEY || undefined,
     vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || undefined,
     vapidSubject: process.env.VAPID_SUBJECT || 'noreply@vortex.local',

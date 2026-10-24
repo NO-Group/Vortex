@@ -44,6 +44,11 @@ export function createNotificationRoutes(ctx: AppContext): Router {
   const service = new NotificationService(ctx.db, {
     fcmProjectId: ctx.env.fcmProjectId,
     fcmPrivateKey: ctx.env.fcmPrivateKey,
+    apnsTeamId: ctx.env.apnsTeamId,
+    apnsKeyId: ctx.env.apnsKeyId,
+    apnsBundleId: ctx.env.apnsBundleId,
+    apnsPrivateKey: ctx.env.apnsPrivateKey,
+    apnsSandbox: ctx.env.apnsSandbox,
     vapidPublicKey: ctx.env.vapidPublicKey,
     vapidPrivateKey: ctx.env.vapidPrivateKey,
     vapidSubject: ctx.env.vapidSubject,

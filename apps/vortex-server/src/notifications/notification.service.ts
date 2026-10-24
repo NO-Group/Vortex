@@ -1,6 +1,7 @@
 import type { Knex } from 'knex';
+import { createSign } from 'node:crypto';
+import { generateVAPIDKeys, setVapidDetails, sendNotification as webPushSend } from 'web-push';
 import { ApiError } from '../errors.js';
-import { generateVAPIDKeys, setVapidDetails, WebPushError } from 'web-push';
 
 interface DeviceRow {
   id: string;
@@ -27,9 +28,19 @@ interface NotificationRow {
 }
 
 export interface NotificationServiceOptions {
-  /** FCM HTTP v1 credentials: project ID + private key. */
+  /** FCM HTTP v1: Firebase project ID + service account private key. */
   fcmProjectId?: string;
   fcmPrivateKey?: string;
+  /** APNs: Apple team ID (10-character). */
+  apnsTeamId?: string;
+  /** APNs: Key ID (10-character identifier from Apple Developer portal). */
+  apnsKeyId?: string;
+  /** APNs: App bundle ID (e.g. com.example.app). */
+  apnsBundleId?: string;
+  /** APNs: AuthKey .p8 file contents (base64 PKCS#8). */
+  apnsPrivateKey?: string;
+  /** APNs: use sandbox endpoint (default: false = production). */
+  apnsSandbox?: boolean;
   /** VAPID keys for Web Push. Auto-generated if not provided. */
   vapidPublicKey?: string;
   vapidPrivateKey?: string;
@@ -40,26 +51,38 @@ export interface NotificationServiceOptions {
 /**
  * Notification service — device registration + push delivery.
  *
- * Two delivery transports:
+ * Three delivery transports:
  *
  * 1. **Web Push (VAPID)** — the browser-native push standard. Works in
- *    Chrome, Firefox, Edge, and Safari. No FCM project needed. The browser
+ *    Chrome, Firefox, Edge, and Safari. No external setup needed. The browser
  *    subscribes via `pushManager.subscribe()` with Vortex's VAPID public key,
  *    and the server sends push messages signed with the VAPID private key.
- *    This is the transport that makes notifications "just work" for web apps.
  *
- * 2. **FCM HTTP v1** — for Android/iOS apps using Firebase Cloud Messaging.
- *    Uses the current OAuth2 bearer-token API (not the deprecated legacy
- *    server-key API). Requires a Firebase project with a service account.
+ * 2. **APNs** — Apple Push Notification service for native iOS apps. Uses
+ *    HTTP/2 + ES256 JWT auth (the .p8 auth-key flow). Requires an Apple
+ *    Developer account with push notifications enabled. This is the only push
+ *    channel that works on iOS — no alternative exists.
  *
- * If no FCM credentials are configured, FCM deliveries are marked "pending"
- * (the notification is recorded for history but not pushed). Web Push works
- * without any external setup.
+ * 3. **FCM HTTP v1** — for Android apps using Firebase Cloud Messaging.
+ *    Uses the current OAuth2 bearer-token API. Requires a Firebase project
+ *    with a service account. This is the only push channel that works on
+ *    Android — no alternative exists.
+ *
+ * If FCM/APNs credentials are not configured, deliveries to those platforms
+ * are marked "pending" (the notification is recorded for history but not
+ * pushed). Web Push works without any external setup.
+ *
+ * **Why native push requires FCM/APNs:** Android and iOS only allow push
+ * notifications through their OS-level push services. Every backend (Supabase,
+ * Firebase, custom) routes through FCM/APNs for native apps. Vortex provides
+ * the transport layer to both — same as any backend, but with Vortex identity.
  */
 export class NotificationService {
   private vapidKeys: { publicKey: string; privateKey: string } | null = null;
   private fcmAccessToken: string | null = null;
   private fcmTokenExpiry: number = 0;
+  private apnsJwt: string | null = null;
+  private apnsJwtExpiry: number = 0;
 
   constructor(
     private readonly db: Knex,
@@ -107,7 +130,6 @@ export class NotificationService {
       throw ApiError.badRequest('Device token is required');
     }
 
-    // For web push, the "token" is the push subscription endpoint URL.
     const [device] = await this.db<DeviceRow>('vortex_devices')
       .insert({
         user_id: input.userId,
@@ -172,7 +194,10 @@ export class NotificationService {
    * Routes each device to the appropriate transport:
    *   - `web_push` devices → Web Push (VAPID) via the browser's push service
    *   - `fcm` devices → FCM HTTP v1 (if FCM credentials configured)
-   *   - `apns` devices → marked pending (future transport)
+   *   - `apns` devices → APNs HTTP/2 (if APNs credentials configured)
+   *
+   * If a transport's credentials aren't configured, that delivery is marked
+   * "pending" (recorded for history, not pushed).
    */
   async sendNotification(input: {
     userId?: string;
@@ -240,18 +265,19 @@ export class NotificationService {
     body: string,
     data?: Record<string, unknown>,
   ): Promise<'sent' | 'failed' | 'pending'> {
-    const payload = JSON.stringify({
-      notification: { title, body },
-      data: data ?? {},
-      url: '/', // default open URL
-    });
-
     try {
       if (device.push_service === 'web_push') {
-        return this.deliverWebPush(device.token, payload);
+        return this.deliverWebPush(device.token, JSON.stringify({
+          notification: { title, body },
+          data: data ?? {},
+          url: '/',
+        }));
       }
       if (device.push_service === 'fcm') {
         return this.deliverFCM(device.token, { title, body, data: data ?? {} });
+      }
+      if (device.push_service === 'apns') {
+        return this.deliverAPNs(device.token, { title, body, data: data ?? {} });
       }
       return 'pending';
     } catch (err) {
@@ -260,43 +286,30 @@ export class NotificationService {
     }
   }
 
+  // ── Web Push (VAPID) ─────────────────────────────────────────────────
+
   /** Deliver via Web Push (VAPID) — the browser-native transport. */
   private async deliverWebPush(subscriptionEndpoint: string, payload: string): Promise<'sent' | 'failed'> {
     if (!this.vapidKeys) {
       throw new Error('VAPID keys not configured');
     }
 
-    // The web-push library expects a subscription object with keys.
-    // The subscription endpoint URL contains the keys in the query string,
-    // so we pass the endpoint as the subscription.
-    await this.webPushSend(subscriptionEndpoint, payload);
+    // Parse the subscription endpoint URL into the subscription object format
+    // expected by web-push.
+    const url = new URL(subscriptionEndpoint);
+    const sub = {
+      endpoint: subscriptionEndpoint,
+      keys: {
+        p256dh: url.searchParams.get('p256dh') ?? '',
+        auth: url.searchParams.get('auth') ?? '',
+      },
+    };
+
+    await webPushSend(sub, payload);
     return 'sent';
   }
 
-  /** Wrapper around web-push's sendNotification. */
-  private async webPushSend(endpoint: string, payload: string): Promise<void> {
-    const { setVapidDetails } = await import('web-push');
-    const webpush = await import('web-push');
-
-    // web-push's sendNotification expects a subscription object.
-    // For raw endpoint delivery, we construct one from the URL.
-    const sub = this.parseSubscription(endpoint);
-    await webpush.sendNotification(sub, payload);
-  }
-
-  /**
-   * Parse a push subscription endpoint URL into the subscription object
-   * format expected by web-push.
-   */
-  private parseSubscription(endpoint: string): {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  } {
-    const url = new URL(endpoint);
-    const p256dh = url.searchParams.get('p256dh') ?? '';
-    const auth = url.searchParams.get('auth') ?? '';
-    return { endpoint, keys: { p256dh, auth } };
-  }
+  // ── FCM HTTP v1 (Android) ─────────────────────────────────────────────
 
   /** Deliver via FCM HTTP v1 (OAuth2 bearer token). */
   private async deliverFCM(
@@ -337,17 +350,15 @@ export class NotificationService {
 
   /** Get (or refresh) an FCM access token via OAuth2. */
   private async getFCMAccessToken(): Promise<string | null> {
-    // Token expires in 1 hour; refresh if expiring soon.
     if (this.fcmAccessToken && Date.now() < this.fcmTokenExpiry - 60_000) {
       return this.fcmAccessToken;
     }
 
     if (!this.opts.fcmPrivateKey) return null;
 
-    // Sign a JWT with the service account private key.
-    const { createSign } = await import('node:crypto');
+    // Sign a JWT with the service account private key (RS256).
     const header = Buffer.from(
-      JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: this.getFCMKeyId() }),
+      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
     ).toString('base64url');
     const issuedAt = Math.floor(Date.now() / 1000);
     const expiry = issuedAt + 3600;
@@ -384,15 +395,118 @@ export class NotificationService {
     return this.fcmAccessToken;
   }
 
-  /** Derive the key ID from the FCM private key. */
-  private getFCMKeyId(): string {
-    // In production, this comes from the service account JSON's private_key_id.
-    // For now, use a placeholder — the FCM API accepts any kid for JWT signing
-    // as long as the signature is valid.
-    return 'firebase-key';
+  // ── APNs (iOS) ───────────────────────────────────────────────────────
+
+  /**
+   * Deliver via APNs (Apple Push Notification service).
+   *
+   * Uses HTTP/2 + ES256 JWT auth (the .p8 auth-key flow). This is the only
+   * push channel that works on iOS — Apple does not allow third-party push
+   * services on the platform.
+   */
+  private async deliverAPNs(
+    deviceToken: string,
+    payload: { title: string; body: string; data: Record<string, unknown> },
+  ): Promise<'sent' | 'failed' | 'pending'> {
+    if (!this.opts.apnsTeamId || !this.opts.apnsKeyId || !this.opts.apnsBundleId || !this.opts.apnsPrivateKey) {
+      return 'pending';
+    }
+
+    const jwt = await this.getAPNsJwt();
+    if (!jwt) return 'failed';
+
+    const host = this.opts.apnsSandbox
+      ? 'api-sandbox.push.apple.com'
+      : 'api.push.apple.com';
+
+    // APNs requires HTTP/2. Node's fetch doesn't support HTTP/2 natively,
+    // so we use the http2 module directly.
+    const { default: http2 } = await import('node:http2');
+    const client = http2.connect(`https://${host}`);
+
+    return new Promise<'sent' | 'failed'>((resolve) => {
+      const req = client.request({
+        ':method': 'POST',
+        ':path': `/3/device/${deviceToken}`,
+        'content-type': 'application/json',
+        authorization: `bearer ${jwt}`,
+        'apns-topic': this.opts.apnsBundleId,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+      });
+
+      req.on('response', (headers) => {
+        const status = headers[':status'] as number;
+        // 200 = success
+        if (status === 200) {
+          resolve('sent');
+        } else {
+          // APNs error — read the body for details
+          req.resume();
+          resolve('failed');
+        }
+      });
+
+      req.on('error', () => resolve('failed'));
+
+      req.write(JSON.stringify({
+        aps: {
+          alert: {
+            title: payload.title,
+            body: payload.body,
+          },
+          sound: 'default',
+          badge: 1,
+        },
+        data: payload.data,
+      }));
+
+      req.end();
+    });
   }
 
-  // ── Notification queries ───────────────────────────────────────────────
+  /**
+   * Get (or generate) an APNs JWT.
+   *
+   * APNs auth keys use ES256 (ECDSA with P-256). The .p8 file contains a
+   * PKCS#8 private key in base64. The JWT is valid for up to 1 hour.
+   */
+  private async getAPNsJwt(): Promise<string | null> {
+    if (this.apnsJwt && Date.now() < this.apnsJwtExpiry - 60_000) {
+      return this.apnsJwt;
+    }
+
+    if (!this.opts.apnsPrivateKey) return null;
+
+    // The .p8 file is a base64-encoded PKCS#8 private key.
+    // Decode it to get the raw PEM.
+    const pem = `-----BEGIN PRIVATE KEY-----\n${this.opts.apnsPrivateKey}\n-----END PRIVATE KEY-----`;
+
+    const header = Buffer.from(
+      JSON.stringify({ alg: 'ES256', typ: 'JWT', kid: this.opts.apnsKeyId }),
+    ).toString('base64url');
+
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const expiry = issuedAt + 3600; // 1 hour
+    const claims = Buffer.from(
+      JSON.stringify({ iss: this.opts.apnsTeamId, iat: issuedAt, exp: expiry }),
+    ).toString('base64url');
+
+    const unsignedJwt = `${header}.${claims}`;
+
+    // Sign with ES256 (ECDSA P-256).
+    const { createSign } = await import('node:crypto');
+    const sign = createSign('SHA256');
+    sign.update(unsignedJwt);
+    const signature = sign.sign({ key: pem, dsaEncoding: 'ieee-p1363' }, 'base64url');
+
+    const jwt = `${unsignedJwt}.${signature}`;
+    this.apnsJwt = jwt;
+    this.apnsJwtExpiry = Date.now() + 3600_000;
+    return jwt;
+  }
+
+  // ── Notification queries ─────────────────────────────────────────────
 
   /** List notifications for a user. */
   async listNotifications(userId: string, limit = 50): Promise<Array<{

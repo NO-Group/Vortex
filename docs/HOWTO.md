@@ -922,7 +922,50 @@ await vortex.auth.sendNotification({
 // → The browser receives a native notification
 ```
 
-### FCM HTTP v1 — for mobile apps
+### Native Apps (iOS / Android) — why FCM + APNs are required
+
+Vortex pushes to native apps through two OS-level services:
+
+| Platform | Push Service | Why |
+|---|---|---|
+| **iOS** | APNs (Apple Push Notification service) | Apple does not allow any third-party push service on iOS. APNs is the only channel that delivers notifications to native iOS apps. |
+| **Android** | FCM (Firebase Cloud Messaging) | Google's FCM is the standard push channel on Android. Every Android device with Google Play Services uses FCM for push. |
+
+**This is not a Vortex limitation.** Every backend on earth — Supabase, Firebase, your own custom server — routes native push through FCM and APNs. These are OS-level infrastructure, same as how SMS requires a carrier. No backend can push to a native app without the OS push service.
+
+**What Vortex does differently:** Vortex provides the transport layer to both, with the same developer experience as everything else in Vortex — one SDK, one auth flow, one console.
+
+### APNs — iOS Native Push
+
+For native iOS apps, register device tokens with `pushService: 'apns'`:
+
+```ts
+await vortex.auth.registerDevice({
+  token: 'apns-device-token-string',
+  platform: 'ios',
+  pushService: 'apns',
+});
+```
+
+Vortex delivers via APNs HTTP/2 with ES256 JWT auth (the .p8 auth-key flow):
+
+```env
+# Apple Developer > Keys > create key with "Apple Push Notification service" enabled
+# Download the .p8 file — its contents are the APNS_PRIVATE_KEY
+APNS_TEAM_ID=ABC1234567
+APNS_KEY_ID=ABC1234567
+APNS_BUNDLE_ID=com.yourapp.bundleid
+APNS_PRIVATE_KEY=base64-encoded-p8-contents
+APNS_SANDBOX=false
+```
+
+APNs supports:
+- **Alert notifications** (title + body + sound + badge)
+- **Background notifications** (silent data sync)
+- **Interrupt levels** (passive, active, time-sensitive)
+- **Sandbox vs production** (toggle with `APNS_SANDBOX=true`)
+
+### FCM HTTP v1 — Android Native Push
 
 For Android/iOS apps using Firebase Cloud Messaging:
 
