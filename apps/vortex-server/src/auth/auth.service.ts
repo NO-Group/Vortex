@@ -4,6 +4,7 @@ import { ApiError } from '../errors.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { signToken, type TokenConfig } from './tokens.js';
 import { OneTimeTokens } from './one-time-tokens.js';
+import { authLink, magicLinkEmail, passwordResetEmail } from '../mailer/mailer.js';
 
 interface UserRow {
   id: string;
@@ -45,6 +46,14 @@ export interface MagicLinkResult {
   ok: true;
   /** Present only in dev-links mode — lets demos proceed without SMTP. */
   devToken?: string;
+  /** How the link was (or wasn't) delivered. */
+  delivery?: 'email' | 'inline' | 'unconfigured';
+}
+
+export interface AuthServiceOptions {
+  devLinks?: boolean;
+  publicAppUrl?: string;
+  mailer?: { send(to: string, subject: string, html: string): Promise<void> } | null;
 }
 
 export class AuthService {
@@ -53,9 +62,36 @@ export class AuthService {
   constructor(
     private readonly db: Knex,
     private readonly tokenConfig: TokenConfig,
-    private readonly opts: { devLinks?: boolean } = {},
+    private readonly opts: AuthServiceOptions = {},
   ) {
     this.oneTime = new OneTimeTokens(db);
+  }
+
+  /** Issue a one-time token and deliver it by email and/or inline. */
+  private async issueAndDeliver(
+    userId: string,
+    email: string,
+    kind: 'magic' | 'reset',
+    ttlMinutes: number,
+  ): Promise<MagicLinkResult> {
+    const { token } = await this.oneTime.issue(userId, kind, ttlMinutes);
+    const url = authLink(this.opts.publicAppUrl ?? 'http://localhost:8080', token);
+
+    let delivery: MagicLinkResult['delivery'] = 'unconfigured';
+    if (this.opts.mailer) {
+      try {
+        const template = kind === 'magic' ? magicLinkEmail(url) : passwordResetEmail(url);
+        await this.opts.mailer.send(email, template.subject, template.html);
+        delivery = 'email';
+      } catch (err) {
+        console.warn(`[vortex] email delivery failed: ${(err as Error).message}`);
+      }
+    }
+    if (this.opts.devLinks) {
+      delivery = delivery === 'email' ? 'email' : 'inline';
+      return { ok: true, devToken: token, delivery };
+    }
+    return { ok: true, delivery };
   }
 
   /** Register a new user and return an authenticated session. */
@@ -112,10 +148,8 @@ export class AuthService {
   async requestMagicLink(email: string): Promise<MagicLinkResult> {
     const normalized = email.trim().toLowerCase();
     const row = await this.db<UserRow>('users').where({ email: normalized }).first();
-    if (!row) return { ok: true };
-
-    const { token } = await this.oneTime.issue(row.id, 'magic', 15);
-    return this.opts.devLinks ? { ok: true, devToken: token } : { ok: true };
+    if (!row) return { ok: true, delivery: 'unconfigured' };
+    return this.issueAndDeliver(row.id, normalized, 'magic', 15);
   }
 
   /** Consume a magic-link token and open a session. */
@@ -131,10 +165,8 @@ export class AuthService {
   async requestPasswordReset(email: string): Promise<MagicLinkResult> {
     const normalized = email.trim().toLowerCase();
     const row = await this.db<UserRow>('users').where({ email: normalized }).first();
-    if (!row) return { ok: true };
-
-    const { token } = await this.oneTime.issue(row.id, 'reset', 30);
-    return this.opts.devLinks ? { ok: true, devToken: token } : { ok: true };
+    if (!row) return { ok: true, delivery: 'unconfigured' };
+    return this.issueAndDeliver(row.id, normalized, 'reset', 30);
   }
 
   /** Consume a reset token, set a new password, and open a session. */

@@ -38,6 +38,14 @@ export interface ServerEnv {
    * environments without SMTP). MUST be false in production.
    */
   devLinks: boolean;
+  /** Absolute origin of the console (used in email links). */
+  publicAppUrl: string;
+  /** SMTP connection string (e.g. smtps://user:pass@smtp.host:465). */
+  smtpUrl: string | undefined;
+  /** From-address for magic-link / reset emails. */
+  mailFrom: string;
+  /** Serve the built dashboard from the engine (single-process deploys). */
+  serveConsole: boolean;
 }
 
 function required(name: string, fallback?: string): string {
@@ -71,7 +79,7 @@ export function loadEnv(): ServerEnv {
 
   const corsRaw = required('CORS_ORIGINS', '*');
 
-  return {
+  const env: ServerEnv = {
     port: int('PORT', 8080),
     host: required('HOST', '0.0.0.0'),
     corsOrigins: corsRaw === '*' ? '*' : corsRaw.split(',').map((o) => o.trim()).filter(Boolean),
@@ -107,5 +115,24 @@ export function loadEnv(): ServerEnv {
       redisUrl: process.env.REDIS_URL || undefined,
     },
     devLinks: bool('VORTEX_DEV_LINKS', process.env.NODE_ENV !== 'production'),
+    publicAppUrl: required('PUBLIC_APP_URL', 'http://localhost:8080').replace(/\/+$/, ''),
+    smtpUrl: process.env.SMTP_URL || undefined,
+    mailFrom: required('MAIL_FROM', 'Vortex <no-reply@vortex.local>'),
+    serveConsole: bool('SERVE_CONSOLE', true),
   };
+
+  // Production safety rails — refuse to boot a publicly reachable engine
+  // with demo credentials or demo conveniences enabled.
+  if (process.env.NODE_ENV === 'production') {
+    if (env.jwt.secret === 'dev-only-change-me') {
+      throw new Error('JWT_SECRET must be set to a long random value in production');
+    }
+    if (env.devLinks) {
+      console.warn(
+        '[vortex] WARNING: VORTEX_DEV_LINKS is on in production — sign-in links are returned via the API. Turn this off once SMTP is configured.',
+      );
+    }
+  }
+
+  return env;
 }

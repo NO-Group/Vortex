@@ -11,6 +11,7 @@ import {
   type FnSandboxGlobals,
 } from '../src/functions/runtime.js';
 import { hashToken } from '../src/auth/one-time-tokens.js';
+import { authLink, magicLinkEmail, passwordResetEmail } from '../src/mailer/mailer.js';
 import { applyFilters, applyOrGroups } from '../src/db/query.service.js';
 import { RealtimeHub, isValidChannel } from '../src/realtime/hub.js';
 import type { WebSocket } from 'ws';
@@ -152,6 +153,27 @@ describe('one-time token hashing', () => {
     expect(h).toMatch(/^[0-9a-f]{64}$/);
     expect(hashToken('abc')).toBe(h);
     expect(hashToken('abd')).not.toBe(h);
+  });
+});
+
+describe('mailer templates', () => {
+  it('builds console links with the token', () => {
+    expect(authLink('https://vortex.example.com/', 'tok123')).toBe(
+      'https://vortex.example.com/?magic=tok123',
+    );
+    expect(authLink('https://x.dev', 'a b')).toContain('magic=a%20b');
+  });
+
+  it('renders branded magic + reset emails around the link', () => {
+    const url = 'https://vortex.example.com/?magic=abc';
+    const magic = magicLinkEmail(url);
+    expect(magic.subject).toMatch(/sign-in/i);
+    expect(magic.html).toContain(url);
+    expect(magic.html).toContain('Vortex');
+
+    const reset = passwordResetEmail(url);
+    expect(reset.subject).toMatch(/reset/i);
+    expect(reset.html).toContain(url);
   });
 });
 

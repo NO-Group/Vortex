@@ -40,6 +40,25 @@ live.**
 
 \* Dart code is authored in-repo; verify with a local Flutter SDK (`flutter pub get && flutter test`).
 
+## Launch (go live)
+
+One container serves the whole platform — console, API, hosted apps, and
+functions — on a single port. The complete playbook (**what to rent, what to
+type, domains, TLS, storage, email, backups, costs**) lives in
+**[docs/DEPLOY.md](docs/DEPLOY.md)**. The 30-second version:
+
+```bash
+git clone https://github.com/NO-Group/Vortex.git && cd Vortex
+cp .env.example .env          # set JWT_SECRET (the engine enforces it in prod)
+docker compose up -d --build  # console + API on http://localhost:8080
+npm run admin -- promote you@example.com   # make yourself admin
+```
+
+Production notes: serve TLS with Caddy in front (auto-HTTPS), switch storage
+to any S3-compatible service (Cloudflare R2 is the best deal), and set
+`SMTP_URL` so magic sign-in links land in real inboxes. Details and a go-live
+checklist: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Repository layout
 
 ```
@@ -127,6 +146,7 @@ Useful scripts:
 | `npm run test` | unit suite (71 tests) |
 | `npm run typecheck` | strict TypeScript across the workspace |
 | `npm run migrate` | run knex migrations |
+| `npm run admin` | admin CLI — `list` / `promote` / `demote` accounts |
 | `npm run smoke` | full 68-step E2E suite vs embedded Postgres |
 | `npm run preview:stack` | self-contained live demo (PG + engine + seed data) |
 

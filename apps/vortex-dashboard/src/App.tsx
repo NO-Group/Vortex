@@ -158,6 +158,30 @@ export default function App() {
     return () => window.removeEventListener('vortex:logout', onLogout);
   }, [signOut]);
 
+  // ── Email sign-in links (?magic=<token>) verify themselves on load ─────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('magic');
+    if (!token) return;
+    params.delete('magic');
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', clean);
+
+    void (async () => {
+      try {
+        const session = await api.post<AuthSession>('/v1/auth/magic-link/verify', { token });
+        if (session?.token && session?.user) {
+          signIn(session);
+          setNotice('Signed in via email link.');
+        }
+      } catch (err) {
+        setNotice(
+          `Sign-in link failed: ${err instanceof Error ? err.message : 'invalid or expired'}`,
+        );
+      }
+    })();
+  }, [signIn]);
+
   const clearEvents = useCallback(() => setEvents([]), []);
 
   const content = useMemo(() => {

@@ -5,6 +5,7 @@ import { AuthService } from './auth.service.js';
 import { ApiError } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { createMailer } from '../mailer/mailer.js';
 import type { TokenConfig } from './tokens.js';
 
 const signupSchema = z.object({
@@ -37,6 +38,8 @@ export function createAuthRoutes(ctx: AppContext): Router {
   const router = Router();
   const service = new AuthService(ctx.db, ctx.env.jwt as TokenConfig, {
     devLinks: ctx.env.devLinks,
+    publicAppUrl: ctx.env.publicAppUrl,
+    mailer: createMailer(ctx.env),
   });
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
 

@@ -1,6 +1,9 @@
 import express, { raw, type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { AppContext } from './context.js';
 import { createApiRouter } from './routes/index.js';
 import { createPublicAppRoutes } from './apps/public.routes.js';
@@ -13,7 +16,10 @@ export function createApp(ctx: AppContext): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
+  // Behind Caddy/nginx/preview proxies: trust X-Forwarded-* (presign auto,
+  // real client IPs).
+  app.set('trust proxy', 1);
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(
     cors({
       origin: ctx.env.corsOrigins === '*' ? true : ctx.env.corsOrigins,
@@ -52,6 +58,24 @@ export function createApp(ctx: AppContext): Express {
   // (mounted via the api router would require auth middleware context — kept
   // here as its own family for a clean public surface.)
   app.use('/v1/storage/public', createPublicStorageRoutes(ctx));
+
+  // ── The console: single-process deploys serve the built dashboard ──────
+  // (dev keeps using Vite; SERVE_CONSOLE=false disables this entirely.)
+  if (ctx.env.serveConsole) {
+    const consoleDir = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../vortex-dashboard/dist',
+    );
+    const indexHtml = path.join(consoleDir, 'index.html');
+    if (existsSync(indexHtml)) {
+      app.use(express.static(consoleDir, { index: false, maxAge: '1h' }));
+      const RESERVED = /^\/(v1|apps|functions|healthz)(\/|$)/;
+      app.get('*', (req, res, next) => {
+        if (RESERVED.test(req.path)) return next();
+        res.sendFile(indexHtml);
+      });
+    }
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

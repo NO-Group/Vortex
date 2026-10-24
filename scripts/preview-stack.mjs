@@ -145,12 +145,12 @@ async function main() {
 
   // Promote the demo account so the console's admin surfaces (SQL console,
   // account administration) are explorable out of the box.
-  const pg = new Client({
+  const promoteDb = new Client({
     connectionString: 'postgres://postgres:postgres@localhost:55432/vortex',
   });
-  await pg.connect();
-  await pg.query(`UPDATE users SET role = 'admin' WHERE email = 'sensei@no.group'`);
-  await pg.end();
+  await promoteDb.connect();
+  await promoteDb.query(`UPDATE users SET role = 'admin' WHERE email = 'sensei@no.group'`);
+  await promoteDb.end();
   log('demo account promoted to admin');
 
   // ── Demo app: prove Vortex can carry apps — /apps/welcome/ ────────────
