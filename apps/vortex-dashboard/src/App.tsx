@@ -28,6 +28,7 @@ import { AuthPage } from './pages/AuthPage.js';
 import { PolicyPage } from './pages/PolicyPage.js';
 import { OAuthPage } from './pages/OAuthPage.js';
 import { NotificationPage } from './pages/NotificationPage.js';
+import { WebhookPage } from './pages/WebhookPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -40,6 +41,8 @@ const PAGES: PageKey[] = [
   'auth',
   'policies',
   'oauth',
+  'notifications',
+  'webhooks',
 ];
 
 interface Session {
@@ -213,6 +216,8 @@ export default function App() {
         return <OAuthPage isAdmin={session?.user.role === 'admin'} />;
       case 'notifications':
         return <NotificationPage />;
+      case 'webhooks':
+        return <WebhookPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

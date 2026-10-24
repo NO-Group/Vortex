@@ -268,3 +268,25 @@ export interface StorageStats {
   totalSize: number;
   byBucket: Record<string, { count: number; size: number }>;
 }
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  secret: string;
+  active: boolean;
+  success_count: number;
+  failure_count: number;
+  last_delivered_at: string | null;
+  created_at: string;
+}
+
+export interface WebhookLogEntry {
+  id: string;
+  event: string;
+  payload: Record<string, unknown> | null;
+  status: string;
+  http_status: number | null;
+  error: string | null;
+  created_at: string;
+}
