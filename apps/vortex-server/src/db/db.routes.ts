@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { RbacService } from './rbac.js';
 import { QueryService } from './query.service.js';
+import { ApiError } from '../errors.js';
 import type { TokenConfig } from '../auth/tokens.js';
 
 const filterSchema = z.object({
@@ -58,6 +59,14 @@ const updateSchema = z.object({
 
 const deleteSchema = z.object({
   filters: z.array(filterSchema).min(1),
+});
+
+const createTableSchema = z.object({
+  columns: z.array(z.object({
+    name: z.string().min(1).max(63),
+    type: z.enum(['text', 'jsonb', 'integer', 'boolean', 'timestamptz']),
+    required: z.boolean().optional(),
+  })).min(1).max(30),
 });
 
 export function createDbRoutes(ctx: AppContext): Router {
@@ -162,6 +171,44 @@ export function createDbRoutes(ctx: AppContext): Router {
         .orderBy('table_name');
 
       res.json({ tables: rows.map((r) => r.table_name) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** POST /v1/db/:table/create — create a table with a custom schema. */
+  router.post('/:table/create', auth, validateBody(createTableSchema), async (req, res, next) => {
+    try {
+      const table = req.params.table!;
+      if (!/^[a-z_][a-z0-9_]*$/i.test(table)) {
+        throw ApiError.badRequest('Table name must be a valid identifier');
+      }
+
+      // Build the column definitions.
+      const colDefs = [
+        'id uuid primary key default gen_random_uuid()',
+        'owner_id uuid',
+        'created_at timestamptz default now()',
+        'updated_at timestamptz default now()',
+      ];
+
+      for (const col of req.body.columns) {
+        const type = col.type === 'jsonb' ? 'jsonb'
+          : col.type === 'integer' ? 'integer'
+          : col.type === 'boolean' ? 'boolean'
+          : col.type === 'timestamptz' ? 'timestamptz'
+          : 'text';
+        const nullable = col.required ? 'not null' : 'default null';
+        colDefs.push(`${col.name} ${type} ${nullable}`);
+      }
+
+      const sql = `CREATE TABLE IF NOT EXISTS "${table}" (\n  ${colDefs.join(',\n  ')}\n)`;
+      await ctx.db.raw(sql);
+
+      // Create an index on owner_id for efficient owner-scoped queries.
+      await ctx.db.raw(`CREATE INDEX IF NOT EXISTS "idx_${table}_owner" ON "${table}" (owner_id)`);
+
+      res.status(201).json({ table, columns: req.body.columns, created: true });
     } catch (err) {
       next(err);
     }

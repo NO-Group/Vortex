@@ -19,6 +19,13 @@ export function DatabasePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [insertTitle, setInsertTitle] = useState('');
+  // Create Table modal state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+  const [newColumns, setNewColumns] = useState<Array<{ name: string; type: string }>>([
+    { name: 'title', type: 'text' },
+    { name: 'body', type: 'text' },
+  ]);
 
   const runQuery = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -47,6 +54,29 @@ export function DatabasePage() {
       setRows([]);
       setCount(null);
       setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Query failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createTable = async () => {
+    if (!newTableName.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const cols = newColumns.filter((c) => c.name.trim());
+      await api.post(`/v1/db/${encodeURIComponent(newTableName.trim())}/create`, {
+        columns: cols.map((c) => ({
+          name: c.name.trim(),
+          type: c.type as 'text' | 'jsonb' | 'integer' | 'boolean' | 'timestamptz',
+        })),
+      });
+      setShowCreate(false);
+      setNewTableName('');
+      setTable(newTableName.trim());
+      await runQuery();
+    } catch (err) {
+      setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Create table failed');
     } finally {
       setBusy(false);
     }
@@ -91,11 +121,16 @@ export function DatabasePage() {
 
   return (
     <div className="space-y-6">
-      <PageTitle
-        title="Database"
-        accent="Explorer"
-        subtitle="Dynamic CRUD over PostgreSQL — filters, JSONB, RBAC-scoped rows."
-      />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageTitle
+          title="Database"
+          accent="Explorer"
+          subtitle="Dynamic CRUD over PostgreSQL — filters, JSONB, RBAC-scoped rows."
+        />
+        <GradientButton onClick={() => setShowCreate(true)} disabled={busy}>
+          + Create Table
+        </GradientButton>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Query builder */}
@@ -222,6 +257,98 @@ export function DatabasePage() {
           </p>
         </div>
       </div>
+
+      {/* Create Table modal */}
+      {showCreate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowCreate(false)}
+        >
+          <div
+            className="glass w-full max-w-lg rounded-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold text-white">Create Table</div>
+            <div className="text-sm text-slate-400">
+              Define a new table with custom columns. Auto-adds id, owner_id, created_at, updated_at.
+            </div>
+
+            <div className="mt-4">
+              <label className="text-[10px] uppercase tracking-widest text-slate-500">
+                Table name
+              </label>
+              <input
+                value={newTableName}
+                onChange={(e) => setNewTableName(e.target.value)}
+                className="input-vortex mt-1.5 w-full px-3 py-2 font-mono text-[12px]"
+                placeholder="notes"
+                autoFocus
+              />
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-widest text-slate-500">
+                  Columns
+                </label>
+                <button
+                  onClick={() =>
+                    setNewColumns((c) => [...c, { name: '', type: 'text' }])
+                  }
+                  className="text-[11px] text-interactive-focus hover:text-blue-300"
+                >
+                  + add column
+                </button>
+              </div>
+
+              <div className="mt-2 space-y-2">
+                {newColumns.map((col, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={col.name}
+                      onChange={(e) =>
+                        setNewColumns((cols) =>
+                          cols.map((c, j) => (j === i ? { ...c, name: e.target.value } : c)),
+                        )
+                      }
+                      placeholder="column name"
+                      className="input-vortex w-full px-2.5 py-1.5 font-mono text-[11px]"
+                    />
+                    <select
+                      value={col.type}
+                      onChange={(e) =>
+                        setNewColumns((cols) =>
+                          cols.map((c, j) => (j === i ? { ...c, type: e.target.value } : c)),
+                        )
+                      }
+                      className="input-vortex w-28 px-2 py-1.5 text-[11px]"
+                    >
+                      <option value="text">text</option>
+                      <option value="jsonb">jsonb</option>
+                      <option value="integer">integer</option>
+                      <option value="boolean">boolean</option>
+                      <option value="timestamptz">timestamptz</option>
+                    </select>
+                    <button
+                      onClick={() => setNewColumns((c) => c.filter((_, j) => j !== i))}
+                      className="text-spectrum-coral text-[12px] hover:opacity-80"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <GlassButton onClick={() => setShowCreate(false)}>Cancel</GlassButton>
+              <GradientButton onClick={() => void createTable()} disabled={busy || !newTableName.trim()}>
+                Create
+              </GradientButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

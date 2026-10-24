@@ -101,6 +101,29 @@ export class Database {
     return tables;
   }
 
+  /**
+   * Create a table with a custom schema.
+   *
+   * ```ts
+   * await vortex.database.createTable('notes', [
+   *   { name: 'title', type: 'text', required: true },
+   *   { name: 'body', type: 'text' },
+   *   { name: 'metadata', type: 'jsonb' },
+   * ]);
+   * ```
+   *
+   * Auto-adds: id (uuid PK), owner_id (uuid), created_at, updated_at.
+   */
+  async createTable(
+    table: string,
+    columns: Array<{ name: string; type: 'text' | 'jsonb' | 'integer' | 'boolean' | 'timestamptz'; required?: boolean }>,
+  ): Promise<{ table: string; columns: typeof columns; created: boolean }> {
+    return this.http.request(`/v1/db/${encodeURIComponent(table)}/create`, {
+      method: 'POST',
+      body: { columns },
+    });
+  }
+
   /** Count rows matching filters. */
   async count(
     table: string,
