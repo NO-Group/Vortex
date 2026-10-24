@@ -31,6 +31,15 @@ const adminPatchSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
+const profilePatchSchema = z.object({
+  metadata: z.record(z.unknown()).optional(),
+});
+
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters').max(128),
+});
+
 const requireAdmin = (role: string | undefined): void => {
   if (role !== 'admin') throw ApiError.forbidden('Admin access required');
 };
@@ -145,6 +154,48 @@ export function createAuthRoutes(ctx: AppContext): Router {
     try {
       requireAdmin(req.auth!.role);
       await service.deleteUser(req.auth!.sub, req.params.id!);
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── User self-service routes ──────────────────────────────────────────
+  router.patch(
+    '/profile',
+    auth,
+    validateBody(profilePatchSchema),
+    async (req, res, next) => {
+      try {
+        const user = await service.updateProfile(req.auth!.sub, req.body);
+        res.json({ user });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  router.post(
+    '/password',
+    auth,
+    validateBody(passwordChangeSchema),
+    async (req, res, next) => {
+      try {
+        const session = await service.changePassword(
+          req.auth!.sub,
+          req.body.currentPassword,
+          req.body.newPassword,
+        );
+        res.json(session);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  router.delete('/account', auth, async (req, res, next) => {
+    try {
+      await service.deleteAccount(req.auth!.sub);
       res.status(204).end();
     } catch (err) {
       next(err);

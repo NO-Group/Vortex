@@ -224,4 +224,45 @@ export class AuthService {
     const deleted = await this.db('users').where({ id: targetId }).del();
     if (!deleted) throw ApiError.notFound('User not found');
   }
+
+  /** User: update own profile metadata. */
+  async updateProfile(
+    userId: string,
+    patch: { metadata?: Record<string, unknown> },
+  ): Promise<AuthUser> {
+    if (!patch.metadata || !Object.keys(patch.metadata).length) {
+      throw ApiError.badRequest('Nothing to update (send metadata)');
+    }
+    const [row] = await this.db<UserRow>('users')
+      .where({ id: userId })
+      .update({ metadata: patch.metadata })
+      .returning('*');
+    if (!row) throw ApiError.notFound('User not found');
+    return toAuthUser(row);
+  }
+
+  /** User: change password after verifying current password. */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<AuthSession> {
+    const row = await this.db<UserRow>('users').where({ id: userId }).first();
+    if (!row) throw ApiError.notFound('User not found');
+    const ok = await verifyPassword(currentPassword, row.password_hash);
+    if (!ok) throw ApiError.unauthorized('Current password is incorrect');
+    const newHash = await hashPassword(newPassword);
+    const [updated] = await this.db<UserRow>('users')
+      .where({ id: userId })
+      .update({ password_hash: newHash })
+      .returning('*');
+    if (!updated) throw ApiError.notFound('User not found');
+    return sessionFor(updated, this.tokenConfig);
+  }
+
+  /** User: delete own account. */
+  async deleteAccount(userId: string): Promise<void> {
+    const deleted = await this.db('users').where({ id: userId }).del();
+    if (!deleted) throw ApiError.notFound('User not found');
+  }
 }

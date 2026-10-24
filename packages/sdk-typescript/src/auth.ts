@@ -252,4 +252,36 @@ export class Auth {
   async deleteUser(userId: string): Promise<void> {
     await this.http.request(`/v1/auth/users/${userId}`, { method: 'DELETE' });
   }
+
+  // ── Self-service ────────────────────────────────────────────────────
+
+  /** Update your own profile metadata. */
+  async updateProfile(
+    metadata: Record<string, unknown>,
+  ): Promise<AuthUser> {
+    const { user } = await this.http.request<{ user: AuthUser }>(
+      '/v1/auth/profile',
+      { method: 'PATCH', body: { metadata } },
+    );
+    return user;
+  }
+
+  /** Change your password (verifies current password first). */
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<AuthSession> {
+    const session = await this.http.request<AuthSession>('/v1/auth/password', {
+      method: 'POST',
+      body: { currentPassword, newPassword },
+    });
+    this.http.setToken(session.token);
+    return session;
+  }
+
+  /** Delete your own account. Irreversible. */
+  async deleteAccount(): Promise<void> {
+    await this.http.request('/v1/auth/account', { method: 'DELETE' });
+    this.http.setToken(null);
+  }
 }
