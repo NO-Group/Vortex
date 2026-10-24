@@ -183,6 +183,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/EXAMPLES.md](docs/EXAMPLES.md)** — 8 complete app patterns: note-taking, chat, task manager, blog/CMS, e-commerce, analytics, scheduler, and multi-tenant SaaS. Plus common patterns (pagination, optimistic updates, presigned uploads).
 
+## Migrate to Vortex
+
+**[docs/MIGRATION.md](docs/MIGRATION.md)** — move from Supabase, Firebase, Cloudflare, or Cloudinary to Vortex. Code diffs for auth, database, realtime, storage, functions, and push. Migration checklist included.
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
