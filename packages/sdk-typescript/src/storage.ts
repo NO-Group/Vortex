@@ -96,6 +96,25 @@ export class Storage {
     });
   }
 
+  /** Download an object and return its bytes + content type. */
+  async download(
+    bucket: string,
+    path: string,
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
+    const res = await this.http.rawRequest(
+      `/v1/storage/object?bucket=${bucket}&path=${encodeURIComponent(path)}`,
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error?.message || `Download failed: ${res.status}`);
+    }
+    const data = await res.arrayBuffer();
+    return {
+      data,
+      contentType: res.headers.get('content-type') || 'application/octet-stream',
+    };
+  }
+
   // ── URL generation ───────────────────────────────────────────────────
 
   /**

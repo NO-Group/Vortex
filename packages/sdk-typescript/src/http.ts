@@ -174,4 +174,20 @@ export class HttpClient {
       clearTimeout(t);
     }
   }
+
+  /** Make a GET request and return the raw Response (for downloads). */
+  async rawRequest(path: string): Promise<Response> {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(t);
+    }
+  }
 }
