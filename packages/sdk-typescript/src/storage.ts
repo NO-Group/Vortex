@@ -105,6 +105,11 @@ export class Storage {
     });
   }
 
+  /** Convenience alias for deleteObject — matches database.remove naming. */
+  async remove(bucket: string, path: string): Promise<void> {
+    return this.deleteObject(bucket, path);
+  }
+
   /** Download an object and return its bytes + content type. */
   async download(
     bucket: string,
@@ -122,6 +127,14 @@ export class Storage {
       data,
       contentType: res.headers.get('content-type') || 'application/octet-stream',
     };
+  }
+
+  /** Convenience alias for download — matches database.findById naming. */
+  async get(
+    bucket: string,
+    path: string,
+  ): Promise<{ data: ArrayBuffer; contentType: string }> {
+    return this.download(bucket, path);
   }
 
   // ── URL generation ───────────────────────────────────────────────────
