@@ -10,7 +10,8 @@ export type PageKey =
   | 'apps'
   | 'functions'
   | 'auth'
-  | 'policies';
+  | 'policies'
+  | 'oauth';
 
 interface NavItem {
   key: PageKey;
@@ -72,6 +73,12 @@ const icons: Record<PageKey, ReactElement> = {
       <path d="M21 12c0 5-3.5 7.5-8.5 9C7.5 19.5 4 17 4 12V6l8.5-3L21 6v6z" strokeLinejoin="round" />
     </svg>
   ),
+  oauth: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2" strokeLinecap="round" />
+    </svg>
+  ),
   auth: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <rect x="4" y="10" width="16" height="11" rx="2" />
@@ -90,6 +97,7 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'functions', label: 'Functions', hint: '/functions' },
   { key: 'auth', label: 'Auth & Token', hint: '/v1/auth' },
   { key: 'policies', label: 'Policies', hint: '/v1/policies' },
+  { key: 'oauth', label: 'OAuth', hint: '/v1/auth/oauth' },
 ];
 
 export function Sidebar({

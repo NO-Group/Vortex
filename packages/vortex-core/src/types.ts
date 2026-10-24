@@ -304,3 +304,50 @@ export interface ApiErrorBody {
     details?: unknown;
   };
 }
+
+// ── OAuth providers (v0.8) ───────────────────────────────────────────────
+
+/** Built-in OAuth provider definitions. */
+export interface OAuthProviderDef {
+  name: string;
+  displayName: string;
+  authUrl: string;
+  tokenUrl: string;
+  userinfoUrl: string;
+  scopes: string;
+}
+
+/** OAuth provider as configured by an admin. */
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  displayName: string;
+  clientId: string;
+  clientSecret: string;
+  authUrl: string;
+  tokenUrl: string;
+  userinfoUrl: string;
+  scopes: string;
+  extra: Record<string, unknown> | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Linked OAuth account for a Vortex user. */
+export interface OAuthAccount {
+  id: string;
+  userId: string;
+  provider: string;
+  providerUserId: string;
+  providerEmail: string | null;
+  profile: Record<string, unknown> | null;
+  linkedAt: string;
+}
+
+/** Result of an OAuth login/callback. */
+export interface OAuthLoginResult {
+  session: AuthSession;
+  isNewUser: boolean;
+  linkedProvider: string;
+}

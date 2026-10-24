@@ -261,3 +261,37 @@ export interface ApiErrorBody {
     details?: unknown;
   };
 }
+
+// ── OAuth providers ─────────────────────────────────────────────────────
+
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  displayName: string;
+  clientId: string;
+  clientSecret: string;
+  authUrl: string;
+  tokenUrl: string;
+  userinfoUrl: string;
+  scopes: string;
+  extra: Record<string, unknown> | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OAuthAccount {
+  id: string;
+  userId: string;
+  provider: string;
+  providerUserId: string;
+  providerEmail: string | null;
+  profile: Record<string, unknown> | null;
+  linkedAt: string;
+}
+
+export interface OAuthLoginResult {
+  session: AuthSession;
+  isNewUser: boolean;
+  linkedProvider: string;
+}

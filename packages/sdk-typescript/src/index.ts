@@ -31,6 +31,7 @@ export type {
   SqlResult, QueryLogEntry, InsightsOverview,
   TableEvent, PresencePeer, TableChangeHandler, PresenceHandler,
   BroadcastHandler, ReplayHandler, StatusHandler,
+  OAuthProvider, OAuthAccount, OAuthLoginResult,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

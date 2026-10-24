@@ -39,7 +39,6 @@ export class HttpClient {
   get baseUrl(): string {
     return this._baseUrl;
   }
-
   private readonly timeout: number;
   private readonly retries: number;
 

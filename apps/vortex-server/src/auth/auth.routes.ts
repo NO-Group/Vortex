@@ -6,6 +6,7 @@ import { ApiError } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { createMailer } from '../mailer/mailer.js';
+import { createOAuthRoutes } from './oauth.routes.js';
 import type { TokenConfig } from './tokens.js';
 
 const signupSchema = z.object({
@@ -149,6 +150,9 @@ export function createAuthRoutes(ctx: AppContext): Router {
       next(err);
     }
   });
+
+  // ── OAuth routes ───────────────────────────────────────────────────────
+  router.use('/oauth', createOAuthRoutes(ctx));
 
   return router;
 }

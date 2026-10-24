@@ -28,7 +28,7 @@ live.**
 
 | Module | Endpoint | Status |
 | --- | --- | --- |
-| Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT + custom claims · bcrypt (12 rounds) · magic links · password reset · admin user management |
+| Auth Engine | `/v1/auth` | ✅ signup / login / me · JWT + custom claims · bcrypt (12 rounds) · magic links · password reset · admin user management · **OAuth (Google, GitHub, GitLab, Discord, Apple, Microsoft)** |
 | Database Gateway | `/v1/db` | ✅ dynamic CRUD · filters · OR-groups · JSONB contains · embeds · RBAC + owner-scoping · **row policies (compiled once)** · **explain + cost ceiling** |
 | SQL Console | `/v1/sql` | ✅ admin SQL over the engine database — parameterized, single statement, timed |
 | Policy Engine | `/v1/policies` | ✅ **v0.7** — policies as data (not DDL) · compiled to bound predicates · USING + WITH CHECK · preview shows per-row equivalent · admin-only |
@@ -541,7 +541,14 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
   - **Image Transforms** — Cloudinary-compatible URL-based transforms (resize, crop,
     format conversion, quality, grayscale, rotate, padding) powered by sharp, with
     on-disk caching. Append `?w=800&h=600&fit=cover&fmt=webp` to any public image URL.
-  - Remaining: OAuth providers, multi-provider auth.
+  - Remaining: multi-provider auth extensions.
+- ~~**v0.8** — OAuth providers~~ ✅ shipped
+  - **OAuth Login** — sign in with Google, GitHub, GitLab, Discord, Apple, Microsoft.
+    Admins configure providers via the console (`/v1/auth/oauth/admin/providers`).
+    Users see "Sign in with…" buttons. OAuth accounts auto-link to Vortex users
+    (by email or provider ID); new users are auto-created from OAuth profiles.
+    SDK: `vortex.auth.listOAuthProviders()`, `vortex.auth.handleOAuthCallback()`.
+  - Next: push notifications (FCM parity), edge caching, image transforms on S3.
 
 ## License
 

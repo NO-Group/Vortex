@@ -1,6 +1,7 @@
 import type { HttpClient } from './http.js';
 import type {
   AuthSession, AuthUser, SignupInput, LoginInput, MagicLinkResult,
+  OAuthProvider, OAuthAccount, OAuthLoginResult,
 } from './types.js';
 
 /**
@@ -76,6 +77,96 @@ export class Auth {
   }
 
   /** Sign out — clears the token from the HTTP client. */
+  // ── OAuth ──────────────────────────────────────────────────────────────
+
+  /** List enabled OAuth providers (for login UI). */
+  async listOAuthProviders(): Promise<Array<{ name: string; displayName: string; scopes: string }>> {
+    const { providers } = await this.http.request<{
+      providers: Array<{ name: string; displayName: string; scopes: string }>;
+    }>('/v1/auth/oauth/providers');
+    return providers;
+  }
+
+  /** Start OAuth login — returns the provider's authorize URL. */
+  async getOAuthAuthorizeUrl(provider: string, redirectUri?: string): Promise<string> {
+    const url = await this.http.request<string>(`/v1/auth/oauth/${provider}/start`, {
+      method: 'GET',
+    }).catch(() => null);
+    // The server redirects, so we need to follow it.
+    const finalUrl = await this.followRedirect(`/v1/auth/oauth/${provider}/start`);
+    return finalUrl ?? url ?? '';
+  }
+
+  /**
+   * Handle an OAuth callback — exchanges the code and returns a session.
+   * Call this after the provider redirects to your callback URL.
+   */
+  async handleOAuthCallback(provider: string, code: string, redirectUri?: string): Promise<OAuthLoginResult> {
+    const query = redirectUri ? `?redirect=${encodeURIComponent(redirectUri)}` : '';
+    return this.http.request<OAuthLoginResult>(
+      `/v1/auth/oauth/${provider}/callback?code=${encodeURIComponent(code)}${query}`,
+    );
+  }
+
+  /** List your linked OAuth accounts. */
+  async listOAuthAccounts(): Promise<OAuthAccount[]> {
+    const { accounts } = await this.http.request<{ accounts: OAuthAccount[] }>(
+      '/v1/auth/oauth/accounts',
+    );
+    return accounts;
+  }
+
+  /** Unlink an OAuth provider from your account. */
+  async unlinkOAuthAccount(provider: string): Promise<void> {
+    await this.http.request(`/v1/auth/oauth/accounts/${provider}`, { method: 'DELETE' });
+  }
+
+  // ── Admin OAuth management ─────────────────────────────────────────────
+
+  /** List all configured OAuth providers (admin). */
+  async listOAuthProvidersAdmin(): Promise<OAuthProvider[]> {
+    const { providers } = await this.http.request<{ providers: OAuthProvider[] }>(
+      '/v1/auth/oauth/admin/providers',
+    );
+    return providers;
+  }
+
+  /** Create or update an OAuth provider (admin). */
+  async upsertOAuthProvider(input: {
+    name: 'google' | 'github' | 'gitlab' | 'discord' | 'apple' | 'microsoft';
+    clientId: string;
+    clientSecret: string;
+    scopes?: string;
+    extra?: Record<string, unknown>;
+    enabled?: boolean;
+    displayName?: string;
+  }): Promise<OAuthProvider> {
+    const { provider } = await this.http.request<{ provider: OAuthProvider }>(
+      '/v1/auth/oauth/admin/providers',
+      { method: 'POST', body: input },
+    );
+    return provider;
+  }
+
+  /** Remove an OAuth provider (admin). */
+  async deleteOAuthProvider(name: string): Promise<void> {
+    await this.http.request(`/v1/auth/oauth/admin/providers/${name}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Follow a redirect and return the final URL.
+   * Used by getOAuthAuthorizeUrl since the server sends a 302.
+   */
+  private async followRedirect(path: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${this.http.baseUrl}${path}`, { redirect: 'manual' });
+      const location = res.headers.get('location');
+      return location ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   signOut(): void {
     this.http.setToken(null);
   }
