@@ -197,6 +197,9 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
               { label: 'Open database console', hash: '#/database' },
               { label: 'Watch live event stream', hash: '#/realtime' },
               { label: 'Upload an object', hash: '#/storage' },
+              { label: 'Configure OAuth providers', hash: '#/oauth' },
+              { label: 'Send a push notification', hash: '#/notifications' },
+              { label: 'Deploy an app', hash: '#/apps' },
               { label: 'Inspect access token', hash: '#/auth' },
             ].map((a) => (
               <a
@@ -211,6 +214,32 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
           </div>
         </GlassCard>
       </div>
+
+      {/* Platform status */}
+      <GlassCard className="p-5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Platform Status
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+          {[
+            { label: 'Auth', value: health ? 'Online' : 'Offline', tone: 'green' as const },
+            { label: 'Database', value: noteCount !== null ? `${noteCount} rows` : 'Offline', tone: 'green' as const },
+            { label: 'Realtime', value: `${wsConnections ?? 0} clients`, tone: 'cyan' as const },
+            { label: 'Storage', value: storageStats ? formatBytes(storageStats.totalSize) : 'Offline', tone: 'green' as const },
+            { label: 'Edge Cache', value: 'Active', tone: 'green' as const },
+            { label: 'Functions', value: 'Ready', tone: 'green' as const },
+            { label: 'Push', value: 'Web Push', tone: 'green' as const },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-[12px] border border-white/[0.07] bg-surface px-3 py-3"
+            >
+              <div className="text-[10px] uppercase tracking-widest text-slate-500">{s.label}</div>
+              <div className={`mt-1 text-[12px] font-medium text-${s.tone}-400`}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </GlassCard>
     </div>
   );
 }
