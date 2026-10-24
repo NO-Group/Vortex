@@ -95,6 +95,20 @@ export class Database {
     });
   }
 
+  /** Bulk delete rows by ID — builds `id IN (...)` filter automatically. */
+  async bulkRemove(table: string, ids: string[]): Promise<QueryResult> {
+    return this.delete(table, [{ column: 'id', op: 'in', value: ids }]);
+  }
+
+  /** Bulk update rows by ID — builds `id IN (...)` filter automatically. */
+  async bulkUpdate(
+    table: string,
+    ids: string[],
+    patch: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.update(table, patch, [{ column: 'id', op: 'in', value: ids }]);
+  }
+
   /** List non-system table names. */
   async tables(): Promise<string[]> {
     const { tables } = await this.http.request<{ tables: string[] }>('/v1/db/tables');
