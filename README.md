@@ -175,6 +175,10 @@ const preview = await vortex.admin.previewPolicy({
 - Storage with image transforms (`w`, `h`, `fit`, `fmt`, `quality`, `crop`, `grayscale`, `rotate`, `padding`, etc.)
 - Works in browser and Node.js 18+
 
+## Quickstart
+
+**[docs/QUICKSTART.md](docs/QUICKSTART.md)** — build a full-stack app on Vortex in 5 minutes. Auth, database, realtime, storage, functions, and push.
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.

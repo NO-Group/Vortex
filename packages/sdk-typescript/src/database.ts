@@ -112,6 +112,60 @@ export class Database {
     });
     return result.total ?? 0;
   }
+
+  /**
+   * Create a single row (convenience wrapper for insert).
+   *
+   * ```ts
+   * const { rows } = await vortex.database.create('notes', {
+   *   title: 'Hello', body: 'World', owner_id: userId,
+   * });
+   * ```
+   */
+  async create(
+    table: string,
+    row: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.insert(table, [row]);
+  }
+
+  /**
+   * Find a single row by primary key (convenience wrapper for query).
+   *
+   * ```ts
+   * const { rows } = await vortex.database.findById('notes', '123');
+   * ```
+   */
+  async findById(
+    table: string,
+    id: string,
+    column = 'id',
+  ): Promise<Record<string, unknown> | null> {
+    const result = await this.http.request<QueryResult>(`/v1/db/${table}/query`, {
+      method: 'POST',
+      body: {
+        select: ['*'],
+        filters: [{ column, op: 'eq', value: id }],
+        limit: 1,
+      },
+    });
+    return result.rows[0] ?? null;
+  }
+
+  /**
+   * Remove a single row by primary key (convenience wrapper for delete).
+   *
+   * ```ts
+   * await vortex.database.remove('notes', '123');
+   * ```
+   */
+  async remove(
+    table: string,
+    id: string,
+    column = 'id',
+  ): Promise<void> {
+    await this.delete(table, [{ column, op: 'eq', value: id }]);
+  }
 }
 
 /**
