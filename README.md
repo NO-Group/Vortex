@@ -179,6 +179,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — build a full-stack app on Vortex in 5 minutes. Auth, database, realtime, storage, functions, and push.
 
+## Real-World Examples
+
+**[docs/EXAMPLES.md](docs/EXAMPLES.md)** — 8 complete app patterns: note-taking, chat, task manager, blog/CMS, e-commerce, analytics, scheduler, and multi-tenant SaaS. Plus common patterns (pagination, optimistic updates, presigned uploads).
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
