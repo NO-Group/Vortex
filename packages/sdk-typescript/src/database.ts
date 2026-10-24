@@ -100,6 +100,18 @@ export class Database {
     const { tables } = await this.http.request<{ tables: string[] }>('/v1/db/tables');
     return tables;
   }
+
+  /** Count rows matching filters. */
+  async count(
+    table: string,
+    filters?: QueryFilter[],
+  ): Promise<number> {
+    const result = await this.http.request<QueryResult>(`/v1/db/${table}/query`, {
+      method: 'POST',
+      body: { select: ['id'], filters, countTotal: true, limit: 1 },
+    });
+    return result.total ?? 0;
+  }
 }
 
 /**

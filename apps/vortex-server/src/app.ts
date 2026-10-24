@@ -70,6 +70,22 @@ export function createApp(ctx: AppContext): Express {
     });
   });
 
+  // Serve the Vortex Notes showcase app for one-click deploy from the console.
+  app.get('/api/showcase/index.html', async (_req, res) => {
+    try {
+      const showcaseDir = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        '../../vortex-showcase/public',
+      );
+      const html = await import('node:fs/promises').then((fs) =>
+        fs.readFile(path.join(showcaseDir, 'index.html'), 'utf-8'),
+      );
+      res.type('text/html').send(html);
+    } catch {
+      res.status(404).type('text').send('Showcase app not found');
+    }
+  });
+
   // Rate-limited API surface — auth gets a stricter limit.
   app.use('/v1', apiLimiter, createApiRouter(ctx));
 

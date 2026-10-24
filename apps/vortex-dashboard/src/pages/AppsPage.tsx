@@ -140,6 +140,45 @@ export function AppsPage() {
     }
   };
 
+  /** One-click deploy: fetches the Vortex Notes showcase app and deploys it. */
+  const deployShowcase = async () => {
+    const appName = 'vortex-notes';
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      // Create the app if it doesn't exist
+      let existing = apps?.find((a) => a.name === appName);
+      if (!existing) {
+        const res = await api.post<{ app: AppMeta }>('/v1/apps', {
+          name: appName,
+          title: 'Vortex Notes — Built on Vortex BaaS',
+        });
+        existing = res.app;
+        await refresh();
+      }
+      setSelected(appName);
+
+      // Fetch the showcase app from the repo
+      const res = await fetch(
+        `${window.location.origin}/api/showcase/index.html`,
+      );
+      if (!res.ok) throw new Error('Could not fetch showcase app');
+      const html = await res.text();
+
+      // Deploy the HTML file
+      const blob = new Blob([html], { type: 'text/html' });
+      await uploadAppFile(appName, 'index.html', blob as unknown as File);
+
+      setNotice(`Vortex Notes showcase deployed to /apps/${appName} — open it to see a real app on Vortex.`);
+      await loadFiles(appName);
+    } catch (err) {
+      setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Showcase deploy failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
@@ -215,6 +254,19 @@ export function AppsPage() {
         </div>
         <GradientButton onClick={() => void createApp()} disabled={busy || !name.trim()}>
           Create App
+        </GradientButton>
+      </div>
+
+      {/* One-click showcase deploy */}
+      <div className="glass flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <div className="text-[13px] font-medium">Deploy Vortex Notes Showcase</div>
+          <div className="font-mono text-[10px] text-slate-500">
+            A real app built on Vortex — auth, database, realtime, storage, push
+          </div>
+        </div>
+        <GradientButton onClick={() => void deployShowcase()} disabled={busy}>
+          One-Click Deploy
         </GradientButton>
       </div>
 
