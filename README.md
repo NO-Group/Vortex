@@ -39,6 +39,7 @@ live.**
 | Vortex Functions | `/functions/:name` | ✅ server functions run by the engine — deploy source, invoke over HTTP, wall-clock budget |
 | Dashboard Console | `apps/vortex-dashboard` | ✅ glassmorphic admin UI — vitals, DB explorer, SQL console, event stream + rooms, storage, apps, functions, auth admin, **policy editor with live SQL preview** |
 | Dart/Flutter SDK | `packages/sdk-dart` | ✅ auth/db/realtime/storage client + N.O Group design system + UI controllers* |
+| TypeScript/JS SDK | `packages/sdk-typescript` | ✅ **v0.7** — zero-dep client for auth, database, realtime, storage, functions, apps, admin · image transforms · auto-retry · durable realtime replay |
 
 \* Dart code is authored in-repo; verify with a local Flutter SDK (`flutter pub get && flutter test`).
 
@@ -77,6 +78,100 @@ Fire-and-forget realtime drops everything that happens while a client is
 disconnected. Vortex stamps every event with a per-channel sequence number
 and keeps a bounded backlog. A client that reconnects with `since: <seq>`
 is replayed what it missed — and told when the gap was too long to cover.
+
+## TypeScript / JavaScript SDK
+
+```bash
+npm install @vortex/client
+```
+
+One import, the whole platform — zero-dependency (uses `fetch` + `WebSocket`):
+
+```ts
+import { VortexClient } from '@vortex/client';
+
+const vortex = new VortexClient({ url: 'https://your-vortex.example.com' });
+
+// ── Auth ──────────────────────────────────────────────────────────────
+const session = await vortex.auth.signup({ email, password });
+// or: await vortex.auth.login({ email, password });
+// or: const result = await vortex.auth.requestMagicLink(email);
+
+// ── Database (fluent query builder) ───────────────────────────────────
+const notes = await vortex.database
+  .from('notes')
+  .select(['id', 'title', 'body'])
+  .filter('owner_id', 'eq', session.user.id)
+  .orderBy('created_at', 'desc')
+  .limit(10)
+  .countTotal()       // returns total matching (not just page)
+  .execute();
+
+// OR-groups, embeds, explain:
+const result = await vortex.database.from('projects')
+  .or([
+    [{ column: 'status', value: 'active' }],
+    [{ column: 'owner_id', valueRef: 'user.id' }, { column: 'public', value: true }],
+  ])
+  .include({ table: 'tasks', localKey: 'id', foreignKey: 'project_id', as: 'tasks' })
+  .explain()          // returns planner cost + plan summary
+  .execute();
+
+// ── Realtime (durable replay built in) ─────────────────────────────────
+const rt = vortex.connectRealtime(session.token, {
+  onTableChange: (event) => console.log(event.action, event.rows),
+  onReplay: (info) => console.log(`Replayed ${info.count} events`),
+});
+rt.subscribe('table:notes');
+rt.subscribe('room:lobby');
+rt.track('room:lobby', { name: 'Alice' });
+
+// ── Storage (with Cloudinary-style image transforms) ──────────────────
+await vortex.storage.upload('uploads', file, 'avatar.png');
+
+// Image transforms — resize, crop, convert format, all on the fly:
+const avatarUrl = vortex.storage.imageUrl('public', 'avatar.png', {
+  w: 200, h: 200, fit: 'cover', fmt: 'webp', quality: 85, crop: 'face',
+});
+// → /v1/storage/public/avatar.png?w=200&h=200&fit=cover&fmt=webp&quality=85&crop=face
+// The gateway applies transforms with sharp and caches results.
+
+// ── Functions ─────────────────────────────────────────────────────────
+await vortex.functions.deploy('hello', `
+  export default async function(ctx) {
+    return { message: 'Hello ' + ctx.data.name };
+  }
+`);
+const result = await vortex.functions.invoke('hello', { name: 'world' });
+
+// ── Apps (host static sites) ───────────────────────────────────────────
+await vortex.apps.create('my-app', 'My App');
+await vortex.apps.uploadFile('my-app', 'index.html', htmlContent);
+// → Live at /apps/my-app/
+
+// ── Admin (SQL, policies, insights) ────────────────────────────────────
+await vortex.admin.sql('select * from users limit 5');
+await vortex.admin.createPolicy({
+  name: 'notes are private',
+  tableName: 'notes',
+  action: 'select',
+  roles: ['user'],
+  using: { column: 'owner_id', valueRef: 'user.id' },
+});
+const preview = await vortex.admin.previewPolicy({
+  tableName: 'notes', action: 'select', role: 'user',
+});
+// → Shows compiled SQL vs per-row equivalent
+```
+
+**SDK features:**
+- `VortexApiError` — typed errors with `status`, `code`, `details`
+- Auto-retry on 5xx with exponential backoff
+- Token auto-attached to all requests after signup/login
+- Realtime auto-reconnect with resume cursors (replays missed events)
+- Query builder with filters, OR-groups, embeds, countTotal, explain
+- Storage with image transforms (`w`, `h`, `fit`, `fmt`, `quality`, `crop`, `grayscale`, `rotate`, `padding`, etc.)
+- Works in browser and Node.js 18+
 
 ## Launch (go live)
 
@@ -431,7 +526,7 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
 - ~~**v0.6** — Platform parity: SQL console, Vortex Functions, magic links + password
   reset + account admin, custom claims, storage buckets, room broadcast + presence,
   relational query upgrades (embeds, OR, counts)~~ ✅ shipped
-- ~~**v0.7** — Policy Engine, Query Governance, Durable Realtime~~ ✅ shipped (3 of 4)
+- ~~**v0.7** — Policy Engine, Query Governance, Durable Realtime, TS/JS SDK~~ ✅ shipped (4 of 5)
   - **Policy Engine** — row policies as data (not DDL), compiled to a single bound
     predicate. `valueRef: 'user.id'` resolves to a literal ONCE and binds as a
     parameter — no `auth.uid()` per row. The console preview shows both forms side by side.
@@ -440,7 +535,13 @@ Without `REDIS_URL`, fan-out is purely in-process — zero extra infrastructure.
     Slow/refused queries are audited for the insights view.
   - **Durable Realtime** — every event carries a per-channel `seq`. A reconnecting
     client resumes with `since: <seq>` and is replayed what it missed.
-  - Remaining: TypeScript/JS client SDK, OAuth providers, image transforms.
+  - **TypeScript/JS SDK** (`@vortex/client`) — zero-dependency, fully typed. Auth,
+    database (fluent query builder), realtime (durable replay), storage (with image
+    transforms), functions, apps, admin. Works in browser and Node.js 18+.
+  - **Image Transforms** — Cloudinary-compatible URL-based transforms (resize, crop,
+    format conversion, quality, grayscale, rotate, padding) powered by sharp, with
+    on-disk caching. Append `?w=800&h=600&fit=cover&fmt=webp` to any public image URL.
+  - Remaining: OAuth providers, multi-provider auth.
 
 ## License
 

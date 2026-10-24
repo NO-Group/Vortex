@@ -12,11 +12,11 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard",
+    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard && npm run build -w @vortex/client",
     "dev": "npm run dev -w @vortex/server",
     "dev:dashboard": "npm run dev -w @vortex/dashboard",
     "start": "npm run start -w @vortex/server",
-    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server && npm run typecheck -w @vortex/dashboard",
+    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server && npm run typecheck -w @vortex/dashboard && npm run typecheck -w @vortex/client",
     "test": "npm run build -w @vortex/core && npm run test -w @vortex/server",
     "migrate": "npm run migrate -w @vortex/server",
     "admin": "node scripts/admin-cli.mjs",
