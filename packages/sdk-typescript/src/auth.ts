@@ -124,6 +124,14 @@ export class Auth {
 
   // ── Push Notifications ─────────────────────────────────────────────────
 
+  /** Get the VAPID public key for browser pushManager.subscribe(). */
+  async getVapidKey(): Promise<string> {
+    const { publicKey } = await this.http.request<{ publicKey: string }>(
+      '/v1/notifications/vapid-key',
+    );
+    return publicKey;
+  }
+
   /** Register a device for push notifications. */
   async registerDevice(input: {
     token: string;

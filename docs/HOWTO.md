@@ -841,6 +841,132 @@ POST /v1/notifications/broadcast
 }
 ```
 
+### Web Push (VAPID) — the one that actually works
+
+Vortex supports **Web Push** using VAPID — the browser-native push standard.
+This works in Chrome, Firefox, Edge, and Safari with **zero external setup**.
+No Firebase project, no FCM, no API keys.
+
+**Step 1: Get the VAPID public key**
+
+```ts
+const { publicKey } = await vortex.auth.getVapidKey();
+// → "BECAb6Y9..."
+```
+
+**Step 2: Subscribe in the browser**
+
+```javascript
+// In your web app (browser only)
+const publicKey = 'BECAb6Y9...'; // from getVapidKey()
+
+// Convert to Uint8Array (browsers need this format)
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+};
+
+const applicationServerKey = urlBase64ToUint8Array(publicKey);
+
+const subscription = await registration.pushManager.subscribe({
+  userVisibleOnly: true,
+  applicationServerKey,
+});
+
+// Register the subscription with Vortex
+await vortex.auth.registerDevice({
+  token: subscription.endpoint,
+  platform: 'web',
+  pushService: 'web_push',
+  metadata: { keys: subscription.keys },
+});
+```
+
+**Step 3: Listen for push events**
+
+```javascript
+// In your service worker (sw.js)
+self.addEventListener('push', (event) => {
+  const data = event.data.json();
+  const title = data.notification.title;
+  const body = data.notification.body;
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: '/icon.png',
+    data: data.data,
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.matchAll({ type: 'window' }).then(clientList => {
+    for (const client of clientList) {
+      if (client.url.includes('/') && 'focus' in client) {
+        return client.focus();
+      }
+    }
+    return clients.openWindow('/');
+  }));
+});
+```
+
+**Step 4: Send a push**
+
+```ts
+await vortex.auth.sendNotification({
+  title: 'New message',
+  body: 'You have a new message from Alice',
+  data: { url: '/chat' },
+});
+// → The browser receives a native notification
+```
+
+### FCM HTTP v1 — for mobile apps
+
+For Android/iOS apps using Firebase Cloud Messaging:
+
+```env
+FCM_PROJECT_ID=your-project-id
+FCM_PRIVATE_KEY=your-service-account-private-key-pem
+```
+
+Register FCM device tokens:
+
+```ts
+await vortex.auth.registerDevice({
+  token: 'fcm-device-token',
+  platform: 'android',
+  pushService: 'fcm',
+});
+```
+
+### Admin: Broadcast
+
+```bash
+POST /v1/notifications/broadcast
+{
+  "title": "System update",
+  "body": "Vortex v1.0 is now available",
+  "target": "all"
+}
+```
+
+### VAPID Key Persistence
+
+VAPID keys auto-generate on first boot. **Persist them** so browser subscriptions
+don't break on restart:
+
+```bash
+# Generate once
+node -e "const wp=require('web-push');console.log(JSON.stringify(wp.generateVAPIDKeys()))"
+# → {"publicKey":"...","privateKey":"..."}
+
+# Set in .env
+VAPID_PUBLIC_KEY=your-public-key
+VAPID_PRIVATE_KEY=your-private-key
+```
+
 ### FCM Setup
 
 Set `FCM_SERVER_KEY` in `.env` to enable real push delivery. Without it, notifications are recorded but marked as "pending."

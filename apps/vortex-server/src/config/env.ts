@@ -45,6 +45,16 @@ export interface ServerEnv {
   slowQueryMs: number;
   /** FCM server key for push notifications (optional). */
   fcmServerKey: string | undefined;
+  /** FCM HTTP v1: Firebase project ID. */
+  fcmProjectId: string | undefined;
+  /** FCM HTTP v1: service account private key (PEM). */
+  fcmPrivateKey: string | undefined;
+  /** VAPID public key for Web Push (auto-generated if not set). */
+  vapidPublicKey: string | undefined;
+  /** VAPID private key for Web Push (auto-generated if not set). */
+  vapidPrivateKey: string | undefined;
+  /** VAPID subject (mailto: address for the push service). */
+  vapidSubject: string;
   /** Notification delivery target. */
   notificationTarget: string;
   /** Edge cache TTL in seconds. */
@@ -149,6 +159,11 @@ export function loadEnv(): ServerEnv {
     slowQueryMs: int('SLOW_QUERY_MS', 250),
     /** FCM server key for push notifications (optional). */
     fcmServerKey: process.env.FCM_SERVER_KEY || undefined,
+    fcmProjectId: process.env.FCM_PROJECT_ID || undefined,
+    fcmPrivateKey: process.env.FCM_PRIVATE_KEY || undefined,
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY || undefined,
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || undefined,
+    vapidSubject: process.env.VAPID_SUBJECT || 'noreply@vortex.local',
     /** Notification delivery target (all/web/ios/android). */
     notificationTarget: process.env.NOTIFICATION_TARGET || 'all',
     /** Edge cache TTL in seconds (default: 300). */

@@ -21,10 +21,32 @@ const notificationSchema = z.object({
   target: z.enum(['all', 'web', 'ios', 'android']).optional(),
 });
 
+/**
+ * Notification routes.
+ *
+ * Public:
+ *   GET /v1/notifications/vapid-key — get the VAPID public key for browser
+ *                                    pushManager.subscribe()
+ *
+ * Authenticated:
+ *   POST /v1/notifications/devices — register a device/push subscription
+ *   GET  /v1/notifications/devices — list registered devices
+ *   DELETE /v1/notifications/devices/:id — deactivate a device
+ *   POST /v1/notifications — send a push notification
+ *   GET  /v1/notifications — list your notifications
+ *   GET  /v1/notifications/stats — notification stats
+ *
+ * Admin:
+ *   POST /v1/notifications/broadcast — send to all users
+ */
 export function createNotificationRoutes(ctx: AppContext): Router {
   const router = Router();
   const service = new NotificationService(ctx.db, {
-    fcmServerKey: ctx.env.fcmServerKey,
+    fcmProjectId: ctx.env.fcmProjectId,
+    fcmPrivateKey: ctx.env.fcmPrivateKey,
+    vapidPublicKey: ctx.env.vapidPublicKey,
+    vapidPrivateKey: ctx.env.vapidPrivateKey,
+    vapidSubject: ctx.env.vapidSubject,
     publicAppUrl: ctx.env.publicAppUrl,
   });
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
@@ -33,9 +55,13 @@ export function createNotificationRoutes(ctx: AppContext): Router {
     if (role !== 'admin') throw ApiError.forbidden('Admin access required');
   }
 
-  // ── Device management ─────────────────────────────────────────────────
+  // ── Public: VAPID public key ───────────────────────────────────────────
+  router.get('/vapid-key', (_req, res) => {
+    const key = service.getVapidPublicKey();
+    res.json({ publicKey: key });
+  });
 
-  /** POST /v1/notifications/devices — register a device token. */
+  // ── Device management ─────────────────────────────────────────────────
   router.post('/devices', auth, validateBody(deviceSchema), async (req, res, next) => {
     try {
       const result = await service.registerDevice({
@@ -51,7 +77,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** GET /v1/notifications/devices — list registered devices. */
   router.get('/devices', auth, async (req, res, next) => {
     try {
       const devices = await service.listDevices(req.auth!.sub);
@@ -61,7 +86,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** DELETE /v1/notifications/devices/:id — deactivate a device. */
   router.delete('/devices/:id', auth, async (req, res, next) => {
     try {
       await service.deactivateDevice(req.auth!.sub, req.params.id!);
@@ -72,8 +96,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
   });
 
   // ── Notifications ────────────────────────────────────────────────────
-
-  /** POST /v1/notifications — send a push notification. */
   router.post('/', auth, validateBody(notificationSchema), async (req, res, next) => {
     try {
       const result = await service.sendNotification({
@@ -89,7 +111,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** GET /v1/notifications — list your notifications. */
   router.get('/', auth, async (req, res, next) => {
     try {
       const limit = Number(req.query.limit) || 50;
@@ -100,7 +121,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** GET /v1/notifications/stats — notification stats. */
   router.get('/stats', auth, async (req, res, next) => {
     try {
       const stats = await service.notificationStats(req.auth!.sub);
@@ -111,8 +131,6 @@ export function createNotificationRoutes(ctx: AppContext): Router {
   });
 
   // ── Admin: broadcast ──────────────────────────────────────────────────
-
-  /** POST /v1/notifications/broadcast — admin: send to all users. */
   router.post('/broadcast', auth, validateBody(notificationSchema), async (req, res, next) => {
     try {
       requireAdmin(req.auth!.role);
