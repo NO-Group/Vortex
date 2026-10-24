@@ -214,5 +214,37 @@ export function createDbRoutes(ctx: AppContext): Router {
     }
   });
 
+  /** GET /v1/db/:table/schema — get column definitions for a table. */
+  router.get('/:table/schema', auth, async (req, res, next) => {
+    try {
+      const table = req.params.table!;
+      const rows = await ctx.db.raw<{
+        rows: Array<{
+          column_name: string;
+          data_type: string;
+          is_nullable: string;
+          column_default: string | null;
+        }>;
+      }>(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = $1
+         ORDER BY ordinal_position`,
+        [table],
+      );
+
+      const columns = rows.rows.map((r) => ({
+        name: r.column_name,
+        type: r.data_type,
+        nullable: r.is_nullable === 'YES',
+        defaultValue: r.column_default,
+      }));
+
+      res.json({ table, columns });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

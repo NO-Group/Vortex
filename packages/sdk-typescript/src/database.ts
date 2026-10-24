@@ -124,6 +124,20 @@ export class Database {
     });
   }
 
+  /**
+   * Get the column definitions for a table.
+   *
+   * ```ts
+   * const { columns } = await vortex.database.schema('notes');
+   * // → [{ name: 'id', type: 'uuid', nullable: false, default: '...' }, ...]
+   * ```
+   */
+  async schema(
+    table: string,
+  ): Promise<{ table: string; columns: Array<{ name: string; type: string; nullable: boolean; defaultValue: string | null }> }> {
+    return this.http.request(`/v1/db/${encodeURIComponent(table)}/schema`);
+  }
+
   /** Count rows matching filters. */
   async count(
     table: string,

@@ -26,6 +26,8 @@ export function DatabasePage() {
     { name: 'title', type: 'text' },
     { name: 'body', type: 'text' },
   ]);
+  // Schema state
+  const [schema, setSchema] = useState<Array<{ name: string; type: string; nullable: boolean; defaultValue: string | null }> | null>(null);
 
   const runQuery = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -56,6 +58,16 @@ export function DatabasePage() {
       setError(err instanceof ApiError ? `[${err.code}] ${err.message}` : 'Query failed');
     } finally {
       setBusy(false);
+    }
+
+    // Fetch schema for the current table
+    try {
+      const schemaRes = await api.get<{ columns: Array<{ name: string; type: string; nullable: boolean; defaultValue: string | null }> }>(
+        `/v1/db/${encodeURIComponent(table)}/schema`,
+      );
+      setSchema(schemaRes.columns);
+    } catch {
+      setSchema(null);
     }
   };
 
@@ -244,6 +256,31 @@ export function DatabasePage() {
               ↻ Refresh
             </GlassButton>
           </div>
+
+          {/* Schema viewer */}
+          {schema && schema.length > 0 && (
+            <div className="glass p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Schema — {table}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {schema.map((col) => (
+                  <div
+                    key={col.name}
+                    className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1"
+                  >
+                    <span className="font-mono text-[11px] text-slate-200">{col.name}</span>
+                    <span className="text-[9px] text-slate-500">{col.type}</span>
+                    {col.nullable ? (
+                      <span className="text-[8px] text-slate-600">nullable</span>
+                    ) : (
+                      <span className="text-[8px] text-spectrum-green">required</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="glass p-3">
             <DataTable rows={rows} onDelete={(row) => void deleteRow(row)} />
