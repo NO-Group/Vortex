@@ -187,6 +187,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/MIGRATION.md](docs/MIGRATION.md)** — move from Supabase, Firebase, Cloudflare, or Cloudinary to Vortex. Code diffs for auth, database, realtime, storage, functions, and push. Migration checklist included.
 
+## Brand Guide
+
+**[docs/BRAND.md](docs/BRAND.md)** — Controlled Glassmorphism design system. Canvas, spectrum, glass tokens, typography, components, motion, layout, and do's/don'ts.
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
