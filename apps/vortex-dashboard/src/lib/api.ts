@@ -237,3 +237,28 @@ export interface TableEvent {
   actorId: string | null;
   timestamp: string;
 }
+
+export interface NotificationDevice {
+  id: string;
+  platform: string;
+  pushService: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  status: string;
+  createdAt: string;
+  deliveredAt: string | null;
+}
+
+export interface NotificationStats {
+  total: number;
+  sent: number;
+  pending: number;
+  failed: number;
+}

@@ -27,6 +27,7 @@ import { FunctionsPage } from './pages/FunctionsPage.js';
 import { AuthPage } from './pages/AuthPage.js';
 import { PolicyPage } from './pages/PolicyPage.js';
 import { OAuthPage } from './pages/OAuthPage.js';
+import { NotificationPage } from './pages/NotificationPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -210,6 +211,8 @@ export default function App() {
         return <PolicyPage isAdmin={session?.user.role === 'admin'} />;
       case 'oauth':
         return <OAuthPage isAdmin={session?.user.role === 'admin'} />;
+      case 'notifications':
+        return <NotificationPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }
