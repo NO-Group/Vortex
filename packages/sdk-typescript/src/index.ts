@@ -44,6 +44,7 @@ export type {
   TwoFactorChallenge, TwoFactorSetupResult,
   FeatureFlag, FlagEvaluation,
   VectorCollection, VectorItem, VectorSearchResult,
+  CustomDomain, DnsInstructions,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

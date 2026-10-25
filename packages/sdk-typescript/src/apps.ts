@@ -1,5 +1,5 @@
 import type { HttpClient } from './http.js';
-import type { VortexApp } from './types.js';
+import type { VortexApp, CustomDomain, DnsInstructions } from './types.js';
 
 /**
  * Vortex Apps — deploy and host static web apps.
@@ -72,5 +72,40 @@ export class Apps {
   /** Get the live URL for an app. */
   appUrl(name: string): string {
     return `${this.baseUrl}/apps/${name}/`;
+  }
+
+  // ── Custom Domains ──────────────────────────────────────────────────
+
+  /** Add a custom domain to an app. */
+  async addDomain(name: string, domain: string): Promise<CustomDomain & { dnsInstructions: DnsInstructions }> {
+    const { domain: result } = await this.http.request<{ domain: CustomDomain & { dnsInstructions: DnsInstructions } }>(
+      `/v1/apps/${name}/domains`,
+      { method: 'POST', body: { domain } },
+    );
+    return result;
+  }
+
+  /** List custom domains for an app. */
+  async listDomains(name: string): Promise<CustomDomain[]> {
+    const { domains } = await this.http.request<{ domains: CustomDomain[] }>(
+      `/v1/apps/${name}/domains`,
+    );
+    return domains;
+  }
+
+  /** Remove a custom domain from an app. */
+  async removeDomain(name: string, domainId: string): Promise<void> {
+    await this.http.request(`/v1/apps/${name}/domains/${domainId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** Verify a custom domain's DNS and activate it. */
+  async verifyDomain(name: string, domainId: string): Promise<CustomDomain> {
+    const { domain } = await this.http.request<{ domain: CustomDomain }>(
+      `/v1/apps/${name}/domains/${domainId}/verify`,
+      { method: 'POST' },
+    );
+    return domain;
   }
 }
