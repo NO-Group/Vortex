@@ -16,7 +16,8 @@ export type PageKey =
   | 'webhooks'
   | 'audit'
   | 'api-keys'
-  | 'flags';
+  | 'flags'
+  | 'vector';
 
 interface NavItem {
   key: PageKey;
@@ -119,6 +120,12 @@ const icons: Record<PageKey, ReactElement> = {
       <line x1="4" y1="22" x2="4" y2="15" />
     </svg>
   ),
+  vector: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5L19 19M19 5l-2.5 2.5M7.5 16.5L5 19" />
+    </svg>
+  ),
 };
 
 const items: Array<{ key: PageKey; label: string; hint: string }> = [
@@ -137,6 +144,7 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'audit', label: 'Audit Trail', hint: '/v1/audit' },
   { key: 'api-keys', label: 'API Keys', hint: '/v1/api-keys' },
   { key: 'flags', label: 'Feature Flags', hint: '/v1/flags' },
+  { key: 'vector', label: 'Vector Search', hint: '/v1/vector' },
 ];
 
 export function Sidebar({

@@ -32,6 +32,7 @@ import { WebhookPage } from './pages/WebhookPage.js';
 import AuditPage from './pages/AuditPage.js';
 import ApiKeysPage from './pages/ApiKeysPage.js';
 import FlagsPage from './pages/FlagsPage.js';
+import VectorPage from './pages/VectorPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -49,6 +50,7 @@ const PAGES: PageKey[] = [
   'audit',
   'api-keys',
   'flags',
+  'vector',
 ];
 
 interface Session {
@@ -230,6 +232,8 @@ export default function App() {
         return <ApiKeysPage />;
       case 'flags':
         return <FlagsPage />;
+      case 'vector':
+        return <VectorPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }
