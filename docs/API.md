@@ -562,3 +562,58 @@ Get audit statistics for the authenticated user (or a target user if admin).
   "lastActive": "..."
 }
 ```
+
+---
+
+## API Keys
+
+### POST /v1/api-keys
+
+Create a new service API key. The full key is returned only at creation.
+
+**Body:**
+```json
+{ "name": "production-server", "scopes": ["database:read", "storage:write"] }
+```
+
+**Response (201):**
+```json
+{
+  "apiKey": {
+    "id": "...", "name": "production-server",
+    "key": "vortex_live_abc123...", "key_prefix": "vortex_live_abc1",
+    "scopes": ["database:read", "storage:write"], "created_at": "..."
+  }
+}
+```
+
+### GET /v1/api-keys
+
+List active API keys for the authenticated user.
+
+**Response (200):**
+```json
+{
+  "apiKeys": [{
+    "id": "...", "name": "...", "key_prefix": "vortex_live_...",
+    "scopes": ["database:read"], "last_used_at": "...",
+    "created_at": "...", "revoked_at": null
+  }]
+}
+```
+
+### DELETE /v1/api-keys/:id
+
+Revoke (permanently delete) an API key. Irreversible.
+
+**Response:** 204 No Content
+
+### Using API keys
+
+API keys authenticate via the standard bearer header:
+
+```
+Authorization: Bearer vortex_live_abc123...
+```
+
+Keys can be used on any endpoint that requires authentication — no JWT needed. The key's `scopes` field controls access (optional; unscoped keys have full access).

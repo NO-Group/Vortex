@@ -49,6 +49,20 @@ const session = await vortex.auth.oauthSignIn('google', {
 });
 ```
 
+### API Keys (server-to-server)
+
+For automated systems, CI/CD, or backend services, create an API key:
+
+```ts
+const { key } = await vortex.apiKeys.create({
+  name: 'production-server',
+  scopes: ['database:read', 'storage:write'],
+});
+
+// Use the key in your server's Authorization header:
+// curl -H "Authorization: Bearer $KEY" https://vortex.example.com/v1/db/notes/query
+```
+
 ## 4. Database — CRUD in 3 lines
 
 ```ts

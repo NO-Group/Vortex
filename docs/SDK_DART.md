@@ -251,6 +251,43 @@ final webhooks = await vortex.webhooks.list();
 final log = await vortex.webhooks.log(webhookId, limit: 20);
 ```
 
+## API Keys
+
+### Create an API key
+
+```dart
+final result = await vortex.apiKeys.create(
+  name: 'production-server',
+  scopes: ['database:read', 'storage:write'],
+);
+// result['key'] — copy this now, it won't be shown again
+```
+
+### List API keys
+
+```dart
+final keys = await vortex.apiKeys.list();
+```
+
+### Revoke an API key
+
+```dart
+await vortex.apiKeys.revoke(apiKeyId);
+```
+
+### Using API keys
+
+API keys authenticate via the standard bearer header:
+
+```dart
+// In your Dart HTTP client or server:
+final response = await http.post(
+  Uri.parse('https://vortex.example.com/v1/db/notes/query'),
+  headers: {'Authorization': 'Bearer $apiKey'},
+  body: jsonEncode({'columns': ['id', 'title']}),
+);
+```
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled
