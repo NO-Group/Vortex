@@ -5,8 +5,33 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { RbacService } from './rbac.js';
 import { QueryService } from './query.service.js';
+import { WebhookService } from '../webhooks/webhook.service.js';
 import { ApiError } from '../errors.js';
 import type { TokenConfig } from '../auth/tokens.js';
+
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(ctx: AppContext): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService(ctx.db, {
+      publicAppUrl: ctx.env.publicAppUrl,
+    });
+  }
+  return webhookService;
+}
+
+/** Deliver a webhook event (fire-and-forget, errors are logged). */
+async function deliverWebhook(
+  ctx: AppContext,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getWebhookService(ctx).deliver(event, data);
+  } catch {
+    // Webhook delivery failures must never break the request
+  }
+}
 
 const filterSchema = z.object({
   column: z.string().min(1),
@@ -103,6 +128,11 @@ export function createDbRoutes(ctx: AppContext): Router {
   router.post('/:table', auth, validateBody(insertSchema), async (req, res, next) => {
     try {
       const result = await service.insert(actorOf(req), req.params.table!, req.body.rows);
+      void deliverWebhook(ctx, 'database.insert', {
+        table: req.params.table,
+        rows: result.rows,
+        count: result.count,
+      });
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -119,6 +149,11 @@ export function createDbRoutes(ctx: AppContext): Router {
         req.body.conflictKeys,
         req.body.patch,
       );
+      void deliverWebhook(ctx, 'database.upsert', {
+        table: req.params.table,
+        rows: result.rows,
+        count: result.count,
+      });
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -134,6 +169,12 @@ export function createDbRoutes(ctx: AppContext): Router {
         req.body.patch,
         req.body.filters,
       );
+      void deliverWebhook(ctx, 'database.update', {
+        table: req.params.table,
+        rows: result.rows,
+        count: result.count,
+        patch: req.body.patch,
+      });
       res.json(result);
     } catch (err) {
       next(err);
@@ -144,6 +185,10 @@ export function createDbRoutes(ctx: AppContext): Router {
   router.delete('/:table', auth, validateBody(deleteSchema), async (req, res, next) => {
     try {
       const result = await service.delete(actorOf(req), req.params.table!, req.body.filters);
+      void deliverWebhook(ctx, 'database.delete', {
+        table: req.params.table,
+        count: result.count,
+      });
       res.json(result);
     } catch (err) {
       next(err);
