@@ -21,6 +21,7 @@ export { Functions } from './functions.js';
 export { Apps } from './apps.js';
 export { Admin } from './admin.js';
 export { Webhooks } from './webhooks.js';
+export { Audit } from './audit.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -35,6 +36,7 @@ export type {
   OAuthProvider, OAuthAccount, OAuthLoginResult,
   NotificationDevice, Notification,
   Webhook, WebhookLogEntry,
+  AuditEntry, AuditStats,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

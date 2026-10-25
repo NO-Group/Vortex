@@ -7,6 +7,7 @@ import { Functions } from './functions.js';
 import { Apps } from './apps.js';
 import { Admin } from './admin.js';
 import { Webhooks } from './webhooks.js';
+import { Audit } from './audit.js';
 import type {
   AuthSession, LoginInput, SignupInput, TableChangeHandler,
   PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -64,6 +65,7 @@ export class VortexClient {
   readonly apps: Apps;
   readonly admin: Admin;
   readonly webhooks: Webhooks;
+  readonly audit: Audit;
 
   private rt: Realtime | null = null;
 
@@ -89,6 +91,7 @@ export class VortexClient {
     this.apps = new Apps(this.http, url);
     this.admin = new Admin(this.http);
     this.webhooks = new Webhooks(this.http);
+    this.audit = new Audit(this.http);
   }
 
   /**
