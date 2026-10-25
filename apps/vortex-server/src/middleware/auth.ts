@@ -1,7 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { JwtClaims } from '@vortex/core';
+import { createHash } from 'node:crypto';
 import { ApiError } from '../errors.js';
 import { verifyToken, type TokenConfig } from '../auth/tokens.js';
+import { createApiKeyService } from '../apikeys/apikey.service.js';
+import type { Knex } from 'knex';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -11,6 +14,55 @@ declare global {
       auth?: JwtClaims;
     }
   }
+}
+
+/**
+ * Express middleware that accepts either a JWT bearer token or a Vortex
+ * service API key (`vortex_live_…`). JWT tokens take priority; if the
+ * token doesn't start with the API key prefix, it's treated as a JWT.
+ */
+export function requireAuthWithApiKeys(db: Knex, config: TokenConfig) {
+  const apiKeyService = createApiKeyService(db);
+
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const token = bearerFrom(req);
+    if (!token) {
+      next(ApiError.unauthorized('Missing Bearer token'));
+      return;
+    }
+
+    // Try API key first if it has the Vortex key prefix
+    if (token.startsWith('vortex_live_')) {
+      apiKeyService.validate(token).then((result) => {
+        if (!result) {
+          next(ApiError.unauthorized('Invalid or revoked API key'));
+          return;
+        }
+        // Touch last_used_at (fire-and-forget)
+        const keyHash = createHash('sha256').update(token).digest('hex');
+        apiKeyService.touch(keyHash).catch(() => {});
+
+        req.auth = {
+          sub: result.userId,
+          email: '',
+          role: 'apikey' as JwtClaims['role'],
+          iss: 'vortex-api-key',
+          iat: Math.floor(Date.now() / 1000),
+          exp: 0,
+        };
+        next();
+      }).catch(next);
+      return;
+    }
+
+    // Fall back to JWT
+    try {
+      req.auth = verifyToken(token, config);
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 /** Extract a bearer token: `Authorization: Bearer …` or `x-vortex-token` fallback. */
