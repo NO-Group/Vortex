@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 import '../services/db_service.dart';
 import '../services/realtime_service.dart';
 import '../services/storage_service.dart';
+import '../services/webhook_service.dart';
+import '../services/function_service.dart';
 import 'api_exception.dart';
 import 'jwt.dart';
 
@@ -27,6 +29,8 @@ class VortexClient {
   late final DbService db = DbService(this);
   late final StorageService storage = StorageService(this);
   late final RealtimeService realtime = RealtimeService(this);
+  late final WebhookService webhooks = WebhookService(this);
+  late final FunctionService functions = FunctionService(this);
 
   String? _accessToken;
 

@@ -54,4 +54,34 @@ class AuthService {
   void signOut() {
     _client.signOut();
   }
+
+  /// Update your own profile metadata.
+  Future<VortexUser> updateProfile({required Map<String, dynamic> metadata}) async {
+    final body = await _client.sendJson(
+      'PATCH',
+      '/v1/auth/profile',
+      body: {'metadata': metadata},
+    );
+    return VortexUser.fromJson(body['user'] as Map<String, dynamic>);
+  }
+
+  /// Change your password (verifies current password first).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _client.sendJson(
+      'POST',
+      '/v1/auth/password',
+      body: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+    );
+  }
+
+  /// Delete your own account (irreversible).
+  Future<void> deleteAccount() async {
+    await _client.sendJson('DELETE', '/v1/auth/account');
+  }
 }
