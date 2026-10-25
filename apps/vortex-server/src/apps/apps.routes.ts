@@ -7,6 +7,7 @@ import { validateBody } from '../middleware/validate.js';
 import type { TokenConfig } from '../auth/tokens.js';
 import { AppsService } from './apps.service.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
+import { createCustomDomainRoutes } from '../customdomains/domain.routes.js';
 
 let webhookService: WebhookService | null = null;
 
@@ -146,6 +147,9 @@ export function createAppsRoutes(ctx: AppContext): Router {
       next(err);
     }
   });
+
+  // ── Custom domain routes ────────────────────────────────────────────
+  router.use(createCustomDomainRoutes(ctx));
 
   return router;
 }
