@@ -7,6 +7,8 @@ import {
 import { decodeJwt, formatDateTime } from '../lib/format.js';
 import { Banner, Chip, GlassCard, PageTitle, StatusDot } from '../components/Glass.js';
 
+import { TwoFactorSection } from './TwoFactorSection.js';
+
 export function AuthPage({ user, onLogout }: { user: StoredUser | null; onLogout: () => void }) {
   const [profile, setProfile] = useState<StoredUser | null>(user);
   const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
@@ -102,6 +104,8 @@ export function AuthPage({ user, onLogout }: { user: StoredUser | null; onLogout
       </div>
 
       <UserAdmin isAdmin={profile?.role === 'admin'} />
+
+      <TwoFactorSection />
     </div>
   );
 }
