@@ -25,6 +25,7 @@ export 'src/services/realtime_service.dart';
 export 'src/services/storage_service.dart';
 export 'src/services/webhook_service.dart';
 export 'src/services/function_service.dart';
+export 'src/services/audit_service.dart';
 
 // UI controllers
 export 'src/ui/glass_panel.dart';

@@ -523,3 +523,42 @@ Check engine health (public, no auth required).
 ```json
 { "status": "ok", "engine": "vortex", "version": "0.9.0", "realtime": { "connections": 3 } }
 ```
+
+---
+
+## Audit
+
+### GET /v1/audit/log
+
+List audit log entries for the authenticated user (or any user if admin).
+
+**Query params:** `action`, `userId` *(admin only)*, `limit` (default 50, max 200), `offset`
+
+**Response (200):**
+```json
+{
+  "entries": [{
+    "id": "...", "user_id": "...", "role": "user",
+    "action": "database.insert", "resource_type": "table",
+    "resource_id": "notes", "metadata": { "count": 3 },
+    "created_at": "..."
+  }],
+  "count": 1
+}
+```
+
+### GET /v1/audit/stats
+
+Get audit statistics for the authenticated user (or a target user if admin).
+
+**Query params:** `userId` *(admin only)*
+
+**Response (200):**
+```json
+{
+  "totalActions": 42,
+  "byAction": { "database.insert": 10, "storage.upload": 5 },
+  "byResource": { "table": 15, "object": 5 },
+  "lastActive": "..."
+}
+```
