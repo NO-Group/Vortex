@@ -29,6 +29,7 @@ import { PolicyPage } from './pages/PolicyPage.js';
 import { OAuthPage } from './pages/OAuthPage.js';
 import { NotificationPage } from './pages/NotificationPage.js';
 import { WebhookPage } from './pages/WebhookPage.js';
+import AuditPage from './pages/AuditPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -43,6 +44,7 @@ const PAGES: PageKey[] = [
   'oauth',
   'notifications',
   'webhooks',
+  'audit',
 ];
 
 interface Session {
@@ -218,6 +220,8 @@ export default function App() {
         return <NotificationPage />;
       case 'webhooks':
         return <WebhookPage />;
+      case 'audit':
+        return <AuditPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

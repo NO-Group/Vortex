@@ -290,3 +290,21 @@ export interface WebhookLogEntry {
   error: string | null;
   created_at: string;
 }
+
+export interface AuditEntry {
+  id: string;
+  user_id: string;
+  role: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AuditStats {
+  totalActions: number;
+  byAction: Record<string, number>;
+  byResource: Record<string, number>;
+  lastActive: string | null;
+}
