@@ -8,6 +8,30 @@ import type { TokenConfig } from '../auth/tokens.js';
 import { LocalStorageDriver } from './local.driver.js';
 import { StorageRegistry } from './storage.service.js';
 import { BucketService } from './buckets.service.js';
+import { WebhookService } from '../webhooks/webhook.service.js';
+
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(ctx: AppContext): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService(ctx.db, {
+      publicAppUrl: ctx.env.publicAppUrl,
+    });
+  }
+  return webhookService;
+}
+
+async function deliverWebhook(
+  ctx: AppContext,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getWebhookService(ctx).deliver(event, data);
+  } catch {
+    // Webhook delivery failures must never break the request
+  }
+}
 
 const presignUploadSchema = z.object({
   key: z.string().min(1).max(1024),
@@ -88,6 +112,12 @@ export function createStorageRoutes(ctx: AppContext): Router {
           size: result.size,
           contentType,
           ownerId: req.auth!.sub,
+        });
+        void deliverWebhook(ctx, 'storage.upload', {
+          key: meta.key,
+          size: meta.size,
+          contentType: meta.contentType,
+          ownerId: meta.ownerId,
         });
         res.status(201).json({ object: meta });
       } catch (err) {
@@ -204,6 +234,10 @@ export function createStorageRoutes(ctx: AppContext): Router {
       }
       await driver.delete(key);
       await registry.remove(key);
+      void deliverWebhook(ctx, 'storage.delete', {
+        key,
+        ownerId: meta?.ownerId ?? null,
+      });
       res.status(204).end();
     } catch (err) {
       next(err);

@@ -7,7 +7,31 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { createMailer } from '../mailer/mailer.js';
 import { createOAuthRoutes } from './oauth.routes.js';
+import { WebhookService } from '../webhooks/webhook.service.js';
 import type { TokenConfig } from './tokens.js';
+
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(ctx: AppContext): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService(ctx.db, {
+      publicAppUrl: ctx.env.publicAppUrl,
+    });
+  }
+  return webhookService;
+}
+
+async function deliverWebhook(
+  ctx: AppContext,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getWebhookService(ctx).deliver(event, data);
+  } catch {
+    // Webhook delivery failures must never break the request
+  }
+}
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -57,6 +81,9 @@ export function createAuthRoutes(ctx: AppContext): Router {
   router.post('/signup', validateBody(signupSchema), async (req, res, next) => {
     try {
       const session = await service.signup(req.body);
+      void deliverWebhook(ctx, 'auth.signup', {
+        user: session.user,
+      });
       res.status(201).json(session);
     } catch (err) {
       next(err);
