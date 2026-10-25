@@ -8,9 +8,34 @@ import { validateBody } from '../middleware/validate.js';
 import { createMailer } from '../mailer/mailer.js';
 import { createOAuthRoutes } from './oauth.routes.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
+import { createAuditService } from '../audit/audit.service.js';
 import type { TokenConfig } from './tokens.js';
 
 let webhookService: WebhookService | null = null;
+let auditService: ReturnType<typeof createAuditService> | null = null;
+
+function getAuditService(ctx: AppContext) {
+  if (!auditService) {
+    auditService = createAuditService(ctx.db);
+  }
+  return auditService;
+}
+
+async function recordAudit(
+  ctx: AppContext,
+  userId: string,
+  role: string,
+  action: string,
+  resourceType: string,
+  resourceId: string | null,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getAuditService(ctx).record({ userId, role, action, resourceType, resourceId, metadata });
+  } catch {
+    // Audit failures must never break the request
+  }
+}
 
 function getWebhookService(ctx: AppContext): WebhookService {
   if (!webhookService) {
@@ -81,6 +106,8 @@ export function createAuthRoutes(ctx: AppContext): Router {
   router.post('/signup', validateBody(signupSchema), async (req, res, next) => {
     try {
       const session = await service.signup(req.body);
+      void recordAudit(ctx, session.user.id, session.user.role, 'auth.signup',
+        'user', session.user.id, { email: session.user.email });
       void deliverWebhook(ctx, 'auth.signup', {
         user: session.user,
       });

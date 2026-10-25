@@ -9,8 +9,33 @@ import { LocalStorageDriver } from './local.driver.js';
 import { StorageRegistry } from './storage.service.js';
 import { BucketService } from './buckets.service.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
+import { createAuditService } from '../audit/audit.service.js';
 
 let webhookService: WebhookService | null = null;
+let auditService: ReturnType<typeof createAuditService> | null = null;
+
+function getAuditService(ctx: AppContext) {
+  if (!auditService) {
+    auditService = createAuditService(ctx.db);
+  }
+  return auditService;
+}
+
+async function recordAudit(
+  ctx: AppContext,
+  userId: string,
+  role: string,
+  action: string,
+  resourceType: string,
+  resourceId: string | null,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getAuditService(ctx).record({ userId, role, action, resourceType, resourceId, metadata });
+  } catch {
+    // Audit failures must never break the request
+  }
+}
 
 function getWebhookService(ctx: AppContext): WebhookService {
   if (!webhookService) {
@@ -113,6 +138,8 @@ export function createStorageRoutes(ctx: AppContext): Router {
           contentType,
           ownerId: req.auth!.sub,
         });
+        void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'storage.upload',
+          'object', meta.key, { size: meta.size, contentType: meta.contentType });
         void deliverWebhook(ctx, 'storage.upload', {
           key: meta.key,
           size: meta.size,
@@ -234,6 +261,8 @@ export function createStorageRoutes(ctx: AppContext): Router {
       }
       await driver.delete(key);
       await registry.remove(key);
+      void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'storage.delete',
+        'object', key, {});
       void deliverWebhook(ctx, 'storage.delete', {
         key,
         ownerId: meta?.ownerId ?? null,
