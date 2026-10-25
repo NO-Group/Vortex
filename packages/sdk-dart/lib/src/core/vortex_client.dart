@@ -11,6 +11,7 @@ import '../services/function_service.dart';
 import '../services/audit_service.dart';
 import '../services/apikey_service.dart';
 import '../services/flag_service.dart';
+import '../services/vector_service.dart';
 import 'api_exception.dart';
 import 'jwt.dart';
 
@@ -37,6 +38,7 @@ class VortexClient {
   late final AuditService audit = AuditService(this);
   late final ApiKeyService apiKeys = ApiKeyService(this);
   late final FlagService flags = FlagService(this);
+  late final VectorService vector = VectorService(this);
 
   String? _accessToken;
 

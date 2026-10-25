@@ -28,6 +28,7 @@ export 'src/services/function_service.dart';
 export 'src/services/audit_service.dart';
 export 'src/services/apikey_service.dart';
 export 'src/services/flag_service.dart';
+export 'src/services/vector_service.dart';
 
 // UI controllers
 export 'src/ui/glass_panel.dart';
