@@ -1,0 +1,525 @@
+# Vortex API Reference
+
+Every endpoint under `/v1` is documented here. All endpoints require a
+JWT bearer token in the `Authorization` header unless marked as public.
+
+## Base URL
+
+```
+https://<your-vortex-url>/v1
+```
+
+## Authentication
+
+All requests (except public ones) must include:
+
+```
+Authorization: Bearer <jwt>
+```
+
+Admin-only endpoints additionally require the `admin` role.
+
+---
+
+## Auth
+
+### POST /v1/auth/signup
+
+Register a new account. Returns a session with a JWT.
+
+**Body:**
+```json
+{ "email": "user@example.com", "password": "secret123", "metadata": {} }
+```
+
+**Response (201):**
+```json
+{ "user": { "id": "...", "email": "...", "role": "user", "metadata": {}, "createdAt": "..." }, "token": "...", "expiresIn": 3600 }
+```
+
+### POST /v1/auth/login
+
+Log in with email + password.
+
+**Body:**
+```json
+{ "email": "user@example.com", "password": "secret123" }
+```
+
+**Response (200):** Same as signup.
+
+### GET /v1/auth/me
+
+Get the authenticated user's profile.
+
+**Response (200):**
+```json
+{ "id": "...", "email": "...", "role": "user", "metadata": {}, "createdAt": "..." }
+```
+
+### POST /v1/auth/magic-link
+
+Request a magic link for passwordless login.
+
+**Body:**
+```json
+{ "email": "user@example.com" }
+```
+
+### POST /v1/auth/magic-link/verify
+
+Verify a magic link token and receive a session.
+
+**Body:**
+```json
+{ "token": "..." }
+```
+
+### POST /v1/auth/password-reset
+
+Request a password reset link.
+
+**Body:**
+```json
+{ "email": "user@example.com" }
+```
+
+### POST /v1/auth/password-reset/confirm
+
+Set a new password using a reset token.
+
+**Body:**
+```json
+{ "token": "...", "password": "newsecret123" }
+```
+
+### PATCH /v1/auth/profile
+
+Update your own profile metadata.
+
+**Body:**
+```json
+{ "metadata": { "displayName": "Alice", "avatar": "/me.png" } }
+```
+
+### POST /v1/auth/password
+
+Change your password (verifies current password first).
+
+**Body:**
+```json
+{ "currentPassword": "oldpass", "newPassword": "newpass123" }
+```
+
+### DELETE /v1/auth/account
+
+Delete your own account. Irreversible.
+
+### GET /v1/auth/users *(admin)*
+
+List all accounts.
+
+### PATCH /v1/auth/users/:id *(admin)*
+
+Change a user's role or metadata.
+
+**Body:**
+```json
+{ "role": "admin", "metadata": {} }
+```
+
+### DELETE /v1/auth/users/:id *(admin)*
+
+Delete a user account.
+
+---
+
+## OAuth
+
+### GET /v1/auth/oauth/providers
+
+List available OAuth providers.
+
+### GET /v1/auth/oauth/:provider/authorize
+
+Get the OAuth authorize URL for a provider.
+
+### POST /v1/auth/oauth/:provider/callback
+
+Handle the OAuth callback. Returns a session.
+
+### GET /v1/auth/oauth/accounts
+
+List linked OAuth accounts.
+
+### DELETE /v1/auth/oauth/accounts/:provider
+
+Unlink an OAuth account.
+
+---
+
+## Database
+
+### POST /v1/db/:table/query
+
+Execute a query against a table.
+
+**Body:**
+```json
+{
+  "columns": ["id", "title"],
+  "filters": [{ "column": "owner_id", "op": "eq", "value": "..." }],
+  "order": [{ "column": "created_at", "direction": "desc" }],
+  "limit": 20,
+  "offset": 0
+}
+```
+
+### POST /v1/db/:table
+
+Insert rows into a table.
+
+**Body:**
+```json
+{ "rows": [{ "title": "Hello", "owner_id": "..." }] }
+```
+
+### POST /v1/db/:table/upsert
+
+Insert or update rows on conflict.
+
+**Body:**
+```json
+{ "rows": [{ "id": "...", "title": "Updated" }], "conflictKeys": ["id"], "patch": { "title": "Updated" } }
+```
+
+### PATCH /v1/db/:table
+
+Update rows matching filters.
+
+**Body:**
+```json
+{ "patch": { "status": "done" }, "filters": [{ "column": "id", "op": "eq", "value": "..." }] }
+```
+
+### DELETE /v1/db/:table
+
+Delete rows matching filters.
+
+**Body:**
+```json
+{ "filters": [{ "column": "id", "op": "eq", "value": "..." }] }
+```
+
+### GET /v1/db/tables
+
+List non-system table names.
+
+### POST /v1/db/:table/create
+
+Create a new table with custom columns.
+
+**Body:**
+```json
+{ "columns": [{ "name": "title", "type": "text", "required": true }] }
+```
+
+### GET /v1/db/:table/schema
+
+Get the column definitions for a table.
+
+---
+
+## Storage
+
+### POST /v1/storage/buckets
+
+Create a bucket.
+
+**Body:**
+```json
+{ "name": "images", "public": false }
+```
+
+### GET /v1/storage/buckets
+
+List all buckets.
+
+### DELETE /v1/storage/buckets/:name
+
+Delete a bucket.
+
+### POST /v1/storage/upload?key=<path>
+
+Upload an object. Body is the raw file bytes.
+
+### GET /v1/storage/object?key=<path>
+
+Download an object.
+
+### DELETE /v1/storage/object
+
+Delete an object.
+
+**Body:**
+```json
+{ "key": "images/photo.jpg" }
+```
+
+### GET /v1/storage/list?bucket=<name>&prefix=<prefix>
+
+List objects in a bucket.
+
+### GET /v1/storage/stats
+
+Get storage usage statistics.
+
+**Response:**
+```json
+{ "totalObjects": 42, "totalSize": 1048576, "byBucket": { "images": { "count": 10, "size": 524288 } } }
+```
+
+### POST /v1/storage/presign-upload
+
+Get a presigned upload URL for direct-to-storage uploads.
+
+### POST /v1/storage/presign-download
+
+Get a presigned download URL.
+
+### GET /v1/storage/:bucket/:path
+
+Access a public object (no auth required for public buckets).
+
+**Query params:** `w`, `h`, `fit`, `fmt`, `quality`, `crop`, `grayscale`, `sepia`, `rotate`, `flipH`, `flipV`
+
+---
+
+## Realtime
+
+### WS /v1/realtime?token=<jwt>
+
+WebSocket connection for realtime subscriptions.
+
+**Client → Server messages:**
+```json
+{ "type": "vortex:subscribe", "channel": "table:notes", "since": 0 }
+{ "type": "vortex:unsubscribe", "channel": "table:notes" }
+{ "type": "vortex:broadcast", "channel": "room:general", "event": "message", "payload": { "body": "Hello" } }
+{ "type": "vortex:presence", "action": "track", "channel": "room:general", "state": { "name": "Alice" } }
+{ "type": "vortex:presence", "action": "untrack", "channel": "room:general" }
+```
+
+**Server → Client messages:**
+```json
+{ "type": "vortex:welcome", "clientId": "..." }
+{ "type": "vortex:event", "seq": 1, "table": "notes", "action": "INSERT", "rows": [...] }
+{ "type": "vortex:replay", "channel": "table:notes", "count": 3, "cursor": 5, "truncated": false }
+{ "type": "vortex:broadcast", "channel": "room:general", "event": "message", "payload": { "body": "Hello" } }
+{ "type": "vortex:presence_sync", "channel": "room:general", "peers": [...] }
+{ "type": "vortex:presence_diff", "channel": "room:general", "joins": [...], "leaves": [...] }
+```
+
+---
+
+## Functions
+
+### POST /v1/functions
+
+Deploy a function.
+
+**Body:**
+```json
+{ "name": "hello", "source": "export default async function(ctx) { return { status: 200, body: 'Hello' }; }", "title": "Hello Function" }
+```
+
+### GET /v1/functions
+
+List your functions.
+
+### GET /v1/functions/:name
+
+Get a function's details.
+
+### PATCH /v1/functions/:name
+
+Update a function (source, title, or status).
+
+### DELETE /v1/functions/:name
+
+Delete a function.
+
+### ALL /v1/functions/:name
+
+Invoke a function via any HTTP method. The function's default export receives a context object and returns a response.
+
+---
+
+## Apps
+
+### POST /v1/apps
+
+Create an app.
+
+**Body:**
+```json
+{ "name": "my-app", "title": "My App" }
+```
+
+### GET /v1/apps
+
+List your apps.
+
+### GET /v1/apps/:name
+
+Get an app's details.
+
+### DELETE /v1/apps/:name
+
+Delete an app.
+
+### POST /v1/apps/:name/files
+
+Deploy files to an app.
+
+### GET /v1/apps/:name/files
+
+List app files.
+
+### DELETE /v1/apps/:name/files
+
+Delete app files.
+
+---
+
+## Policies
+
+### POST /v1/policies
+
+Create a row policy.
+
+**Body:**
+```json
+{ "name": "users_read_own", "tableName": "notes", "action": "select", "using": { "column": "owner_id", "op": "eq", "value": "{identity.sub}" }, "roles": ["user"], "enabled": true }
+```
+
+### GET /v1/policies
+
+List all policies.
+
+### GET /v1/policies/:name
+
+Get a policy's details.
+
+### PATCH /v1/policies/:name
+
+Update a policy.
+
+### DELETE /v1/policies/:name
+
+Delete a policy.
+
+### POST /v1/policies/preview
+
+Preview a policy's SQL without saving.
+
+---
+
+## SQL
+
+### POST /v1/sql *(admin)*
+
+Execute raw SQL. The query is EXPLAINed before execution for cost governance.
+
+**Body:**
+```json
+{ "sql": "SELECT * FROM notes WHERE owner_id = $1", "params": ["..."] }
+```
+
+---
+
+## Insights
+
+### GET /v1/insights
+
+Get governance insights (query log, cost statistics, slow queries).
+
+---
+
+## Notifications
+
+### POST /v1/notifications/devices
+
+Register a push notification device.
+
+**Body:**
+```json
+{ "token": "...", "platform": "web", "pushService": "web_push" }
+```
+
+### GET /v1/notifications/devices
+
+List registered devices.
+
+### GET /v1/notifications
+
+List notifications.
+
+### POST /v1/notifications
+
+Send a notification.
+
+**Body:**
+```json
+{ "title": "Hello", "body": "World", "target": "all", "data": {} }
+```
+
+### GET /v1/notifications/stats
+
+Get notification statistics.
+
+---
+
+## Webhooks
+
+### POST /v1/webhooks
+
+Register a webhook endpoint.
+
+**Body:**
+```json
+{ "url": "https://example.com/webhooks", "events": ["database.insert"] }
+```
+
+### GET /v1/webhooks
+
+List your webhooks.
+
+### PATCH /v1/webhooks/:id
+
+Update a webhook (url, events, active).
+
+### DELETE /v1/webhooks/:id
+
+Delete a webhook.
+
+### POST /v1/webhooks/:id/secret
+
+Regenerate the signing secret.
+
+### GET /v1/webhooks/:id/log?limit=50
+
+View delivery history.
+
+---
+
+## Health
+
+### GET /v1/health
+
+Check engine health (public, no auth required).
+
+**Response:**
+```json
+{ "status": "ok", "engine": "vortex", "version": "0.9.0", "realtime": { "connections": 3 } }
+```
