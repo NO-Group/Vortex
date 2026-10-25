@@ -898,3 +898,74 @@ await vortex.vector.upsert(collection.id, {
 ```
 
 Cosine similarity scores range from -1 (opposite) to 1 (identical). Higher scores mean more similar vectors.
+
+---
+
+## Custom Domains
+
+### POST /v1/apps/:name/domains
+
+Add a custom domain to an app.
+
+**Body:**
+```json
+{ "domain": "app.mydomain.com" }
+```
+
+**Response (201):**
+```json
+{
+  "domain": {
+    "id": "...",
+    "app_name": "my-app",
+    "domain": "app.mydomain.com",
+    "status": "pending",
+    "verification_token": "abc123...",
+    "tls_status": "none",
+    "dnsInstructions": {
+      "domain": "app.mydomain.com",
+      "type": "CNAME",
+      "value": "app.vortex.local",
+      "description": "Add a CNAME record..."
+    }
+  }
+}
+```
+
+### GET /v1/apps/:name/domains
+
+List custom domains for an app.
+
+### DELETE /v1/apps/:name/domains/:id
+
+Remove a custom domain from an app.
+
+### POST /v1/apps/:name/domains/:id/verify
+
+Verify DNS configuration and activate the domain.
+
+**Response (200):**
+```json
+{ "domain": { "id": "...", "status": "active", "tls_status": "provisioning", "...": "..." } }
+```
+
+### Domain Statuses
+
+| Status | Meaning |
+|---|---|
+| `pending` | Domain added, DNS not yet configured |
+| `active` | DNS verified, domain is serving |
+| `failed` | Verification failed |
+
+### TLS Statuses
+
+| Status | Meaning |
+|---|---|
+| `none` | No TLS configured yet |
+| `provisioning` | TLS certificate is being provisioned |
+| `active` | TLS certificate is active |
+| `failed` | TLS provisioning failed |
+
+### DNS Setup
+
+When you add a custom domain, Vortex returns DNS instructions. You need to add a CNAME record at your domain registrar pointing to the Vortex routing identifier. Once DNS propagates, call the verify endpoint to activate the domain with automatic TLS (via Caddy/Let's Encrypt in production).

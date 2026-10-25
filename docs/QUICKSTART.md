@@ -136,6 +136,23 @@ const results = await vortex.vector.search(collection.id, queryEmbedding, {
 // [{ item_id: 'doc-1', score: 0.95, payload: {...} }]
 ```
 
+### Custom Domains
+
+Serve your app from your own domain:
+
+```ts
+// Add a custom domain
+const { domain, dnsInstructions } = await vortex.apps.addDomain('my-app', 'app.mydomain.com');
+console.log(dnsInstructions.description); // DNS setup instructions
+
+// Verify after DNS propagates
+await vortex.apps.verifyDomain('my-app', domain.id);
+// → domain.status: 'active', tls_status: 'provisioning'
+
+// List domains
+const domains = await vortex.apps.listDomains('my-app');
+```
+
 ## 4. Database — CRUD in 3 lines
 
 ```ts

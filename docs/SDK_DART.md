@@ -384,6 +384,27 @@ final results = await vortex.vector.search(
 // [{'item_id': 'doc-1', 'score': 0.95, 'payload': {...}}]
 ```
 
+## Custom Domains
+
+### Add a custom domain
+
+```dart
+final result = await vortex.domains.addDomain('my-app', 'app.mydomain.com');
+// result['dnsInstructions']['description'] → DNS setup instructions
+```
+
+### Verify a domain
+
+```dart
+await vortex.domains.verifyDomain('my-app', domainId);
+```
+
+### List domains
+
+```dart
+final domains = await vortex.domains.listDomains('my-app');
+```
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled
