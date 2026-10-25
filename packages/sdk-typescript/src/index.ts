@@ -22,6 +22,7 @@ export { Apps } from './apps.js';
 export { Admin } from './admin.js';
 export { Webhooks } from './webhooks.js';
 export { Audit } from './audit.js';
+export { ApiKeys } from './apikeys.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -37,6 +38,7 @@ export type {
   NotificationDevice, Notification,
   Webhook, WebhookLogEntry,
   AuditEntry, AuditStats,
+  ApiKey, ApiKeyCreateResult,
 } from './types.js';
 
 export type { FilterOp } from './types.js';
