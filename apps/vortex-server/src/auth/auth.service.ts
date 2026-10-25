@@ -133,6 +133,13 @@ export class AuthService {
     return sessionFor(row, this.tokenConfig);
   }
 
+  /** Issue a session for an already-authenticated user (e.g. after 2FA). */
+  async issueSessionForUser(userId: string): Promise<AuthSession> {
+    const row = await this.db<UserRow>('users').where({ id: userId }).first();
+    if (!row) throw ApiError.notFound('User not found');
+    return sessionFor(row, this.tokenConfig);
+  }
+
   /** Fetch the profile for an authenticated user id. */
   async me(userId: string): Promise<AuthUser> {
     const row = await this.db<UserRow>('users').where({ id: userId }).first();

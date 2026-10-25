@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Knex } from 'knex';
 
-export type OneTimeKind = 'magic' | 'reset';
+export type OneTimeKind = 'magic' | 'reset' | '2fa';
 
 interface AuthTokenRow {
   id: string;

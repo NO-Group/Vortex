@@ -6,7 +6,9 @@ import { ApiError } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { createMailer } from '../mailer/mailer.js';
+import { OneTimeTokens } from './one-time-tokens.js';
 import { createOAuthRoutes } from './oauth.routes.js';
+import { createTwoFactorRoutes } from './twofactor.routes.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
 import { createAuditService } from '../audit/audit.service.js';
 import type { TokenConfig } from './tokens.js';
@@ -121,6 +123,15 @@ export function createAuthRoutes(ctx: AppContext): Router {
   router.post('/login', validateBody(loginSchema), async (req, res, next) => {
     try {
       const session = await service.login(req.body);
+
+      // Check if 2FA is enabled — return a challenge instead of session
+      const userRow = await ctx.db('users').where({ id: session.user.id }).first();
+      if (userRow?.two_factor_enabled) {
+        const oneTimeTokens = new OneTimeTokens(ctx.db);
+        const { token: tempToken } = await oneTimeTokens.issue(session.user.id, '2fa', 5);
+        return res.json({ twoFactorRequired: true, tempToken });
+      }
+
       res.status(200).json(session);
     } catch (err) {
       next(err);
@@ -258,6 +269,9 @@ export function createAuthRoutes(ctx: AppContext): Router {
 
   // ── OAuth routes ───────────────────────────────────────────────────────
   router.use('/oauth', createOAuthRoutes(ctx));
+
+  // ── 2FA routes ────────────────────────────────────────────────────────
+  router.use('/2fa', createTwoFactorRoutes(ctx));
 
   return router;
 }
