@@ -6,6 +6,30 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import type { TokenConfig } from '../auth/tokens.js';
 import { AppsService } from './apps.service.js';
+import { WebhookService } from '../webhooks/webhook.service.js';
+
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(ctx: AppContext): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService(ctx.db, {
+      publicAppUrl: ctx.env.publicAppUrl,
+    });
+  }
+  return webhookService;
+}
+
+async function deliverWebhook(
+  ctx: AppContext,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getWebhookService(ctx).deliver(event, data);
+  } catch {
+    // Webhook delivery failures must never break the request
+  }
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(40),
@@ -27,6 +51,9 @@ export function createAppsRoutes(ctx: AppContext): Router {
   router.post('/', auth, validateBody(createSchema), async (req, res, next) => {
     try {
       const app = await service.create(req.auth!.sub, req.body.name, req.body.title);
+      void deliverWebhook(ctx, 'apps.deploy', {
+        app: { name: app.name, title: app.title },
+      });
       res.status(201).json({ app });
     } catch (err) {
       next(err);

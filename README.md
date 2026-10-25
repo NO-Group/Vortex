@@ -191,6 +191,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/BRAND.md](docs/BRAND.md)** — Controlled Glassmorphism design system. Canvas, spectrum, glass tokens, typography, components, motion, layout, and do's/don'ts.
 
+## Webhooks
+
+**[docs/WEBHOOKS.md](docs/WEBHOOKS.md)** — deliver real-time events to external services. Register, verify HMAC signatures, manage endpoints, and view delivery logs. Covers all 9 event types.
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.

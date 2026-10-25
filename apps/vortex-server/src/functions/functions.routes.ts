@@ -8,6 +8,7 @@ import { verifyToken, type TokenConfig } from '../auth/tokens.js';
 import { QueryService } from '../db/query.service.js';
 import { RbacService } from '../db/rbac.js';
 import { FunctionsService } from './functions.service.js';
+import { WebhookService } from '../webhooks/webhook.service.js';
 import {
   compileFunction,
   runFunction,
@@ -16,6 +17,29 @@ import {
   type FnSandboxGlobals,
 } from './runtime.js';
 import type { FunctionRequest } from './functions.types.js';
+
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(ctx: AppContext): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService(ctx.db, {
+      publicAppUrl: ctx.env.publicAppUrl,
+    });
+  }
+  return webhookService;
+}
+
+async function deliverWebhook(
+  ctx: AppContext,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getWebhookService(ctx).deliver(event, data);
+  } catch {
+    // Webhook delivery failures must never break the request
+  }
+}
 
 const createSchema = z.object({
   name: z.string().min(1).max(40),
@@ -44,6 +68,9 @@ export function createFunctionsRoutes(ctx: AppContext): Router {
         req.body.source,
         req.body.title,
       );
+      void deliverWebhook(ctx, 'functions.deploy', {
+        function: { name: fn.name, title: fn.title, status: fn.status },
+      });
       res.status(201).json({ function: fn });
     } catch (err) {
       next(err);
