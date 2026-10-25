@@ -34,6 +34,7 @@ export type {
   BroadcastHandler, ReplayHandler, StatusHandler,
   OAuthProvider, OAuthAccount, OAuthLoginResult,
   NotificationDevice, Notification,
+  Webhook, WebhookLogEntry,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

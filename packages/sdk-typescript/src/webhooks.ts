@@ -1,25 +1,5 @@
 import type { HttpClient } from './http.js';
-
-interface Webhook {
-  id: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  success_count: number;
-  failure_count: number;
-  last_delivered_at: string | null;
-  created_at: string;
-}
-
-interface WebhookLogEntry {
-  id: string;
-  event: string;
-  payload: Record<string, unknown> | null;
-  status: string;
-  http_status: number | null;
-  error: string | null;
-  created_at: string;
-}
+import type { Webhook, WebhookLogEntry } from './types.js';
 
 /**
  * Vortex Webhooks — deliver events to external services.
