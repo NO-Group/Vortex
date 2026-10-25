@@ -6,10 +6,35 @@ import { validateBody } from '../middleware/validate.js';
 import { RbacService } from './rbac.js';
 import { QueryService } from './query.service.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
+import { createAuditService } from '../audit/audit.service.js';
 import { ApiError } from '../errors.js';
 import type { TokenConfig } from '../auth/tokens.js';
 
 let webhookService: WebhookService | null = null;
+let auditService: ReturnType<typeof createAuditService> | null = null;
+
+function getAuditService(ctx: AppContext) {
+  if (!auditService) {
+    auditService = createAuditService(ctx.db);
+  }
+  return auditService;
+}
+
+async function recordAudit(
+  ctx: AppContext,
+  userId: string,
+  role: string,
+  action: string,
+  resourceType: string,
+  resourceId: string | null,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await getAuditService(ctx).record({ userId, role, action, resourceType, resourceId, metadata });
+  } catch {
+    // Audit failures must never break the request
+  }
+}
 
 function getWebhookService(ctx: AppContext): WebhookService {
   if (!webhookService) {
@@ -128,6 +153,8 @@ export function createDbRoutes(ctx: AppContext): Router {
   router.post('/:table', auth, validateBody(insertSchema), async (req, res, next) => {
     try {
       const result = await service.insert(actorOf(req), req.params.table!, req.body.rows);
+      void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'database.insert',
+        'table', req.params.table!, { count: result.count });
       void deliverWebhook(ctx, 'database.insert', {
         table: req.params.table,
         rows: result.rows,
@@ -149,6 +176,8 @@ export function createDbRoutes(ctx: AppContext): Router {
         req.body.conflictKeys,
         req.body.patch,
       );
+      void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'database.upsert',
+        'table', req.params.table!, { count: result.count });
       void deliverWebhook(ctx, 'database.upsert', {
         table: req.params.table,
         rows: result.rows,
@@ -169,6 +198,8 @@ export function createDbRoutes(ctx: AppContext): Router {
         req.body.patch,
         req.body.filters,
       );
+      void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'database.update',
+        'table', req.params.table!, { count: result.count });
       void deliverWebhook(ctx, 'database.update', {
         table: req.params.table,
         rows: result.rows,
@@ -185,6 +216,8 @@ export function createDbRoutes(ctx: AppContext): Router {
   router.delete('/:table', auth, validateBody(deleteSchema), async (req, res, next) => {
     try {
       const result = await service.delete(actorOf(req), req.params.table!, req.body.filters);
+      void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'database.delete',
+        'table', req.params.table!, { count: result.count });
       void deliverWebhook(ctx, 'database.delete', {
         table: req.params.table,
         count: result.count,
