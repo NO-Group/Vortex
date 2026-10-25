@@ -697,3 +697,92 @@ When a user with 2FA enabled logs in, the `/v1/auth/login` endpoint returns a ch
 The client then calls `/v1/auth/2fa/verify` with the `tempToken` and the 6-digit code from the user's authenticator app (or a backup code).
 
 Supported authenticator apps: Google Authenticator, Authy, 1Password, Bitwarden, any TOTP-compatible app.
+
+---
+
+## Feature Flags
+
+### POST /v1/flags
+
+Create a new feature flag.
+
+**Body:**
+```json
+{
+  "key": "new-dashboard",
+  "description": "New dashboard UI",
+  "status": "gradual",
+  "rolloutPercentage": 25,
+  "targeting": { "roles": ["admin"] },
+  "variants": [{ "name": "A", "value": "control" }, { "name": "B", "value": "treatment" }]
+}
+```
+
+**Response (201):**
+```json
+{ "flag": { "id": "...", "key": "new-dashboard", "status": "gradual", "...": "..." } }
+```
+
+### GET /v1/flags
+
+List all feature flags for the authenticated user.
+
+### PATCH /v1/flags/:id
+
+Update a feature flag (status, rollout percentage, targeting, variants).
+
+### DELETE /v1/flags/:id
+
+Delete a feature flag.
+
+### GET /v1/flags/evaluate?key=
+
+Evaluate a single flag for the authenticated user.
+
+**Response (200):**
+```json
+{
+  "key": "new-dashboard",
+  "enabled": true,
+  "variant": "A",
+  "reason": "gradual_in"
+}
+```
+
+The `reason` field is one of: `on`, `off`, `gradual_in`, `gradual_out`, `targeted_out`, `not_found`.
+
+### GET /v1/flags/evaluate-all
+
+Evaluate all flags for the authenticated user at once.
+
+**Response (200):**
+```json
+{ "flags": { "new-dashboard": true, "dark-mode": false } }
+```
+
+### Flag Statuses
+
+| Status | Behavior |
+|---|---|
+| `off` | Flag is disabled for all users |
+| `on` | Flag is enabled for all users |
+| `gradual` | Flag is enabled for a percentage of users (0-100) |
+
+### Targeting
+
+Flags can target specific users and roles:
+
+```json
+{
+  "targeting": {
+    "roles": ["admin", "beta-tester"],
+    "userIds": ["user-uuid-1", "user-uuid-2"]
+  }
+}
+```
+
+If either `roles` or `userIds` is specified and the user doesn't match, the flag is disabled with reason `targeted_out`.
+
+### Gradual Rollouts
+
+Gradual rollouts use deterministic hash bucketing — the same user always gets the same result for the same flag. The `rolloutPercentage` field controls how many users see the flag (0-100).

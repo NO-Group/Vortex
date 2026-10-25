@@ -323,6 +323,39 @@ await vortex.auth.disable2FA(
 );
 ```
 
+## Feature Flags
+
+### Create a flag
+
+```dart
+await vortex.flags.create(
+  key: 'new-dashboard',
+  status: 'gradual',
+  rolloutPercentage: 25,
+);
+```
+
+### Check a flag
+
+```dart
+final result = await vortex.flags.evaluate('new-dashboard');
+// result['enabled'] → true or false
+// result['reason'] → 'on', 'off', 'gradual_in', 'gradual_out', etc.
+```
+
+### Get all flags
+
+```dart
+final all = await vortex.flags.evaluateAll();
+// {'new-dashboard': true, 'dark-mode': false}
+```
+
+### Toggle a flag
+
+```dart
+await vortex.flags.update(flagId, status: 'on');
+```
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled

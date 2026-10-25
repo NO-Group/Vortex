@@ -84,6 +84,32 @@ if ('twoFactorRequired' in result) {
 }
 ```
 
+### Feature Flags
+
+Control features with gradual rollouts — no redeploy needed:
+
+```ts
+// Create a flag with 25% rollout
+await vortex.flags.create({
+  key: 'new-dashboard',
+  status: 'gradual',
+  rolloutPercentage: 25,
+});
+
+// Check if enabled for current user
+const result = await vortex.flags.evaluate('new-dashboard');
+if (result.enabled) {
+  // Show new dashboard
+}
+
+// Get all flags at once
+const all = await vortex.flags.evaluateAll();
+// { 'new-dashboard': true, 'dark-mode': false }
+
+// Toggle a flag
+await vortex.flags.update(flagId, { status: 'on' });
+```
+
 ## 4. Database — CRUD in 3 lines
 
 ```ts
