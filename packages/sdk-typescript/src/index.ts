@@ -24,6 +24,7 @@ export { Webhooks } from './webhooks.js';
 export { Audit } from './audit.js';
 export { ApiKeys } from './apikeys.js';
 export { Flags } from './flags.js';
+export { Vector } from './vector.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -42,6 +43,7 @@ export type {
   ApiKey, ApiKeyCreateResult,
   TwoFactorChallenge, TwoFactorSetupResult,
   FeatureFlag, FlagEvaluation,
+  VectorCollection, VectorItem, VectorSearchResult,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

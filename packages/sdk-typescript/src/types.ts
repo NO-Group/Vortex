@@ -416,3 +416,29 @@ export interface FlagEvaluation {
   variant: string | null;
   reason: string;
 }
+
+// ── Vector Search ──────────────────────────────────────────────────────
+
+export interface VectorCollection {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  dimensions: number;
+  created_at: string;
+}
+
+export interface VectorItem {
+  id: string;
+  collection_id: string;
+  item_id: string;
+  vector: number[];
+  payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface VectorSearchResult {
+  item_id: string;
+  score: number;
+  payload: Record<string, unknown> | null;
+}

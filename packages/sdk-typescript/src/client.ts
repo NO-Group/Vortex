@@ -10,6 +10,7 @@ import { Webhooks } from './webhooks.js';
 import { Audit } from './audit.js';
 import { ApiKeys } from './apikeys.js';
 import { Flags } from './flags.js';
+import { Vector } from './vector.js';
 import type {
   AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
   TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -70,6 +71,7 @@ export class VortexClient {
   readonly audit: Audit;
   readonly apiKeys: ApiKeys;
   readonly flags: Flags;
+  readonly vector: Vector;
 
   private rt: Realtime | null = null;
 
@@ -98,6 +100,7 @@ export class VortexClient {
     this.audit = new Audit(this.http);
     this.apiKeys = new ApiKeys(this.http);
     this.flags = new Flags(this.http);
+    this.vector = new Vector(this.http);
   }
 
   /**
