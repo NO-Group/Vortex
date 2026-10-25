@@ -199,6 +199,10 @@ const preview = await vortex.admin.previewPolicy({
 
 **[docs/API.md](docs/API.md)** — complete endpoint reference. Auth, database, storage, realtime, functions, apps, policies, SQL, insights, notifications, webhooks, and health.
 
+## Dart SDK
+
+**[docs/SDK_DART.md](docs/SDK_DART.md)** — Flutter/Dart client guide. Auth, database queries, storage, realtime, functions, webhooks, and the Vortex UI theme.
+
 ## Complete Guide
 
 **[docs/HOWTO.md](docs/HOWTO.md)** — the full "how to use" guide. 20 sections covering everything from quick start to multi-node deployment, with API references, code examples, and a comparison against Supabase, Firebase, Cloudflare, and Cloudinary.
