@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { AppContext } from '../context.js';
 import { BucketService } from './buckets.service.js';
 import { applyTransforms, parseTransforms, hasTransforms } from './image-transforms.js';
-import { EdgeCache } from '../governance/edge-cache.js';
 import { join } from 'node:path';
 
 /**
@@ -23,10 +22,7 @@ import { join } from 'node:path';
 export function createPublicStorageRoutes(ctx: AppContext): Router {
   const router = Router();
   const buckets = new BucketService(ctx.db);
-  const edgeCache = new EdgeCache({
-    maxEntries: ctx.env.edgeCacheMaxEntries ?? 10000,
-    defaultTtl: ctx.env.edgeCacheTtl ?? 300,
-  });
+  const edgeCache = ctx.edgeCache;
 
   router.get('/:bucket/*', async (req, res, next) => {
     try {

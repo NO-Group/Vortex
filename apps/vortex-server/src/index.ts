@@ -12,6 +12,7 @@ import { RedisEventBridge, type RedisPubSubClient } from './realtime/redis-bridg
 import { createStorageDriver } from './storage/storage.service.js';
 import { PolicyService } from './policies/policy.service.js';
 import { QueryGovernor } from './governance/query-governor.js';
+import { EdgeCache } from './governance/edge-cache.js';
 import type { AppContext } from './context.js';
 
 async function main(): Promise<void> {
@@ -32,6 +33,10 @@ async function main(): Promise<void> {
     governor: new QueryGovernor(db, {
       maxCost: env.maxQueryCost,
       slowQueryMs: env.slowQueryMs,
+    }),
+    edgeCache: new EdgeCache({
+      maxEntries: env.edgeCacheMaxEntries,
+      defaultTtl: env.edgeCacheTtl,
     }),
   };
 

@@ -245,6 +245,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       for (const key of removedKeys) {
         await driver.delete(key).catch(() => undefined);
       }
+      ctx.edgeCache.invalidatePrefix(`storage:public:${req.params.name}/`);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -261,6 +262,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       }
       await driver.delete(key);
       await registry.remove(key);
+      ctx.edgeCache.delete(`storage:public:${key}`);
       void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'storage.delete',
         'object', key, {});
       void deliverWebhook(ctx, 'storage.delete', {

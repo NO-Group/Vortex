@@ -1,6 +1,7 @@
 import type { Knex } from 'knex';
 import { createSign } from 'node:crypto';
-import { generateVAPIDKeys, setVapidDetails, sendNotification as webPushSend } from 'web-push';
+import webPush from 'web-push';
+const { generateVAPIDKeys, setVapidDetails, sendNotification: webPushSend } = webPush;
 import { ApiError } from '../errors.js';
 
 interface DeviceRow {
