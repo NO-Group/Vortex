@@ -14,7 +14,8 @@ export type PageKey =
   | 'oauth'
   | 'notifications'
   | 'webhooks'
-  | 'audit';
+  | 'audit'
+  | 'api-keys';
 
 interface NavItem {
   key: PageKey;
@@ -106,6 +107,11 @@ const icons: Record<PageKey, ReactElement> = {
       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
     </svg>
   ),
+  'api-keys': (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" />
+    </svg>
+  ),
 };
 
 const items: Array<{ key: PageKey; label: string; hint: string }> = [
@@ -122,6 +128,7 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'notifications', label: 'Push', hint: '/v1/notifications' },
   { key: 'webhooks', label: 'Webhooks', hint: '/v1/webhooks' },
   { key: 'audit', label: 'Audit Trail', hint: '/v1/audit' },
+  { key: 'api-keys', label: 'API Keys', hint: '/v1/api-keys' },
 ];
 
 export function Sidebar({

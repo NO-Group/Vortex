@@ -308,3 +308,23 @@ export interface AuditStats {
   byResource: Record<string, number>;
   lastActive: string | null;
 }
+
+export interface ApiKey {
+  id: string;
+  user_id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[] | null;
+  last_used_at: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface ApiKeyCreateResult {
+  id: string;
+  name: string;
+  key: string;
+  key_prefix: string;
+  scopes: string[] | null;
+  created_at: string;
+}
