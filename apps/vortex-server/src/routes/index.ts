@@ -12,6 +12,7 @@ import { createNotificationRoutes } from '../notifications/notification.routes.j
 import { createWebhookRoutes } from '../webhooks/webhook.routes.js';
 import { createAuditRoutes } from '../audit/audit.routes.js';
 import { createApiKeyRoutes } from '../apikeys/apikey.routes.js';
+import { createFlagRoutes } from '../featureflags/flag.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -28,5 +29,6 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/webhooks', createWebhookRoutes(ctx));
   router.use('/audit', createAuditRoutes(ctx));
   router.use('/api-keys', createApiKeyRoutes(ctx));
+  router.use('/flags', createFlagRoutes(ctx));
   return router;
 }
