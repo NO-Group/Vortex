@@ -63,6 +63,27 @@ const { key } = await vortex.apiKeys.create({
 // curl -H "Authorization: Bearer $KEY" https://vortex.example.com/v1/db/notes/query
 ```
 
+### Two-Factor Authentication (2FA)
+
+Protect accounts with TOTP two-factor authentication:
+
+```ts
+// Enable 2FA — returns secret, otpauth URL, and backup codes
+const setup = await vortex.auth.setup2FA();
+console.log(setup.otpauthUrl); // Scan with authenticator app
+console.log(setup.backupCodes); // Store securely
+
+// Confirm with first 6-digit code
+await vortex.auth.enable2FA('123456');
+
+// On login, check for 2FA challenge:
+const result = await vortex.auth.login({ email, password });
+if ('twoFactorRequired' in result) {
+  const code = prompt('Enter 6-digit code');
+  const session = await vortex.auth.verify2FA(result.tempToken, code!);
+}
+```
+
 ## 4. Database — CRUD in 3 lines
 
 ```ts

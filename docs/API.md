@@ -617,3 +617,83 @@ Authorization: Bearer vortex_live_abc123...
 ```
 
 Keys can be used on any endpoint that requires authentication — no JWT needed. The key's `scopes` field controls access (optional; unscoped keys have full access).
+
+---
+
+## Two-Factor Authentication (2FA)
+
+### POST /v1/auth/2fa/setup
+
+Begin 2FA enrollment. Requires authentication.
+
+**Response (200):**
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP...",
+  "otpauthUrl": "otpauth://totp/Vortex:user@example.com?secret=...",
+  "backupCodes": ["CODE1", "CODE2", "CODE3", "CODE4", "CODE5", "CODE6", "CODE7", "CODE8"]
+}
+```
+
+### POST /v1/auth/2fa/enable
+
+Confirm 2FA enrollment with a 6-digit code.
+
+**Body:**
+```json
+{ "code": "123456" }
+```
+
+**Response (200):**
+```json
+{ "enabled": true }
+```
+
+### POST /v1/auth/2fa/verify
+
+Complete 2FA login. Uses a temporary token from the login challenge.
+
+**Body:**
+```json
+{ "tempToken": "abc123...", "code": "123456" }
+```
+
+**Response (200):**
+```json
+{ "user": { "...": "..." }, "token": "...", "expiresIn": 3600 }
+```
+
+### POST /v1/auth/2fa/disable
+
+Disable 2FA. Requires authentication + current password.
+
+**Body:**
+```json
+{ "password": "currentpass", "code": "123456" }
+```
+
+**Response (200):**
+```json
+{ "disabled": true }
+```
+
+### POST /v1/auth/2fa/backup-codes
+
+Regenerate backup codes. Requires authentication.
+
+**Response (200):**
+```json
+{ "backupCodes": ["NEW1", "NEW2", "NEW3", "NEW4", "NEW5", "NEW6", "NEW7", "NEW8"] }
+```
+
+### 2FA Login Flow
+
+When a user with 2FA enabled logs in, the `/v1/auth/login` endpoint returns a challenge instead of a session:
+
+```json
+{ "twoFactorRequired": true, "tempToken": "abc123..." }
+```
+
+The client then calls `/v1/auth/2fa/verify` with the `tempToken` and the 6-digit code from the user's authenticator app (or a backup code).
+
+Supported authenticator apps: Google Authenticator, Authy, 1Password, Bitwarden, any TOTP-compatible app.

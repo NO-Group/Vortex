@@ -288,6 +288,41 @@ final response = await http.post(
 );
 ```
 
+## Two-Factor Authentication
+
+### Enable 2FA
+
+```dart
+final setup = await vortex.auth.setup2FA();
+// setup['otpauthUrl'] — scan with authenticator app
+// setup['backupCodes'] — store securely
+
+final result = await vortex.auth.enable2FA(code: '123456');
+```
+
+### Handle 2FA at login
+
+```dart
+final result = await vortex.auth.signIn(email: email, password: password);
+
+if (result['twoFactorRequired'] == true) {
+  final code = prompt('Enter 6-digit code');
+  final session = await vortex.auth.verify2FA(
+    tempToken: result['tempToken'],
+    code: code,
+  );
+}
+```
+
+### Disable 2FA
+
+```dart
+await vortex.auth.disable2FA(
+  password: currentPassword,
+  code: '123456',
+);
+```
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled
