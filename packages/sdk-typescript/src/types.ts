@@ -381,3 +381,16 @@ export interface ApiKeyCreateResult {
   scopes: string[] | null;
   created_at: string;
 }
+
+// ── Two-Factor Authentication ──────────────────────────────────────────
+
+export interface TwoFactorChallenge {
+  twoFactorRequired: true;
+  tempToken: string;
+}
+
+export interface TwoFactorSetupResult {
+  secret: string;
+  otpauthUrl: string;
+  backupCodes: string[];
+}

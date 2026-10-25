@@ -10,8 +10,8 @@ import { Webhooks } from './webhooks.js';
 import { Audit } from './audit.js';
 import { ApiKeys } from './apikeys.js';
 import type {
-  AuthSession, LoginInput, SignupInput, TableChangeHandler,
-  PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
+  AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
+  TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
 } from './types.js';
 
 export interface VortexClientOptions {
@@ -137,7 +137,7 @@ export class VortexClient {
   }
 
   /** Sign in and update the token on all clients. */
-  async signIn(input: LoginInput | SignupInput): Promise<AuthSession> {
+  async signIn(input: LoginInput | SignupInput): Promise<AuthSession | TwoFactorChallenge> {
     const isSignup = !('password' in input) || !input.email;
     // Distinguish by which method to call
     if ('email' in input && 'password' in input && !('metadata' in input)) {

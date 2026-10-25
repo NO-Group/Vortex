@@ -1,6 +1,7 @@
 import type { HttpClient } from './http.js';
 import type {
   AuthSession, AuthUser, SignupInput, LoginInput, MagicLinkResult,
+  TwoFactorChallenge, TwoFactorSetupResult,
   OAuthProvider, OAuthAccount, OAuthLoginResult,
   NotificationDevice, Notification,
 } from './types.js';
@@ -26,12 +27,14 @@ export class Auth {
   }
 
   /** Log in with email + password. */
-  async login(input: LoginInput): Promise<AuthSession> {
-    const session = await this.http.request<AuthSession>('/v1/auth/login', {
+  async login(input: LoginInput): Promise<AuthSession | TwoFactorChallenge> {
+    const session = await this.http.request<AuthSession | TwoFactorChallenge>('/v1/auth/login', {
       method: 'POST',
       body: input,
     });
-    this.http.setToken(session.token);
+    if (!('twoFactorRequired' in session)) {
+      this.http.setToken(session.token);
+    }
     return session;
   }
 
@@ -39,6 +42,49 @@ export class Auth {
   async me(): Promise<AuthUser> {
     const { user } = await this.http.request<{ user: AuthUser }>('/v1/auth/me');
     return user;
+  }
+
+  // ── Two-Factor Authentication ────────────────────────────────────────
+
+  /** Begin 2FA enrollment — generates secret, otpauth URL, and backup codes. */
+  async setup2FA(): Promise<TwoFactorSetupResult> {
+    return this.http.request<TwoFactorSetupResult>('/v1/auth/2fa/setup', {
+      method: 'POST',
+    });
+  }
+
+  /** Confirm 2FA enrollment with a 6-digit code. */
+  async enable2FA(code: string): Promise<{ enabled: boolean }> {
+    return this.http.request<{ enabled: boolean }>('/v1/auth/2fa/enable', {
+      method: 'POST',
+      body: { code },
+    });
+  }
+
+  /** Complete 2FA login with a temp token and code (TOTP or backup). */
+  async verify2FA(tempToken: string, code: string): Promise<AuthSession> {
+    const session = await this.http.request<AuthSession>('/v1/auth/2fa/verify', {
+      method: 'POST',
+      body: { tempToken, code },
+    });
+    this.http.setToken(session.token);
+    return session;
+  }
+
+  /** Disable 2FA (requires password + current code). */
+  async disable2FA(password: string, code: string): Promise<{ disabled: boolean }> {
+    return this.http.request<{ disabled: boolean }>('/v1/auth/2fa/disable', {
+      method: 'POST',
+      body: { password, code },
+    });
+  }
+
+  /** Regenerate backup codes (requires auth). */
+  async regenerateBackupCodes(): Promise<{ backupCodes: string[] }> {
+    return this.http.request<{ backupCodes: string[] }>(
+      '/v1/auth/2fa/backup-codes',
+      { method: 'POST' },
+    );
   }
 
   /** Request a magic sign-in link. */

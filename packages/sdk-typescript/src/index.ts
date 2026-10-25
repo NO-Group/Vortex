@@ -39,6 +39,7 @@ export type {
   Webhook, WebhookLogEntry,
   AuditEntry, AuditStats,
   ApiKey, ApiKeyCreateResult,
+  TwoFactorChallenge, TwoFactorSetupResult,
 } from './types.js';
 
 export type { FilterOp } from './types.js';
