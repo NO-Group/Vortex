@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { api, ApiError, getToken } from '../lib/api.js';
+import { api, ApiError, getToken, type CustomDomain, type DnsInstructions } from '../lib/api.js';
 import {
   Banner,
   Chip,
@@ -63,6 +63,11 @@ export function AppsPage() {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Custom domains
+  const [domains, setDomains] = useState<CustomDomain[] | null>(null);
+  const [domainInput, setDomainInput] = useState('');
+  const [dnsInstructions, setDnsInstructions] = useState<DnsInstructions | null>(null);
+
   const refresh = useCallback(async () => {
     try {
       const res = await api.get<{ apps: AppMeta[] }>('/v1/apps');
@@ -84,6 +89,54 @@ export function AppsPage() {
     }
   }, []);
 
+  const loadDomains = useCallback(async (appName: string) => {
+    try {
+      const res = await api.get<{ domains: CustomDomain[] }>(
+        `/v1/apps/${encodeURIComponent(appName)}/domains`,
+      );
+      setDomains(res.domains);
+    } catch {
+      setDomains([]);
+    }
+  }, []);
+
+  const addDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected || !domainInput.trim()) return;
+    try {
+      const res = await api.post<{ domain: CustomDomain & { dnsInstructions: DnsInstructions } }>(
+        `/v1/apps/${encodeURIComponent(selected)}/domains`,
+        { domain: domainInput.trim() },
+      );
+      setDnsInstructions(res.domain.dnsInstructions);
+      setDomainInput('');
+      setNotice(`Domain ${res.domain.domain} added. Configure DNS and verify.`);
+      await loadDomains(selected);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to add domain');
+    }
+  };
+
+  const verifyDomain = async (domainId: string) => {
+    try {
+      await api.post(`/v1/apps/${encodeURIComponent(selected!)}/domains/${domainId}/verify`);
+      setNotice('Domain verification requested. DNS may take time to propagate.');
+      await loadDomains(selected!);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Verification failed');
+    }
+  };
+
+  const removeDomain = async (domainId: string) => {
+    try {
+      await api.del(`/v1/apps/${encodeURIComponent(selected!)}/domains/${domainId}`);
+      setNotice('Domain removed.');
+      await loadDomains(selected!);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to remove domain');
+    }
+  };
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -91,9 +144,12 @@ export function AppsPage() {
   useEffect(() => {
     if (selected) {
       setFiles(null);
+      setDomains(null);
+      setDnsInstructions(null);
       void loadFiles(selected);
+      void loadDomains(selected);
     }
-  }, [selected, loadFiles]);
+  }, [selected, loadFiles, loadDomains]);
 
   const createApp = async () => {
     if (!name.trim()) return;
@@ -427,6 +483,83 @@ export function AppsPage() {
             >
               preview /apps/{selected}/ ↗
             </a>
+          </div>
+
+          {/* Custom Domains */}
+          <div className="glass p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="text-[14px] font-semibold text-white">Custom Domains</h3>
+                <Chip tone="cyan">{domains?.length ?? 0} domains</Chip>
+              </div>
+            </div>
+
+            {/* Add domain */}
+            <form onSubmit={addDomain} className="mb-4 flex gap-2">
+              <input
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+                placeholder="app.mydomain.com"
+                className="input-vortex flex-1 px-3 py-2 font-mono text-[12px]"
+              />
+              <GradientButton type="submit" disabled={!domainInput.trim()}>
+                Add Domain
+              </GradientButton>
+            </form>
+
+            {/* DNS instructions */}
+            {dnsInstructions && (
+              <div className="mb-3 rounded-lg border border-spectrum-green/30 bg-spectrum-green/5 p-3">
+                <div className="mb-1 text-[12px] font-semibold text-spectrum-green">
+                  DNS Configuration
+                </div>
+                <div className="font-mono text-[11px] text-slate-400">
+                  {dnsInstructions.description}
+                </div>
+              </div>
+            )}
+
+            {/* Domains list */}
+            {domains && domains.length > 0 ? (
+              <div className="space-y-2">
+                {domains.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-3"
+                  >
+                    <div>
+                      <div className="font-mono text-[13px] text-white">{d.domain}</div>
+                      <div className="text-[10px] text-slate-500">
+                        TLS: {d.tls_status ?? 'none'} · {formatDateTime(d.created_at)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Chip tone={d.status === 'active' ? 'green' : d.status === 'failed' ? 'coral' : 'default'}>
+                        {d.status}
+                      </Chip>
+                      {d.status !== 'active' && (
+                        <button
+                          onClick={() => void verifyDomain(d.id)}
+                          className="rounded-md px-2 py-0.5 text-[10px] text-blue-400 transition hover:bg-blue-400/10"
+                        >
+                          verify
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void removeDomain(d.id)}
+                        className="rounded-md px-2 py-0.5 text-[10px] text-slate-500 transition hover:bg-spectrum-coral/10 hover:text-spectrum-coral"
+                      >
+                        remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-3 text-center text-[12px] text-slate-500">
+                No custom domains yet. Add one to serve your app from your own domain.
+              </div>
+            )}
           </div>
         </div>
       )}

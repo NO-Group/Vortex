@@ -350,3 +350,22 @@ export interface VectorCollection {
   dimensions: number;
   created_at: string;
 }
+
+export interface CustomDomain {
+  id: string;
+  user_id: string;
+  app_name: string;
+  domain: string;
+  status: 'pending' | 'active' | 'failed';
+  verification_token: string | null;
+  tls_status: string | null;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export interface DnsInstructions {
+  domain: string;
+  type: string;
+  value: string;
+  description: string;
+}
