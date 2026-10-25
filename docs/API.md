@@ -786,3 +786,115 @@ If either `roles` or `userIds` is specified and the user doesn't match, the flag
 ### Gradual Rollouts
 
 Gradual rollouts use deterministic hash bucketing — the same user always gets the same result for the same flag. The `rolloutPercentage` field controls how many users see the flag (0-100).
+
+---
+
+## Vector Search
+
+### POST /v1/vector/collections
+
+Create a vector collection.
+
+**Body:**
+```json
+{ "name": "documents", "description": "Embedded documents", "dimensions": 1536 }
+```
+
+**Response (201):**
+```json
+{ "collection": { "id": "...", "name": "documents", "dimensions": 1536, "...": "..." } }
+```
+
+### GET /v1/vector/collections
+
+List all vector collections.
+
+### DELETE /v1/vector/collections/:id
+
+Delete a collection and all its items.
+
+### POST /v1/vector/collections/:id/items
+
+Insert a vector.
+
+**Body:**
+```json
+{
+  "itemId": "doc-1",
+  "vector": [0.1, 0.2, 0.3, "..."],
+  "payload": { "title": "Hello", "category": "docs" }
+}
+```
+
+**Response (201):**
+```json
+{ "item": { "id": "...", "item_id": "doc-1", "...": "..." } }
+```
+
+### PATCH /v1/vector/collections/:id/items
+
+Upsert a vector (insert or update by `item_id`).
+
+### DELETE /v1/vector/collections/:id/items/:itemId
+
+Delete a vector.
+
+### GET /v1/vector/collections/:id/items
+
+List vectors in a collection. Query param: `limit` (default 100).
+
+### POST /v1/vector/collections/:id/search
+
+Search for similar vectors using cosine similarity.
+
+**Body:**
+```json
+{
+  "vector": [0.1, 0.2, 0.3, "..."],
+  "limit": 5,
+  "filter": { "category": "docs" }
+}
+```
+
+**Response (200):**
+```json
+{
+  "results": [
+    { "item_id": "doc-1", "score": 0.95, "payload": { "title": "Hello" } },
+    { "item_id": "doc-3", "score": 0.87, "payload": null }
+  ]
+}
+```
+
+### Vector Search Guide
+
+```ts
+// 1. Create a collection (match your embedding model's dimension)
+const collection = await vortex.vector.createCollection({
+  name: 'documents',
+  dimensions: 1536, // OpenAI text-embedding-3-large
+});
+
+// 2. Insert embeddings with metadata
+await vortex.vector.insert(collection.id, {
+  itemId: 'doc-1',
+  vector: embedding1,
+  payload: { title: 'Hello World', category: 'greeting' },
+});
+
+// 3. Search for similar vectors
+const results = await vortex.vector.search(collection.id, queryEmbedding, {
+  limit: 5,
+  filter: { category: 'greeting' },
+});
+// [{ item_id: 'doc-1', score: 0.95, payload: {...} }]
+
+// 4. Update a vector
+await vortex.vector.upsert(collection.id, {
+  itemId: 'doc-1',
+  vector: newEmbedding,
+  payload: { title: 'Updated', category: 'greeting' },
+});
+```
+
+Cosine similarity scores range from -1 (opposite) to 1 (identical). Higher scores mean more similar vectors.

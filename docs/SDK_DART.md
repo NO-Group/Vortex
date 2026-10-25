@@ -356,6 +356,34 @@ final all = await vortex.flags.evaluateAll();
 await vortex.flags.update(flagId, status: 'on');
 ```
 
+## Vector Search
+
+### Create a collection
+
+```dart
+final collection = await vortex.vector.createCollection(
+  name: 'documents',
+  dimensions: 1536,
+);
+```
+
+### Insert embeddings
+
+```dart
+await vortex.vector.insert(collection['id'] as String, itemId: 'doc-1', vector: embedding, payload: {'title': 'Hello'});
+```
+
+### Search for similar vectors
+
+```dart
+final results = await vortex.vector.search(
+  collection['id'] as String,
+  queryEmbedding,
+  limit: 5,
+);
+// [{'item_id': 'doc-1', 'score': 0.95, 'payload': {...}}]
+```
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled

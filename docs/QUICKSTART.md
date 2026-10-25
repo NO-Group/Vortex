@@ -110,6 +110,32 @@ const all = await vortex.flags.evaluateAll();
 await vortex.flags.update(flagId, { status: 'on' });
 ```
 
+### Vector Search
+
+Semantic similarity for AI applications — store embeddings and find similar vectors:
+
+```ts
+// Create a collection for OpenAI embeddings
+const collection = await vortex.vector.createCollection({
+  name: 'documents',
+  dimensions: 1536,
+});
+
+// Insert embeddings with metadata
+await vortex.vector.insert(collection.id, {
+  itemId: 'doc-1',
+  vector: embedding,
+  payload: { title: 'Hello', category: 'docs' },
+});
+
+// Semantic search
+const results = await vortex.vector.search(collection.id, queryEmbedding, {
+  limit: 5,
+  filter: { category: 'docs' },
+});
+// [{ item_id: 'doc-1', score: 0.95, payload: {...} }]
+```
+
 ## 4. Database — CRUD in 3 lines
 
 ```ts
