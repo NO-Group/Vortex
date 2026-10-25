@@ -394,3 +394,25 @@ export interface TwoFactorSetupResult {
   otpauthUrl: string;
   backupCodes: string[];
 }
+
+// ── Feature Flags ───────────────────────────────────────────────────────
+
+export interface FeatureFlag {
+  id: string;
+  user_id: string;
+  key: string;
+  description: string | null;
+  status: 'off' | 'on' | 'gradual';
+  rollout_percentage: number | null;
+  targeting: Record<string, unknown> | null;
+  variants: Array<Record<string, unknown>> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlagEvaluation {
+  key: string;
+  enabled: boolean;
+  variant: string | null;
+  reason: string;
+}
