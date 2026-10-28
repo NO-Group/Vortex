@@ -969,3 +969,125 @@ Verify DNS configuration and activate the domain.
 ### DNS Setup
 
 When you add a custom domain, Vortex returns DNS instructions. You need to add a CNAME record at your domain registrar pointing to the Vortex routing identifier. Once DNS propagates, call the verify endpoint to activate the domain with automatic TLS (via Caddy/Let's Encrypt in production).
+
+## Scheduled Jobs
+
+Autonomous cron-triggered execution of Vortex Functions. The scheduler runs a 60-second tick loop, checking for enabled jobs whose `next_run_at` has passed. Each due job is compiled and executed in the VM sandbox with the same `data` and `storage` helpers available to functions.
+
+### Create a Job
+
+```
+POST /v1/cron/jobs
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Slug name (2-40 chars, lowercase + dashes) |
+| `functionName` | string | No | Linked Vortex Function to invoke |
+| `cronExpression` | string | Yes | Standard 5-field cron: `min hour day month weekday` |
+| `payload` | object | No | Arguments passed to the function as `req.body` |
+
+**Example:**
+
+```json
+POST /v1/cron/jobs
+{
+  "name": "hourly-cleanup",
+  "functionName": "cleanup-task",
+  "cronExpression": "0 * * * *",
+  "payload": { "limit": 100 }
+}
+```
+
+Response: `201 Created` — `{ "job": { "id", "name", "functionName", "cronExpression", "payload", "status", "lastRunAt", "nextRunAt", "createdAt", "updatedAt" } }`
+
+### List Jobs
+
+```
+GET /v1/cron/jobs
+```
+
+Response: `200 OK` — `{ "jobs": [ ... ] }`
+
+### Get a Job
+
+```
+GET /v1/cron/jobs/:name
+```
+
+### Update a Job
+
+```
+PUT /v1/cron/jobs/:name
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `functionName` | string \| null | Change the linked function |
+| `cronExpression` | string | Change the schedule (recalculates next_run_at) |
+| `payload` | object \| null | Change the payload |
+| `status` | `'enabled'` \| `'disabled'` | Enable or pause the job |
+
+### Delete a Job
+
+```
+DELETE /v1/cron/jobs/:name
+```
+
+Removes the job and all its execution history. Response: `204 No Content`.
+
+### Manual Trigger
+
+```
+POST /v1/cron/jobs/:name/trigger
+```
+
+Executes the job immediately, bypassing the cron schedule. Optionally pass a payload override.
+
+**Example:**
+
+```json
+POST /v1/cron/jobs/hourly-cleanup/trigger
+{ "payload": { "limit": 50 } }
+```
+
+Response: `200 OK` — `{ "job": { ... }, "result": { ... } }`
+
+### Execution History
+
+```
+GET /v1/cron/jobs/:name/runs?limit=50
+```
+
+Returns the most recent runs for a job, newest first. Each run includes status, duration, error message, and result.
+
+Response: `200 OK` — `{ "runs": [ { "id", "jobId", "functionName", "status", "errorMessage", "result", "durationMs", "startedAt", "completedAt" } ] }`
+
+### Run Statuses
+
+| Status | Meaning |
+|---|---|
+| `success` | Function executed and returned a result |
+| `error` | Function threw an error or failed to compile |
+| `timeout` | Function exceeded the 30-second timeout |
+| `pending` | Run recorded but not yet executed |
+
+### Scheduler Status
+
+```
+GET /v1/cron/scheduler
+```
+
+Response: `200 OK` — `{ "running": true, "tickCount": 42 }`
+
+### Cron Expression Format
+
+Standard 5-field cron: `minute hour day-of-month month day-of-week`
+
+| Expression | Meaning |
+|---|---|
+| `0 * * * *` | Every hour |
+| `0 0 * * *` | Daily at midnight |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9 * * 1` | Every Monday at 9 AM |
+| `0 0 1 * *` | First of every month at midnight |

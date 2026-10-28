@@ -405,6 +405,51 @@ await vortex.domains.verifyDomain('my-app', domainId);
 final domains = await vortex.domains.listDomains('my-app');
 ```
 
+## Scheduled Jobs
+
+Schedule Vortex Functions to run on cron schedules. The scheduler runs autonomously on the server — no external cron service needed.
+
+```dart
+// Create a scheduled job
+await vortex.cron.createJob(
+  name: 'hourly-cleanup',
+  functionName: 'cleanup-task',
+  cronExpression: '0 * * * *', // every hour
+  payload: {'limit': 100},
+);
+
+// List all jobs
+final jobs = await vortex.cron.listJobs();
+
+// Manually trigger a job
+final result = await vortex.cron.trigger('hourly-cleanup');
+
+// View execution history
+final runs = await vortex.cron.listRuns('hourly-cleanup');
+
+// Pause or resume
+await vortex.cron.updateJob('hourly-cleanup', status: 'disabled');
+await vortex.cron.updateJob('hourly-cleanup', status: 'enabled');
+
+// Delete a job
+await vortex.cron.deleteJob('hourly-cleanup');
+
+// Check scheduler status
+final status = await vortex.cron.schedulerStatus();
+// {'running': true, 'tickCount': 42}
+```
+
+### Cron Expression Format
+
+Standard 5-field cron: `minute hour day-of-month month day-of-week`
+
+| Expression | Meaning |
+|---|---|
+| `0 * * * *` | Every hour |
+| `0 0 * * *` | Daily at midnight |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9 * * 1` | Every Monday at 9 AM |
+
 ## UI
 
 The Dart SDK includes the N.O Group design system — Controlled

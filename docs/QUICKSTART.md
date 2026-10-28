@@ -310,6 +310,50 @@ await vortex.database.insert('notes', [
 // → Realtime subscriber fires instantly
 ```
 
+## 10. Scheduled Jobs — automate your functions
+
+```ts
+import { VortexClient } from '@vortex/client';
+
+const vortex = new VortexClient({ url: 'https://your-vortex.example.com' });
+await vortex.auth.signIn({ email, password });
+
+// 1. Deploy a function to run on schedule
+await vortex.functions.deploy({
+  name: 'cleanup-task',
+  source: `async (req, ctx) => {
+    const expired = await ctx.data.delete('sessions', [
+      { column: 'expires_at', op: 'lt', value: new Date().toISOString() },
+    ]);
+    return { deleted: expired.count };
+  }`,
+});
+
+// 2. Schedule it to run every hour
+await vortex.cron.createJob({
+  name: 'hourly-cleanup',
+  functionName: 'cleanup-task',
+  cronExpression: '0 * * * *',
+  payload: { limit: 100 },
+});
+
+// 3. List all scheduled jobs
+const jobs = await vortex.cron.listJobs();
+console.log(jobs); // [{ name: 'hourly-cleanup', status: 'enabled', nextRunAt: ... }]
+
+// 4. Manually trigger a job
+const { result } = await vortex.cron.trigger('hourly-cleanup');
+console.log(result); // { deleted: 42 }
+
+// 5. View execution history
+const runs = await vortex.cron.listRuns('hourly-cleanup');
+console.log(runs); // [{ status: 'success', durationMs: 12, ... }]
+
+// 6. Pause or resume a job
+await vortex.cron.updateJob('hourly-cleanup', { status: 'disabled' });
+await vortex.cron.updateJob('hourly-cleanup', { status: 'enabled' });
+```
+
 ## Next Steps
 
 - Read the [complete guide](HOWTO.md) for all features and API references
