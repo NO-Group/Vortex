@@ -13,6 +13,7 @@ import { createStorageDriver } from './storage/storage.service.js';
 import { PolicyService } from './policies/policy.service.js';
 import { QueryGovernor } from './governance/query-governor.js';
 import { EdgeCache } from './governance/edge-cache.js';
+import { CronScheduler } from './cron/scheduler.service.js';
 import type { AppContext } from './context.js';
 
 async function main(): Promise<void> {
@@ -39,6 +40,11 @@ async function main(): Promise<void> {
       defaultTtl: env.edgeCacheTtl,
     }),
   };
+
+  // Create the cron scheduler with the real context, then attach it.
+  const cronScheduler = new CronScheduler(ctx);
+  ctx.cronScheduler = cronScheduler;
+  cronScheduler.start();
 
   const app = createApp(ctx);
   const server = http.createServer(app);
@@ -88,6 +94,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     // eslint-disable-next-line no-console
     console.log(`[vortex] ${signal} received, shutting down...`);
+    cronScheduler.stop();
     server.close();
     await bridge?.stop();
     await db.destroy();

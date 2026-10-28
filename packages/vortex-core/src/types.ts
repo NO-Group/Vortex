@@ -351,3 +351,44 @@ export interface OAuthLoginResult {
   isNewUser: boolean;
   linkedProvider: string;
 }
+
+// ── Cron / Scheduled Jobs ───────────────────────────────────────────────
+
+export interface CronJob {
+  id: string;
+  name: string;
+  functionName: string | null;
+  cronExpression: string;
+  payload: Record<string, unknown> | null;
+  status: 'enabled' | 'disabled';
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CronJobCreate {
+  name: string;
+  functionName?: string | null;
+  cronExpression: string;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface CronJobUpdate {
+  functionName?: string | null;
+  cronExpression?: string;
+  payload?: Record<string, unknown> | null;
+  status?: 'enabled' | 'disabled';
+}
+
+export interface CronRun {
+  id: string;
+  jobId: string;
+  functionName: string | null;
+  status: 'pending' | 'success' | 'error' | 'timeout';
+  errorMessage: string | null;
+  result: Record<string, unknown> | null;
+  durationMs: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}

@@ -25,6 +25,7 @@ export { Audit } from './audit.js';
 export { ApiKeys } from './apikeys.js';
 export { Flags } from './flags.js';
 export { Vector } from './vector.js';
+export { Cron } from './cron.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -45,6 +46,7 @@ export type {
   FeatureFlag, FlagEvaluation,
   VectorCollection, VectorItem, VectorSearchResult,
   CustomDomain, DnsInstructions,
+  CronJob, CronJobCreate, CronJobUpdate, CronRun,
 } from './types.js';
 
 export type { FilterOp } from './types.js';
