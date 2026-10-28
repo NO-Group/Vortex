@@ -63,7 +63,7 @@ export function createCronRoutes(ctx: AppContext): Router {
   });
 
   /** PUT /v1/cron/jobs/:name — update a job (expression, payload, status). */
-  router.put('/jobs/:name', auth, validateBody(patchSchema), async (req, res, next) => {
+  router.patch('/jobs/:name', auth, validateBody(patchSchema), async (req, res, next) => {
     try {
       const isAdmin = req.auth!.role === 'admin';
       const job = await service.update(
@@ -96,8 +96,14 @@ export function createCronRoutes(ctx: AppContext): Router {
       if (!scheduler) throw new Error('Cron scheduler not initialized');
 
       const payloadOverride = req.body?.payload;
-      const result = await scheduler.triggerJob(req.params.name!, payloadOverride);
-      res.json({ job: await service.get(req.params.name!, req.auth!.sub, req.auth!.role === 'admin'), result });
+      const triggerResult = await scheduler.triggerJob(req.params.name!, payloadOverride);
+      res.json({
+        job: await service.get(req.params.name!, req.auth!.sub, req.auth!.role === 'admin'),
+        result: triggerResult.result,
+        status: triggerResult.status,
+        durationMs: triggerResult.durationMs,
+        errorMessage: triggerResult.errorMessage,
+      });
     } catch (err) {
       next(err);
     }

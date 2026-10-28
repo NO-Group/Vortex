@@ -88,7 +88,7 @@ export default function CronPage() {
 
   const handleToggle = async (job: CronJob, newStatus: 'enabled' | 'disabled') => {
     try {
-      await api.put(`/v1/cron/jobs/${job.name}`, { status: newStatus });
+      await api.patch(`/v1/cron/jobs/${job.name}`, { status: newStatus });
       setNotice(`Job "${job.name}" ${newStatus === 'enabled' ? 'enabled' : 'disabled'}.`);
       await load();
     } catch (err) {
@@ -287,7 +287,7 @@ export default function CronPage() {
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {runsByJob[job.name].map((run) => (
+                          {runsByJob[job.name]?.map((run) => (
                             <div
                               key={run.id}
                               style={{

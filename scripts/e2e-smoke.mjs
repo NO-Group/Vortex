@@ -826,7 +826,7 @@ async function main() {
     capped.kill('SIGKILL');
   }
 
-  console.log('[15/15] Durable realtime — replay after a disconnect...');
+  console.log('[15/16] Durable realtime — replay after a disconnect...');
   {
     const rtUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${adminSession.token}`;
     const waitSoft = async (fn, ms = 3000) => {
@@ -892,6 +892,84 @@ async function main() {
     );
     check('a short gap is not silently truncated', replayFrame?.truncated === false);
     s2.close();
+  }
+
+  console.log('[16/16] Scheduled Jobs — cron management + manual trigger...');
+  {
+    // Deploy a function that the cron job will invoke
+    const fnRes = await api('/v1/functions', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'smoke-cron-fn',
+        source: `async (req, ctx) => {
+          return { status: 200, body: { ran: true, ts: Date.now() } };
+        }`,
+      }),
+    });
+    check('cron: function deployed', fnRes.ok);
+
+    // Create a scheduled job
+    const createRes = await api('/v1/cron/jobs', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'smoke-cron-job',
+        functionName: 'smoke-cron-fn',
+        cronExpression: '*/5 * * * *',
+        payload: { test: true },
+      }),
+    });
+    check('cron: job created', createRes.ok);
+    const cronBody = await createRes.json();
+    check('cron: job has next_run_at', cronBody.job?.nextRunAt !== null);
+    check('cron: job status enabled', cronBody.job?.status === 'enabled');
+
+    // List jobs
+    const listRes = await api('/v1/cron/jobs', { headers: auth });
+    const listBody = await listRes.json();
+    check('cron: job appears in list', listBody.jobs?.some((j) => j.name === 'smoke-cron-job'));
+
+    // Manually trigger the job
+    const triggerRes = await api('/v1/cron/jobs/smoke-cron-job/trigger', {
+      method: 'POST',
+      headers: auth,
+      body: '{}',
+    });
+    check('cron: manual trigger succeeds', triggerRes.ok);
+    const triggerBody = await triggerRes.json();
+    check('cron: trigger returns result', triggerBody.result !== null);
+    check('cron: trigger result has ran=true', triggerBody.result?.ran === true);
+
+    // Check execution history
+    const runsRes = await api('/v1/cron/jobs/smoke-cron-job/runs', { headers: auth });
+    const runsBody = await runsRes.json();
+    check('cron: run history recorded', runsBody.runs?.length >= 1);
+    check('cron: run status is success', runsBody.runs?.[0]?.status === 'success');
+    check('cron: run has duration', runsBody.runs?.[0]?.durationMs !== null);
+
+    // Disable the job
+    const disableRes = await api('/v1/cron/jobs/smoke-cron-job', {
+      method: 'PATCH',
+      headers: auth,
+      body: JSON.stringify({ status: 'disabled' }),
+    });
+    check('cron: job disabled', disableRes.ok);
+    const disabledBody = await disableRes.json();
+    check('cron: job status is disabled', disabledBody.job?.status === 'disabled');
+
+    // Scheduler status
+    const schedRes = await api('/v1/cron/scheduler', { headers: auth });
+    const schedBody = await schedRes.json();
+    check('cron: scheduler is running', schedBody.running === true);
+    check('cron: scheduler has tick count', schedBody.tickCount >= 1);
+
+    // Clean up — delete the job
+    const delRes = await api('/v1/cron/jobs/smoke-cron-job', { method: 'DELETE', headers: auth });
+    check('cron: job deleted', delRes.status === 204);
+
+    // Delete the function too
+    await api('/v1/functions/smoke-cron-fn', { method: 'DELETE', headers: auth });
   }
 
   ws.close();
