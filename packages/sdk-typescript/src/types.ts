@@ -504,3 +504,21 @@ export interface CronRun {
   startedAt: string;
   completedAt: string | null;
 }
+
+// ── Full-text Search ───────────────────────────────────────────────────
+
+export interface FulltextIndex {
+  id: string;
+  tableName: string;
+  name: string;
+  columns: string[];
+  language: string;
+  indexName: string;
+  createdAt: string;
+}
+
+export interface FulltextSearchResult {
+  id: string;
+  rank: number;
+  row: Record<string, unknown>;
+}

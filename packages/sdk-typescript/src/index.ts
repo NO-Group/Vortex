@@ -26,6 +26,7 @@ export { ApiKeys } from './apikeys.js';
 export { Flags } from './flags.js';
 export { Vector } from './vector.js';
 export { Cron } from './cron.js';
+export { Search } from './search.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -47,6 +48,7 @@ export type {
   VectorCollection, VectorItem, VectorSearchResult,
   CustomDomain, DnsInstructions,
   CronJob, CronJobCreate, CronJobUpdate, CronRun,
+  FulltextIndex, FulltextSearchResult,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

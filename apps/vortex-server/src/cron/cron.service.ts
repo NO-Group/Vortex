@@ -1,7 +1,8 @@
 import type { Knex } from 'knex';
 import type { CronJob, CronJobCreate, CronJobUpdate, CronRun } from '@vortex/core';
 import { ApiError } from '../errors.js';
-import { CronExpressionParser } from 'cron-parser';
+import cronParser from 'cron-parser';
+const { parseExpression } = cronParser;
 
 interface CronJobRow {
   id: string;
@@ -65,7 +66,7 @@ const CRON_NAME = /^[a-z0-9][a-z0-9-]{1,38}$/;
 /** Validate a cron expression and return the next run time after `from`. */
 export function validateCronExpression(expr: string, from: Date = new Date()): Date {
   try {
-    const interval = CronExpressionParser.parse(expr);
+    const interval = parseExpression(expr);
     return interval.next().toDate();
   } catch {
     throw ApiError.badRequest(
@@ -208,7 +209,7 @@ export class CronService {
     // Schedule the next run.
     let nextRun: Date | null = null;
     try {
-      const interval = CronExpressionParser.parse(jobRow.cron_expression);
+      const interval = parseExpression(jobRow.cron_expression);
       nextRun = interval.next().toDate();
     } catch {
       // If the cron expression is now invalid, disable the job.

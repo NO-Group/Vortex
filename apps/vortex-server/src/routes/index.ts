@@ -15,6 +15,7 @@ import { createApiKeyRoutes } from '../apikeys/apikey.routes.js';
 import { createFlagRoutes } from '../featureflags/flag.routes.js';
 import { createVectorRoutes } from '../vector/vector.routes.js';
 import { createCronRoutes } from '../cron/cron.routes.js';
+import { createFulltextRoutes } from '../search/fulltext.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -34,5 +35,6 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/flags', createFlagRoutes(ctx));
   router.use('/vector', createVectorRoutes(ctx));
   router.use('/cron', createCronRoutes(ctx));
+  router.use('/search/fulltext', createFulltextRoutes(ctx));
   return router;
 }

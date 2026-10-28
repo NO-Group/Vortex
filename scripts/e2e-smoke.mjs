@@ -826,7 +826,7 @@ async function main() {
     capped.kill('SIGKILL');
   }
 
-  console.log('[15/16] Durable realtime — replay after a disconnect...');
+  console.log('[15/17] Durable realtime — replay after a disconnect...');
   {
     const rtUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${adminSession.token}`;
     const waitSoft = async (fn, ms = 3000) => {
@@ -894,7 +894,7 @@ async function main() {
     s2.close();
   }
 
-  console.log('[16/16] Scheduled Jobs — cron management + manual trigger...');
+  console.log('[16/17] Scheduled Jobs — cron management + manual trigger...');
   {
     // Deploy a function that the cron job will invoke
     const fnRes = await api('/v1/functions', {
@@ -970,6 +970,92 @@ async function main() {
 
     // Delete the function too
     await api('/v1/functions/smoke-cron-fn', { method: 'DELETE', headers: auth });
+  }
+
+  console.log('[17/17] Full-text Search — GIN index + keyword search...');
+  {
+    // Create a table with some text content to search
+    const createTable = await api('/v1/db/smoke_articles/create', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({
+        columns: [
+          { name: 'title', type: 'text', required: false },
+          { name: 'body', type: 'text', required: false },
+        ],
+      }),
+    });
+    check('search: table created', createTable.ok);
+
+    // Insert article rows
+    const insertRows = async (rows) => api('/v1/db/smoke_articles', {
+      method: 'POST',
+      headers: adminAuth,
+      body: JSON.stringify({ rows }),
+    });
+    const ins1 = await insertRows([{ title: 'Climate Migration', body: 'Articles about climate migration and displacement patterns.' }]);
+    const ins2 = await insertRows([{ title: 'Renewable Energy', body: 'Solar and wind power adoption across developing nations.' }]);
+    const ins3 = await insertRows([{ title: 'Nuclear Policy', body: 'Nuclear energy policy and its environmental impact.' }]);
+    check('search: articles inserted', ins1.ok && ins2.ok && ins3.ok);
+
+    // Create a full-text index
+    const indexRes = await api('/v1/search/fulltext/index', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'articles-fts',
+        tableName: 'smoke_articles',
+        columns: ['title', 'body'],
+        language: 'english',
+      }),
+    });
+    check('search: index created', indexRes.ok);
+    const indexBody = await indexRes.json();
+    check('search: index has physical name', typeof indexBody.index?.indexName === 'string');
+    check('search: index language is english', indexBody.index?.language === 'english');
+
+    // List indexes
+    const listRes = await api('/v1/search/fulltext/index', { headers: auth });
+    const listBody = await listRes.json();
+    check('search: index appears in list', listBody.indexes?.some((i) => i.name === 'articles-fts'));
+
+    // Boolean search: climate + migration (websearch syntax — space-separated = AND)
+    const searchRes = await api('/v1/search/fulltext', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        tableName: 'smoke_articles',
+        query: 'climate migration',
+        limit: 10,
+      }),
+    });
+    check('search: boolean query succeeds', searchRes.ok);
+    const searchBody = await searchRes.json();
+    check('search: returns results', searchBody.results?.length >= 1);
+    check('search: result has rank', searchBody.results?.[0]?.rank > 0);
+    check('search: result row has title', typeof searchBody.results?.[0]?.row?.title === 'string');
+
+    // Natural language search
+    const plainRes = await api('/v1/search/fulltext', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        tableName: 'smoke_articles',
+        query: 'renewable energy',
+        mode: 'plain',
+        limit: 10,
+      }),
+    });
+    check('search: plain query succeeds', plainRes.ok);
+    const plainBody = await plainRes.json();
+    check('search: plain returns results', plainBody.results?.length >= 1);
+
+    // Drop the index
+    const dropRes = await api('/v1/search/fulltext/index/articles-fts', { method: 'DELETE', headers: auth });
+    check('search: index dropped', dropRes.status === 204);
+
+    // Clean up the table
+    await api('/v1/db/smoke_articles', { method: 'DELETE', headers: adminAuth });
   }
 
   ws.close();

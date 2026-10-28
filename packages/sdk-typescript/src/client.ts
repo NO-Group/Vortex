@@ -12,6 +12,7 @@ import { ApiKeys } from './apikeys.js';
 import { Flags } from './flags.js';
 import { Vector } from './vector.js';
 import { Cron } from './cron.js';
+import { Search } from './search.js';
 import type {
   AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
   TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -74,6 +75,7 @@ export class VortexClient {
   readonly flags: Flags;
   readonly vector: Vector;
   readonly cron: Cron;
+  readonly search: Search;
 
   private rt: Realtime | null = null;
 
@@ -104,6 +106,7 @@ export class VortexClient {
     this.flags = new Flags(this.http);
     this.vector = new Vector(this.http);
     this.cron = new Cron(this.http);
+    this.search = new Search(this.http);
   }
 
   /**
