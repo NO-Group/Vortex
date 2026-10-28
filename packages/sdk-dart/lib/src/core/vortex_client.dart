@@ -13,6 +13,7 @@ import '../services/apikey_service.dart';
 import '../services/flag_service.dart';
 import '../services/vector_service.dart';
 import '../services/domain_service.dart';
+import '../services/cron_service.dart';
 import 'api_exception.dart';
 import 'jwt.dart';
 
@@ -41,6 +42,7 @@ class VortexClient {
   late final FlagService flags = FlagService(this);
   late final VectorService vector = VectorService(this);
   late final DomainService domains = DomainService(this);
+  late final CronService cron = CronService(this);
 
   String? _accessToken;
 

@@ -33,6 +33,7 @@ import AuditPage from './pages/AuditPage.js';
 import ApiKeysPage from './pages/ApiKeysPage.js';
 import FlagsPage from './pages/FlagsPage.js';
 import VectorPage from './pages/VectorPage.js';
+import CronPage from './pages/CronPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -51,6 +52,7 @@ const PAGES: PageKey[] = [
   'api-keys',
   'flags',
   'vector',
+  'cron',
 ];
 
 interface Session {
@@ -234,6 +236,8 @@ export default function App() {
         return <FlagsPage />;
       case 'vector':
         return <VectorPage />;
+      case 'cron':
+        return <CronPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

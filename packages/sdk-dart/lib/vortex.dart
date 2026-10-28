@@ -30,6 +30,7 @@ export 'src/services/apikey_service.dart';
 export 'src/services/flag_service.dart';
 export 'src/services/vector_service.dart';
 export 'src/services/domain_service.dart';
+export 'src/services/cron_service.dart';
 
 // UI controllers
 export 'src/ui/glass_panel.dart';
