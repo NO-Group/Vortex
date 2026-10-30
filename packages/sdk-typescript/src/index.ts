@@ -49,6 +49,11 @@ export type {
   CustomDomain, DnsInstructions,
   CronJob, CronJobCreate, CronJobUpdate, CronRun,
   FulltextIndex, FulltextSearchResult,
+  QrCodeSession,
+  BiometricAttestation, BiometricChallenge, BiometricKind,
+  ChunkedUploadInit, ChunkedUploadStatus, BulkDeleteResult,
+  MediaTransformation, TransformOperation,
+  ShieldAttestation, AttestationType, ThrottleStatus,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

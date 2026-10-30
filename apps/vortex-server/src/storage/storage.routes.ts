@@ -275,6 +275,47 @@ export function createStorageRoutes(ctx: AppContext): Router {
     }
   });
 
+  /** POST /v1/storage/bulk-delete — delete multiple objects at once. */
+  router.post('/bulk-delete', auth, validateBody(z.object({
+    keys: z.array(z.string().min(1).max(1024)).min(1).max(100),
+  })), async (req, res, next) => {
+    try {
+      const keys = req.body.keys as string[];
+      const deleted: string[] = [];
+      const failed: { key: string; error: string }[] = [];
+
+      for (const key of keys) {
+        try {
+          const meta = await registry.find(key);
+          if (!meta) {
+            failed.push({ key, error: 'Object not found' });
+            continue;
+          }
+          if (meta.ownerId && meta.ownerId !== req.auth!.sub && req.auth!.role !== 'admin') {
+            failed.push({ key, error: 'You do not own this object' });
+            continue;
+          }
+          await driver.delete(key);
+          await registry.remove(key);
+          ctx.edgeCache.delete(`storage:public:${key}`);
+          void recordAudit(ctx, req.auth!.sub, req.auth!.role, 'storage.delete',
+            'object', key, {});
+          void deliverWebhook(ctx, 'storage.delete', {
+            key,
+            ownerId: meta.ownerId ?? null,
+          });
+          deleted.push(key);
+        } catch (err) {
+          failed.push({ key, error: (err as Error).message });
+        }
+      }
+
+      res.json({ deleted, failed });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // ── Local-driver presigned endpoints (HMAC token auth, no JWT) ────────────
   // Only mounted when the local driver is active; S3 presigns point at the
   // bucket directly and never touch the server.

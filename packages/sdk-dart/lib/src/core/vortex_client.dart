@@ -15,6 +15,11 @@ import '../services/vector_service.dart';
 import '../services/domain_service.dart';
 import '../services/cron_service.dart';
 import '../services/search_service.dart';
+import '../services/qrcode_service.dart';
+import '../services/biometric_service.dart';
+import '../services/chunked_upload_service.dart';
+import '../services/transformations_service.dart';
+import '../services/shield_service.dart';
 import 'api_exception.dart';
 import 'jwt.dart';
 
@@ -45,6 +50,11 @@ class VortexClient {
   late final DomainService domains = DomainService(this);
   late final CronService cron = CronService(this);
   late final SearchService search = SearchService(this);
+  late final QrCodeService qrCode = QrCodeService(this);
+  late final BiometricService biometric = BiometricService(this);
+  late final ChunkedUploadService chunkedUpload = ChunkedUploadService(this);
+  late final TransformationsService transformations = TransformationsService(this);
+  late final ShieldService shield = ShieldService(this);
 
   String? _accessToken;
 

@@ -16,6 +16,11 @@ import { createFlagRoutes } from '../featureflags/flag.routes.js';
 import { createVectorRoutes } from '../vector/vector.routes.js';
 import { createCronRoutes } from '../cron/cron.routes.js';
 import { createFulltextRoutes } from '../search/fulltext.routes.js';
+import { createQrCodeRoutes } from '../auth/qrcode.routes.js';
+import { createBiometricRoutes } from '../auth/biometric.routes.js';
+import { createChunkedUploadRoutes } from '../storage/chunked-upload.routes.js';
+import { createTransformRoutes } from '../storage/media-transform.routes.js';
+import { createShieldRoutes } from '../shield/shield.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -36,5 +41,10 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/vector', createVectorRoutes(ctx));
   router.use('/cron', createCronRoutes(ctx));
   router.use('/search/fulltext', createFulltextRoutes(ctx));
+  router.use('/auth/qr-code', createQrCodeRoutes(ctx));
+  router.use('/auth/biometric', createBiometricRoutes(ctx));
+  router.use('/storage/chunked', createChunkedUploadRoutes(ctx));
+  router.use('/storage/transformations', createTransformRoutes(ctx));
+  router.use('/shield', createShieldRoutes(ctx));
   return router;
 }

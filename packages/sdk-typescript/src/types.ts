@@ -522,3 +522,91 @@ export interface FulltextSearchResult {
   rank: number;
   row: Record<string, unknown>;
 }
+
+// ── QR Code Sign-in ─────────────────────────────────────────────────────
+
+export interface QrCodeSession {
+  token: string;
+  qrDataUrl: string;
+  expiresAt: string;
+}
+
+// ── Biometric Authentication ───────────────────────────────────────────
+
+export type BiometricKind = 'facial_liveness' | 'fingerprint';
+
+export interface BiometricAttestation {
+  id: string;
+  userId: string;
+  kind: BiometricKind;
+  payload: Record<string, unknown>;
+  verified: boolean;
+  livenessScore: number | null;
+  challengeId: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+}
+
+export interface BiometricChallenge {
+  challengeId: string;
+  expiresAt: string;
+  kind: BiometricKind;
+}
+
+// ── Chunked / Multipart Uploads ─────────────────────────────────────────
+
+export interface ChunkedUploadInit {
+  uploadId: string;
+  key: string;
+  contentType: string;
+  totalChunks: number;
+}
+
+export interface ChunkedUploadStatus {
+  uploadId: string;
+  key: string;
+  totalChunks: number;
+  chunksReceived: number;
+  status: 'in_progress' | 'completed' | 'aborted';
+}
+
+// ── Bulk Deletion ───────────────────────────────────────────────────────
+
+export interface BulkDeleteResult {
+  deleted: string[];
+  failed: { key: string; error: string }[];
+}
+
+// ── Media Transformations ──────────────────────────────────────────────
+
+export type TransformOperation = 'resize' | 'crop' | 'format' | 'quality' | 'rotate';
+
+export interface MediaTransformation {
+  id: string;
+  key: string;
+  operation: TransformOperation;
+  params: Record<string, unknown>;
+  outputKey: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  webhookStatus: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+// ── Shield / AppCheck ──────────────────────────────────────────────────
+
+export type AttestationType = 'app_check' | 'play_integrity' | 'safety_net';
+
+export interface ShieldAttestation {
+  id: string;
+  attestationType: AttestationType;
+  valid: boolean;
+  revision: string | null;
+  createdAt: string;
+}
+
+export interface ThrottleStatus {
+  remaining: number;
+  resetAt: number;
+  limited: boolean;
+}

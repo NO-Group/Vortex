@@ -32,6 +32,11 @@ export 'src/services/vector_service.dart';
 export 'src/services/domain_service.dart';
 export 'src/services/cron_service.dart';
 export 'src/services/search_service.dart';
+export 'src/services/qrcode_service.dart';
+export 'src/services/biometric_service.dart';
+export 'src/services/chunked_upload_service.dart';
+export 'src/services/transformations_service.dart';
+export 'src/services/shield_service.dart';
 
 // UI controllers
 export 'src/ui/glass_panel.dart';

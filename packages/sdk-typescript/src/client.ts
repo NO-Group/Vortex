@@ -13,6 +13,11 @@ import { Flags } from './flags.js';
 import { Vector } from './vector.js';
 import { Cron } from './cron.js';
 import { Search } from './search.js';
+import { QrCode } from './qrcode.js';
+import { Biometric } from './biometric.js';
+import { ChunkedUpload } from './chunked-upload.js';
+import { Transformations } from './transformations.js';
+import { Shield } from './shield.js';
 import type {
   AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
   TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -76,6 +81,11 @@ export class VortexClient {
   readonly vector: Vector;
   readonly cron: Cron;
   readonly search: Search;
+  readonly qrCode: QrCode;
+  readonly biometric: Biometric;
+  readonly chunkedUpload: ChunkedUpload;
+  readonly transformations: Transformations;
+  readonly shield: Shield;
 
   private rt: Realtime | null = null;
 
@@ -107,6 +117,11 @@ export class VortexClient {
     this.vector = new Vector(this.http);
     this.cron = new Cron(this.http);
     this.search = new Search(this.http);
+    this.qrCode = new QrCode(this.http);
+    this.biometric = new Biometric(this.http);
+    this.chunkedUpload = new ChunkedUpload(this.http);
+    this.transformations = new Transformations(this.http);
+    this.shield = new Shield(this.http);
   }
 
   /**

@@ -34,6 +34,8 @@ import ApiKeysPage from './pages/ApiKeysPage.js';
 import FlagsPage from './pages/FlagsPage.js';
 import VectorPage from './pages/VectorPage.js';
 import CronPage from './pages/CronPage.js';
+import { ShieldPage } from './pages/ShieldPage.js';
+import { MediaPage } from './pages/MediaPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -53,6 +55,8 @@ const PAGES: PageKey[] = [
   'flags',
   'vector',
   'cron',
+  'shield',
+  'media',
 ];
 
 interface Session {
@@ -238,6 +242,10 @@ export default function App() {
         return <VectorPage />;
       case 'cron':
         return <CronPage />;
+      case 'shield':
+        return <ShieldPage />;
+      case 'media':
+        return <MediaPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

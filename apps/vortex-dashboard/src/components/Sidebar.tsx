@@ -18,7 +18,9 @@ export type PageKey =
   | 'api-keys'
   | 'flags'
   | 'vector'
-  | 'cron';
+  | 'cron'
+  | 'shield'
+  | 'media';
 
 interface NavItem {
   key: PageKey;
@@ -133,6 +135,18 @@ const icons: Record<PageKey, ReactElement> = {
       <path d="M12 7v5l3 2" strokeLinecap="round" />
     </svg>
   ),
+  shield: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 2l8 3v6c0 5-3.5 8-8 11-4.5-3-8-6-8-11V5l8-3z" strokeLinejoin="round" />
+      <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  media: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
 };
 
 const items: Array<{ key: PageKey; label: string; hint: string }> = [
@@ -153,6 +167,8 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'flags', label: 'Feature Flags', hint: '/v1/flags' },
   { key: 'vector', label: 'Vector Search', hint: '/v1/vector' },
   { key: 'cron', label: 'Scheduled Jobs', hint: '/v1/cron' },
+  { key: 'shield', label: 'Shield', hint: '/v1/shield' },
+  { key: 'media', label: 'Media', hint: '/v1/storage' },
 ];
 
 export function Sidebar({

@@ -68,7 +68,7 @@ const waitFor = async (fn, ms = 3000) => {
 const once = (emitter, event) => new Promise((resolve) => emitter.once(event, resolve));
 
 async function main() {
-  console.log('\n[1/12] Starting embedded Postgres...');
+  console.log('\n[1/23] Starting embedded Postgres...');
   const pg = new EmbeddedPostgres({
     databaseDir: path.join(TMP, 'pgdata'),
     user: 'postgres',
@@ -81,7 +81,7 @@ async function main() {
   await pg.start();
   await pg.createDatabase('vortex');
 
-  console.log('[2/12] Booting vortex-server...');
+  console.log('[1/23] Booting vortex-server...');
   const server = spawn('node', [SERVER], {
     env: {
       ...process.env,
@@ -112,7 +112,7 @@ async function main() {
   check('server boots and reports healthy', healthy);
   if (!healthy) throw new Error('server never became healthy');
 
-  console.log('[3/12] Auth engine (/v1/auth)...');
+  console.log('[1/23] Auth engine (/v1/auth)...');
   const signup = await api('/v1/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ email: 'sensei@no.group', password: 'vortex-secret-1', metadata: { team: 'n-o' } }),
@@ -150,7 +150,7 @@ async function main() {
   const anon = await api('/v1/auth/me');
   check('unauthenticated /me rejected with 401', anon.status === 401);
 
-  console.log('[4/12] Database gateway (/v1/db) + RBAC...');
+  console.log('[1/23] Database gateway (/v1/db) + RBAC...');
   const admin = new Client({
     connectionString: 'postgres://postgres:postgres@localhost:55433/vortex',
   });
@@ -207,7 +207,7 @@ async function main() {
   });
   check('identifier injection rejected', inject.status === 400);
 
-  console.log('[5/12] Realtime engine (/v1/realtime)...');
+  console.log('[1/23] Realtime engine (/v1/realtime)...');
   const ws = new WebSocket(`${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`);
   await new Promise((resolve, reject) => {
     ws.on('open', () => {
@@ -246,7 +246,7 @@ async function main() {
   );
   check('fan-out latency under 50ms budget', latency < 200, `(${latency}ms incl. HTTP insert)`);
 
-  console.log('[6/12] Storage gateway (/v1/storage)...');
+  console.log('[1/23] Storage gateway (/v1/storage)...');
   const presign = await api('/v1/storage/presign-upload', {
     method: 'POST',
     headers: auth,
@@ -282,7 +282,7 @@ async function main() {
   });
   check('object delete returns 204', del.status === 204);
 
-  console.log('[7/12] Apps hosting (/v1/apps + /apps/*)...');
+  console.log('[1/23] Apps hosting (/v1/apps + /apps/*)...');
   const createApp = await api('/v1/apps', {
     method: 'POST',
     headers: auth,
@@ -324,7 +324,7 @@ async function main() {
   const afterDel = await fetch(`${BASE}/apps/smoke-app/`);
   check('deleted app no longer served', afterDel.status === 404);
 
-  console.log('[8/12] SQL console (/v1/sql)...');
+  console.log('[1/23] SQL console (/v1/sql)...');
   // Promote the demo user via SQL and re-login for an admin JWT.
   await admin.query(`UPDATE users SET role = 'admin' WHERE email = $1`, [session.user.email]);
   const adminLogin = await api('/v1/auth/login', {
@@ -361,7 +361,7 @@ async function main() {
   });
   check('multi-statement SQL rejected', sqlMulti.status === 400);
 
-  console.log('[9/12] Passwordless auth + admin users...');
+  console.log('[1/23] Passwordless auth + admin users...');
   const magic = await api('/v1/auth/magic-link', {
     method: 'POST',
     body: JSON.stringify({ email: session.user.email }),
@@ -439,7 +439,7 @@ async function main() {
   });
   check('admin can change roles', promoted.status === 200);
 
-  console.log('[10/12] Storage buckets...');
+  console.log('[1/23] Storage buckets...');
   const mkBucket = await api('/v1/storage/buckets', {
     method: 'POST',
     headers: auth,
@@ -482,7 +482,7 @@ async function main() {
   const goneBucket = await fetch(`${BASE}/v1/storage/public/smoke-bucket/hello.txt`);
   check('deleted bucket no longer serves', goneBucket.status === 404);
 
-  console.log('[11/12] Vortex Functions (/v1/functions + /functions/:name)...');
+  console.log('[1/23] Vortex Functions (/v1/functions + /functions/:name)...');
   const makeFn = await api('/v1/functions', {
     method: 'POST',
     headers: auth,
@@ -541,7 +541,7 @@ async function main() {
   await api('/v1/functions/smoke-fn', { method: 'DELETE', headers: auth });
   await api('/v1/functions/slow-fn', { method: 'DELETE', headers: auth });
 
-  console.log('[12/15] Realtime broadcast + presence...');
+  console.log('[2/23] Realtime broadcast + presence...');
   {
     const roomUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${session.token}`;
     const s1 = new WebSocket(roomUrl);
@@ -591,7 +591,7 @@ async function main() {
     s2.close();
   }
 
-  console.log('[13/15] Row policies — compiled once, not called per row...');
+  console.log('[2/23] Row policies — compiled once, not called per row...');
   {
     const usersAll = await (await api('/v1/auth/users', { headers: adminAuth })).json();
     const member = usersAll.users.find((u) => u.email === 'member@no.group');
@@ -726,7 +726,7 @@ async function main() {
     check('policy management is admin-only', policyAsUser.status === 403);
   }
 
-  console.log('[14/15] Query governance — measured plans + a cost ceiling...');
+  console.log('[2/23] Query governance — measured plans + a cost ceiling...');
   {
     const explained = await (
       await api('/v1/db/reports/query', {
@@ -826,7 +826,7 @@ async function main() {
     capped.kill('SIGKILL');
   }
 
-  console.log('[15/17] Durable realtime — replay after a disconnect...');
+  console.log('[15/23] Durable realtime — replay after a disconnect...');
   {
     const rtUrl = `${BASE.replace('http', 'ws')}/v1/realtime?token=${adminSession.token}`;
     const waitSoft = async (fn, ms = 3000) => {
@@ -894,7 +894,7 @@ async function main() {
     s2.close();
   }
 
-  console.log('[16/17] Scheduled Jobs — cron management + manual trigger...');
+  console.log('[16/23] Scheduled Jobs — cron management + manual trigger...');
   {
     // Deploy a function that the cron job will invoke
     const fnRes = await api('/v1/functions', {
@@ -972,7 +972,7 @@ async function main() {
     await api('/v1/functions/smoke-cron-fn', { method: 'DELETE', headers: auth });
   }
 
-  console.log('[17/17] Full-text Search — GIN index + keyword search...');
+  console.log('[17/23] Full-text Search — GIN index + keyword search...');
   {
     // Create a table with some text content to search
     const createTable = await api('/v1/db/smoke_articles/create', {
@@ -1056,6 +1056,169 @@ async function main() {
 
     // Clean up the table
     await api('/v1/db/smoke_articles', { method: 'DELETE', headers: adminAuth });
+  }
+
+  console.log('[18/23] QR Code — init + verify...');
+  {
+    const qrInit = await api('/v1/auth/qr-code/init', { method: 'POST', headers: auth });
+    check('qr: init succeeds', qrInit.ok);
+    const qrInitBody = await qrInit.json();
+    check('qr: returns token', typeof qrInitBody.token === 'string');
+    check('qr: returns QR data URL', typeof qrInitBody.qrDataUrl === 'string' && qrInitBody.qrDataUrl.startsWith('data:'));
+    check('qr: returns expiry', typeof qrInitBody.expiresAt === 'string');
+
+    const qrVerify = await api('/v1/auth/qr-code/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token: qrInitBody.token }),
+    });
+    check('qr: verify succeeds', qrVerify.ok);
+    const qrVerifyBody = await qrVerify.json();
+    check('qr: verify returns session', !!qrVerifyBody.token && !!qrVerifyBody.user);
+
+    const qrReplay = await api('/v1/auth/qr-code/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token: qrInitBody.token }),
+    });
+    check('qr: replay rejected', qrReplay.status === 401);
+  }
+
+  console.log('[19/23] Biometric — challenge + verify...');
+  {
+    const challengeRes = await api('/v1/auth/biometric/challenge', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ kind: 'facial_liveness' }),
+    });
+    check('biometric: challenge succeeds', challengeRes.ok);
+    const challengeBody = await challengeRes.json();
+    check('biometric: returns challengeId', typeof challengeBody.challengeId === 'string');
+
+    const verifyRes = await api('/v1/auth/biometric/verify', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({
+        challengeId: challengeBody.challengeId,
+        kind: 'facial_liveness',
+        payload: {
+          assertion: 'test-assertion', livenessScore: 0.95, timestamp: Date.now(),
+          packageName: 'com.vortex.app', token: 'test-token-1234567890',
+          deviceId: 'test-device-123', signature: '00',
+        },
+      }),
+    });
+    check('biometric: verify succeeds', verifyRes.ok);
+    const verifyBody = await verifyRes.json();
+    check('biometric: attestation verified', verifyBody.attestation?.verified === true);
+    check('biometric: liveness score stored', verifyBody.attestation?.livenessScore === 0.95);
+
+    const listRes = await api('/v1/auth/biometric/attestations', { headers: auth });
+    check('biometric: list succeeds', listRes.ok);
+    const listBody = await listRes.json();
+    check('biometric: attestation in list', listBody.attestations?.length >= 1);
+  }
+
+  console.log('[20/23] Chunked Upload — init + complete...');
+  {
+    const initRes = await api('/v1/storage/chunked/init', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ key: 'uploads/chunked-test.txt', totalChunks: 2, contentType: 'text/plain' }),
+    });
+    check('chunked: init succeeds', initRes.ok);
+    const initBody = await initRes.json();
+    check('chunked: returns uploadId', typeof initBody.uploadId === 'string');
+    check('chunked: total chunks correct', initBody.totalChunks === 2);
+
+    const c0Res = await api('/v1/storage/chunked/chunk?uploadId=' + initBody.uploadId + '&chunkIndex=0&totalChunks=2', {
+      method: 'PUT', headers: { ...auth, 'content-type': 'text/plain' },
+      body: Buffer.from('Hello, '),
+    });
+    check('chunked: chunk 0 uploaded', c0Res.ok);
+
+    const c1Res = await api('/v1/storage/chunked/chunk?uploadId=' + initBody.uploadId + '&chunkIndex=1&totalChunks=2', {
+      method: 'PUT', headers: { ...auth, 'content-type': 'text/plain' },
+      body: Buffer.from('Vortex!'),
+    });
+    check('chunked: chunk 1 uploaded', c1Res.ok);
+
+    const statusRes = await api('/v1/storage/chunked/status?uploadId=' + initBody.uploadId, { headers: auth });
+    check('chunked: status succeeds', statusRes.ok);
+    const statusBody = await statusRes.json();
+    check('chunked: all chunks received', statusBody.chunksReceived === 2);
+
+    const completeRes = await api('/v1/storage/chunked/complete', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ uploadId: initBody.uploadId }),
+    });
+    check('chunked: complete succeeds', completeRes.ok);
+    const completeBody = await completeRes.json();
+    check('chunked: object key correct', completeBody.object?.key === 'uploads/chunked-test.txt');
+  }
+
+  console.log('[21/23] Bulk Delete — delete multiple objects...');
+  {
+    for (const k of ['uploads/bulk1.txt', 'uploads/bulk2.txt']) {
+      await api('/v1/storage/upload?key=' + k, {
+        method: 'POST', headers: { ...auth, 'content-type': 'text/plain' },
+        body: Buffer.from('test'),
+      });
+    }
+
+    const bulkRes = await api('/v1/storage/bulk-delete', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ keys: ['uploads/bulk1.txt', 'uploads/bulk2.txt', 'uploads/nonexistent.txt'] }),
+    });
+    check('bulk: delete succeeds', bulkRes.ok);
+    const bulkBody = await bulkRes.json();
+    check('bulk: deleted 2 objects', bulkBody.deleted?.length === 2);
+    check('bulk: 1 failed (nonexistent)', bulkBody.failed?.length === 1);
+  }
+
+  console.log('[22/23] Media Transformations — request + list...');
+  {
+    const transformRes = await api('/v1/storage/transformations', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ key: 'uploads/chunked-test.txt', operation: 'resize', params: { width: 800, height: 600 } }),
+    });
+    check('transform: request succeeds', transformRes.ok || transformRes.status === 202);
+    const transformBody = await transformRes.json();
+    check('transform: returns id', typeof transformBody.id === 'string');
+    check('transform: output key generated', typeof transformBody.outputKey === 'string');
+
+    const listRes = await api('/v1/storage/transformations', { headers: auth });
+    check('transform: list succeeds', listRes.ok);
+    const listBody = await listRes.json();
+    check('transform: appears in list', listBody.transformations?.length >= 1);
+  }
+
+  console.log('[23/23] Shield — signature + throttle + health...');
+  {
+    const ts = Date.now();
+    const sigRes = await api('/v1/shield/signature/generate', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ method: 'POST', path: '/v1/shield/health', body: '', timestamp: ts }),
+    });
+    check('shield: signature generated', sigRes.ok);
+    const sigBody = await sigRes.json();
+    check('shield: returns signature', typeof sigBody.signature === 'string');
+
+    const verifyRes = await api('/v1/shield/signature/verify', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ method: 'POST', path: '/v1/shield/health', body: '', timestamp: ts, signature: sigBody.signature }),
+    });
+    check('shield: signature verified', verifyRes.ok);
+    const verifyBody = await verifyRes.json();
+    check('shield: signature valid', verifyBody.valid === true);
+
+    const throttleRes = await api('/v1/shield/throttle', { headers: auth });
+    check('shield: throttle check succeeds', throttleRes.ok);
+    const throttleBody = await throttleRes.json();
+    check('shield: returns IP', typeof throttleBody.ip === 'string');
+    check('shield: returns remaining', typeof throttleBody.remaining === 'number');
+
+    const healthRes = await api('/v1/shield/health', {});
+    check('shield: health check succeeds', healthRes.ok);
+    const healthBody = await healthRes.json();
+    check('shield: attestation enabled', healthBody.attestation === 'enabled');
+    check('shield: throttle enabled', healthBody.throttle === 'enabled');
+    check('shield: signature enabled', healthBody.signature === 'enabled');
   }
 
   ws.close();
