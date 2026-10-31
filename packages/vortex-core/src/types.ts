@@ -22,6 +22,8 @@ export interface JwtClaims {
   iat: number;
   /** Expiry (seconds). */
   exp: number;
+  /** JWT ID — unique token identifier for session tracking. */
+  jti?: string;
 }
 
 /** Authenticated user as seen by request handlers. */

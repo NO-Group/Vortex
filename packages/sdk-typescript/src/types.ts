@@ -610,3 +610,125 @@ export interface ThrottleStatus {
   resetAt: number;
   limited: boolean;
 }
+
+// ── Session Management ─────────────────────────────────────────────────
+
+export interface UserSession {
+  id: string;
+  sessionId: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  deviceType: string | null;
+  lastActiveAt: string;
+  createdAt: string;
+}
+
+// ── Password Security ──────────────────────────────────────────────────
+
+export interface PasswordSecurityStatus {
+  locked: boolean;
+  lockedUntil: string | null;
+  failedCount: number;
+  attemptsRemaining: number;
+}
+
+export interface PasswordValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface PasswordHistoryEntry {
+  id: string;
+  createdAt: string;
+}
+
+// ── Security Scoring ───────────────────────────────────────────────────
+
+export interface SecurityCheck {
+  name: string;
+  passed: boolean;
+  weight: number;
+  detail: string;
+}
+
+export interface SecurityPostureScore {
+  score: number;
+  grade: string;
+  checks: SecurityCheck[];
+  recommendations: string[];
+}
+
+export interface SecurityScoreEntry {
+  score: number;
+  grade: string;
+  createdAt: string;
+}
+
+export interface EncryptionInfo {
+  algorithm: string;
+  keyVersion: string;
+  atRest: boolean;
+  fields: string[];
+}
+
+// ── Multi-Cloud Storage Engine ─────────────────────────────────────────
+
+export type StorageProviderType =
+  | 'cloudflare_r2'
+  | 'aws_s3'
+  | 'digitalocean_spaces'
+  | 'gcs'
+  | 'azure_blob'
+  | 'local_disk';
+
+export interface StorageObjectMetadata {
+  key: string;
+  size: number;
+  mimeType: string;
+  etag: string;
+  lastModified: Date;
+  customMetadata?: Record<string, string>;
+}
+
+export interface PresignedUrlResult {
+  url: string;
+  method: 'GET' | 'PUT' | 'POST';
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface MultipartPart {
+  partNumber: number;
+  etag: string;
+}
+
+export interface MultipartUploadInit {
+  uploadId: string;
+}
+
+export interface RenderParams {
+  path: string;
+  width?: number;
+  height?: number;
+  format?: 'webp' | 'avif' | 'png' | 'jpg';
+  quality?: number;
+  fit?: 'cover' | 'contain' | 'fill';
+}
+
+export interface TransformResult {
+  key: string;
+  url: string;
+  format: string;
+  width: number;
+  height: number;
+  quality: number;
+  cached: boolean;
+}
+
+export interface StorageEngineHealth {
+  primary: string;
+  primaryHealthy: boolean;
+  fallback: string | null;
+  fallbackHealthy: boolean;
+  active: string;
+}

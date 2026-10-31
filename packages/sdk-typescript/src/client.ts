@@ -18,6 +18,9 @@ import { Biometric } from './biometric.js';
 import { ChunkedUpload } from './chunked-upload.js';
 import { Transformations } from './transformations.js';
 import { Shield } from './shield.js';
+import { Sessions } from './sessions.js';
+import { PasswordSecurity } from './password-security.js';
+import { SecurityScore } from './security-score.js';
 import type {
   AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
   TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -86,6 +89,9 @@ export class VortexClient {
   readonly chunkedUpload: ChunkedUpload;
   readonly transformations: Transformations;
   readonly shield: Shield;
+  readonly sessions: Sessions;
+  readonly passwordSecurity: PasswordSecurity;
+  readonly securityScore: SecurityScore;
 
   private rt: Realtime | null = null;
 
@@ -122,6 +128,9 @@ export class VortexClient {
     this.chunkedUpload = new ChunkedUpload(this.http);
     this.transformations = new Transformations(this.http);
     this.shield = new Shield(this.http);
+    this.sessions = new Sessions(this.http);
+    this.passwordSecurity = new PasswordSecurity(this.http);
+    this.securityScore = new SecurityScore(this.http);
   }
 
   /**

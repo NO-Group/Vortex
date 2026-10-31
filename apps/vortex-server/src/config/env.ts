@@ -1,6 +1,15 @@
 import 'dotenv/config';
 
-export type StorageDriverName = 'local' | 's3';
+export type StorageProviderType =
+  | 'cloudflare_r2'
+  | 'aws_s3'
+  | 'digitalocean_spaces'
+  | 'gcs'
+  | 'azure_blob'
+  | 'local_disk'
+  | 's3';
+
+export type StorageDriverName = StorageProviderType;
 
 export interface S3Config {
   bucket: string;
@@ -9,6 +18,21 @@ export interface S3Config {
   accessKeyId: string;
   secretAccessKey: string;
   forcePathStyle: boolean;
+}
+
+export interface MultiCloudStorageConfig {
+  driver: StorageDriverName;
+  localDir: string;
+  publicApiBase: string;
+  s3: S3Config;
+  /** Optional fallback driver for automatic failover. */
+  fallbackDriver?: StorageDriverName;
+  /** Storage provider-specific config. */
+  providerConfig: {
+    r2?: { accountId: string };
+    gcs?: { projectId: string };
+    azure?: { connectionString: string };
+  };
 }
 
 export interface ServerEnv {
@@ -22,12 +46,7 @@ export interface ServerEnv {
     issuer: string;
   };
   autoMigrate: boolean;
-  storage: {
-    driver: StorageDriverName;
-    localDir: string;
-    publicApiBase: string;
-    s3: S3Config;
-  };
+  storage: MultiCloudStorageConfig;
   realtime: {
     heartbeatMs: number;
     /** Optional Redis URL enabling the multi-node fan-out bridge. */
@@ -110,9 +129,13 @@ function bool(name: string, fallback: boolean): boolean {
 
 /** Load and validate the server environment. Throws on misconfiguration. */
 export function loadEnv(): ServerEnv {
-  const driverRaw = required('STORAGE_DRIVER', 'local');
-  if (driverRaw !== 'local' && driverRaw !== 's3') {
-    throw new Error(`STORAGE_DRIVER must be "local" or "s3" (got "${driverRaw}")`);
+  const driverRaw = required('STORAGE_DRIVER', 'local_disk');
+  const validDrivers: StorageDriverName[] = [
+    'local_disk', 's3', 'cloudflare_r2', 'aws_s3',
+    'digitalocean_spaces', 'gcs', 'azure_blob',
+  ];
+  if (!validDrivers.includes(driverRaw as StorageDriverName)) {
+    throw new Error(`STORAGE_DRIVER must be one of ${validDrivers.join(', ')} (got "${driverRaw}")`);
   }
 
   const corsRaw = required('CORS_ORIGINS', '*');
@@ -131,23 +154,35 @@ export function loadEnv(): ServerEnv {
       issuer: required('JWT_ISSUER', 'vortex'),
     },
     autoMigrate: bool('AUTO_MIGRATE', true),
-    storage: {
-      driver: driverRaw,
-      localDir: required('STORAGE_LOCAL_DIR', './.vortex-data'),
-      /**
-       * Absolute base for presigned URLs. Set to `auto` to derive from each
-       * request's Host/protocol (correct behind reverse proxies & previews).
-       */
-      publicApiBase: required('PUBLIC_API_BASE', 'http://localhost:8080').replace(/\/+$/, ''),
-      s3: {
-        bucket: required('S3_BUCKET', 'vortex'),
-        region: required('S3_REGION', 'auto'),
-        endpoint: process.env.S3_ENDPOINT || undefined,
-        accessKeyId: required('S3_ACCESS_KEY_ID', 'vortex'),
-        secretAccessKey: required('S3_SECRET_ACCESS_KEY', 'vortex-secret'),
-        forcePathStyle: bool('S3_FORCE_PATH_STYLE', true),
-      },
+  storage: {
+    driver: driverRaw as StorageDriverName,
+    localDir: required('STORAGE_LOCAL_DIR', './.vortex-data'),
+    /**
+     * Absolute base for presigned URLs. Set to `auto` to derive from each
+     * request's Host/protocol (correct behind reverse proxies & previews).
+     */
+    publicApiBase: required('PUBLIC_API_BASE', 'http://localhost:8080').replace(/\/+$/, ''),
+    s3: {
+      bucket: required('S3_BUCKET', 'vortex'),
+      region: required('S3_REGION', 'auto'),
+      endpoint: process.env.S3_ENDPOINT || undefined,
+      accessKeyId: required('S3_ACCESS_KEY_ID', 'vortex'),
+      secretAccessKey: required('S3_SECRET_ACCESS_KEY', 'vortex-secret'),
+      forcePathStyle: bool('S3_FORCE_PATH_STYLE', true),
     },
+    fallbackDriver: process.env.STORAGE_FALLBACK_DRIVER as StorageDriverName | undefined,
+    providerConfig: {
+      r2: process.env.CLOUDFLARE_ACCOUNT_ID
+        ? { accountId: process.env.CLOUDFLARE_ACCOUNT_ID }
+        : undefined,
+      gcs: process.env.GCS_PROJECT_ID
+        ? { projectId: process.env.GCS_PROJECT_ID }
+        : undefined,
+      azure: process.env.AZURE_CONNECTION_STRING
+        ? { connectionString: process.env.AZURE_CONNECTION_STRING }
+        : undefined,
+    },
+  },
     realtime: {
       heartbeatMs: int('REALTIME_HEARTBEAT_MS', 30_000),
       redisUrl: process.env.REDIS_URL || undefined,

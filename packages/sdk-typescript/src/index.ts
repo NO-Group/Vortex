@@ -27,6 +27,14 @@ export { Flags } from './flags.js';
 export { Vector } from './vector.js';
 export { Cron } from './cron.js';
 export { Search } from './search.js';
+export { QrCode } from './qrcode.js';
+export { Biometric } from './biometric.js';
+export { ChunkedUpload } from './chunked-upload.js';
+export { Transformations } from './transformations.js';
+export { Shield } from './shield.js';
+export { Sessions } from './sessions.js';
+export { PasswordSecurity } from './password-security.js';
+export { SecurityScore } from './security-score.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -54,6 +62,12 @@ export type {
   ChunkedUploadInit, ChunkedUploadStatus, BulkDeleteResult,
   MediaTransformation, TransformOperation,
   ShieldAttestation, AttestationType, ThrottleStatus,
+  UserSession,
+  PasswordSecurityStatus, PasswordValidationResult, PasswordHistoryEntry,
+  SecurityCheck, SecurityPostureScore, SecurityScoreEntry, EncryptionInfo,
+  StorageProviderType, StorageObjectMetadata, PresignedUrlResult,
+  MultipartPart,
+  MultipartUploadInit, RenderParams, TransformResult, StorageEngineHealth,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

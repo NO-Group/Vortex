@@ -24,7 +24,7 @@ export function createSessionRoutes(ctx: AppContext): Router {
     try {
       const rows = await sessions.list(req.auth!.sub);
       res.json({
-        sessions: rows.map((r) => ({
+        sessions: rows.map((r: any) => ({
           id: r.id,
           sessionId: r.session_id,
           userAgent: r.user_agent,

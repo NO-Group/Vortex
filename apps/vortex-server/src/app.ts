@@ -12,6 +12,7 @@ import { createPublicAppRoutes } from './apps/public.routes.js';
 import { createPublicStorageRoutes } from './storage/public.routes.js';
 import { createPublicFunctionRoutes } from './functions/functions.routes.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
+import { securityHeaders } from './middleware/security-headers.js';
 
 /** Build the express application (factored out for testability). */
 export function createApp(ctx: AppContext): Express {
@@ -22,6 +23,7 @@ export function createApp(ctx: AppContext): Express {
   // real client IPs).
   app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  app.use(securityHeaders());
   app.use(compression());
   app.use(
     cors({

@@ -27,7 +27,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
 
   /** POST /v1/webhooks — register a new webhook endpoint. */
   router.post(
-    '/webhooks',
+    '/',
     auth,
     validateBody(webhookCreateSchema),
     async (req, res, next) => {
@@ -41,7 +41,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
   );
 
   /** GET /v1/webhooks — list your webhooks. */
-  router.get('/webhooks', auth, async (req, res, next) => {
+  router.get('/', auth, async (req, res, next) => {
     try {
       const webhooks = await service.listWebhooks(req.auth!.sub);
       res.json({ webhooks });
@@ -52,7 +52,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
 
   /** PATCH /v1/webhooks/:id — update a webhook. */
   router.patch(
-    '/webhooks/:id',
+    '/:id',
     auth,
     validateBody(webhookUpdateSchema),
     async (req, res, next) => {
@@ -66,7 +66,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
   );
 
   /** DELETE /v1/webhooks/:id — delete a webhook. */
-  router.delete('/webhooks/:id', auth, async (req, res, next) => {
+  router.delete('/:id', auth, async (req, res, next) => {
     try {
       await service.deleteWebhook(req.params.id!);
       res.status(204).end();
@@ -76,7 +76,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
   });
 
   /** POST /v1/webhooks/:id/secret — regenerate the signing secret. */
-  router.post('/webhooks/:id/secret', auth, async (req, res, next) => {
+  router.post('/:id/secret', auth, async (req, res, next) => {
     try {
       const result = await service.regenerateSecret(req.params.id!);
       res.json(result);
@@ -86,7 +86,7 @@ export function createWebhookRoutes(ctx: AppContext): Router {
   });
 
   /** GET /v1/webhooks/:id/log — view delivery history. */
-  router.get('/webhooks/:id/log', auth, async (req, res, next) => {
+  router.get('/:id/log', auth, async (req, res, next) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 50, 200);
       const log = await service.listLog(req.params.id!, limit);
@@ -94,6 +94,30 @@ export function createWebhookRoutes(ctx: AppContext): Router {
     } catch (err) {
       next(err);
     }
+  });
+
+  /** GET /v1/webhooks/:id/secret — get the signing secret. */
+  router.get('/:id/secret', auth, async (req, res, next) => {
+    try {
+      const result = await service.getSigningSecret(req.params.id!);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  /** POST /v1/webhooks/verify — verify an incoming webhook signature. */
+  router.post('/verify', async (req, res) => {
+    const { secret, payload, headers } = req.body as {
+      secret: string;
+      payload: string;
+      headers: Record<string, string>;
+    };
+    if (!secret || !payload || !headers) {
+      throw ApiError.badRequest('Missing "secret", "payload", or "headers" in body');
+    }
+    const valid = service.verifySignature(secret, payload, headers);
+    res.json({ valid });
   });
 
   return router;

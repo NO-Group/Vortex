@@ -7,6 +7,7 @@ import type { PolicyService } from './policies/policy.service.js';
 import type { QueryGovernor } from './governance/query-governor.js';
 import type { EdgeCache } from './governance/edge-cache.js';
 import type { CronScheduler } from './cron/scheduler.service.js';
+import type { SessionService } from './auth/session.service.js';
 
 /**
  * Application-wide dependencies, injected into routes/services so the
@@ -26,4 +27,5 @@ export interface AppContext {
   edgeCache: EdgeCache;
   /** Cron scheduler — autonomous tick loop for scheduled jobs. */
   cronScheduler?: CronScheduler;
+  sessions: SessionService;
 }

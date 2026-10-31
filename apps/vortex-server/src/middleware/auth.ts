@@ -5,6 +5,7 @@ import { ApiError } from '../errors.js';
 import { verifyToken, type TokenConfig } from '../auth/tokens.js';
 import { createApiKeyService } from '../apikeys/apikey.service.js';
 import type { Knex } from 'knex';
+import type { SessionService } from '../auth/session.service.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -79,7 +80,7 @@ export function bearerFrom(req: Request): string | null {
 }
 
 /** Express middleware enforcing a valid Vortex access token. */
-export function requireAuth(config: TokenConfig) {
+export function requireAuth(config: TokenConfig, sessionService?: SessionService) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const token = bearerFrom(req);
     if (!token) {
@@ -87,7 +88,14 @@ export function requireAuth(config: TokenConfig) {
       return;
     }
     try {
-      req.auth = verifyToken(token, config);
+      const claims = verifyToken(token, config);
+      req.auth = claims;
+      if (sessionService && claims.sub && claims.jti) {
+        sessionService.ensure(claims.sub, claims.jti, {
+          userAgent: req.header('user-agent') ?? undefined,
+          ipAddress: req.ip ?? req.socket.remoteAddress ?? undefined,
+        }).catch(() => {});
+      }
       next();
     } catch (err) {
       next(err);

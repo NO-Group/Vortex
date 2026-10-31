@@ -102,7 +102,7 @@ export function createAuthRoutes(ctx: AppContext): Router {
     publicAppUrl: ctx.env.publicAppUrl,
     mailer: createMailer(ctx.env),
   });
-  const auth = requireAuth(ctx.env.jwt as TokenConfig);
+  const auth = requireAuth(ctx.env.jwt as TokenConfig, ctx.sessions);
 
   /** POST /v1/auth/signup — register and receive an access token. */
   router.post('/signup', validateBody(signupSchema), async (req, res, next) => {

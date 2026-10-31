@@ -14,6 +14,7 @@ import { PolicyService } from './policies/policy.service.js';
 import { QueryGovernor } from './governance/query-governor.js';
 import { EdgeCache } from './governance/edge-cache.js';
 import { CronScheduler } from './cron/scheduler.service.js';
+import { SessionService } from './auth/session.service.js';
 import type { AppContext } from './context.js';
 
 async function main(): Promise<void> {
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
       maxEntries: env.edgeCacheMaxEntries,
       defaultTtl: env.edgeCacheTtl,
     }),
+    sessions: new SessionService(db),
   };
 
   // Create the cron scheduler with the real context, then attach it.

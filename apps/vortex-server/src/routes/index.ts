@@ -3,6 +3,10 @@ import type { AppContext } from '../context.js';
 import { createAuthRoutes } from '../auth/auth.routes.js';
 import { createDbRoutes } from '../db/db.routes.js';
 import { createStorageRoutes } from '../storage/storage.routes.js';
+import { createPresignedUploadRoutes } from '../storage/presigned-upload.routes.js';
+import { createMultipartRoutes } from '../storage/multipart.routes.js';
+import { createBulkDeleteRoutes } from '../storage/bulk-delete.routes.js';
+import { createRenderRoutes } from '../storage/render.routes.js';
 import { createAppsRoutes } from '../apps/apps.routes.js';
 import { createFunctionsRoutes } from '../functions/functions.routes.js';
 import { createSqlRoutes } from '../sql/sql.routes.js';
@@ -21,6 +25,9 @@ import { createBiometricRoutes } from '../auth/biometric.routes.js';
 import { createChunkedUploadRoutes } from '../storage/chunked-upload.routes.js';
 import { createTransformRoutes } from '../storage/media-transform.routes.js';
 import { createShieldRoutes } from '../shield/shield.routes.js';
+import { createSessionRoutes } from '../auth/session.routes.js';
+import { createPasswordSecurityRoutes } from '../auth/password-security.routes.js';
+import { createSecurityRoutes } from '../security/security-score.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -28,6 +35,10 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/auth', createAuthRoutes(ctx));
   router.use('/db', createDbRoutes(ctx));
   router.use('/storage', createStorageRoutes(ctx));
+  router.use('/storage', createPresignedUploadRoutes(ctx));
+  router.use('/storage', createMultipartRoutes(ctx));
+  router.use('/storage', createBulkDeleteRoutes(ctx));
+  router.use('/storage', createRenderRoutes(ctx));
   router.use('/apps', createAppsRoutes(ctx));
   router.use('/functions', createFunctionsRoutes(ctx));
   router.use('/sql', createSqlRoutes(ctx));
@@ -46,5 +57,8 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/storage/chunked', createChunkedUploadRoutes(ctx));
   router.use('/storage/transformations', createTransformRoutes(ctx));
   router.use('/shield', createShieldRoutes(ctx));
+  router.use('/auth/sessions', createSessionRoutes(ctx));
+  router.use('/auth/password-security', createPasswordSecurityRoutes(ctx));
+  router.use('/security', createSecurityRoutes(ctx));
   return router;
 }

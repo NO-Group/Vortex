@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ApiError } from '../errors.js';
 import { randomUUID } from 'node:crypto';
 
@@ -176,5 +176,34 @@ export class WebhookService {
         .where({ id: webhook.id })
         .increment('failure_count', 1);
     }
+  }
+
+  /**
+   * Verify an incoming webhook request signature.
+   */
+  verifySignature(
+    secret: string,
+    payload: string,
+    headers: Record<string, string | undefined>,
+  ): boolean {
+    const timestamp = headers['x-vortex-timestamp'];
+    const signature = headers['x-vortex-signature'];
+    if (!timestamp || !signature) return false;
+
+    const signedPayload = `${timestamp}.${payload}`;
+    const expectedSignature = createHmac('sha256', secret).update(signedPayload).digest('hex');
+
+    const signatureBuf = Buffer.from(signature, 'hex');
+    const expectedBuf = Buffer.from(expectedSignature, 'hex');
+    if (signatureBuf.length !== expectedBuf.length) return false;
+
+    return timingSafeEqual(signatureBuf, expectedBuf);
+  }
+
+  /** Get the signing secret for a webhook. */
+  async getSigningSecret(webhookId: string): Promise<{ secret: string }> {
+    const [row] = await this.db<WebhookRow>('vortex_webhooks').where({ id: webhookId }).select('secret');
+    if (!row) throw ApiError.notFound('Webhook not found');
+    return { secret: row.secret };
   }
 }

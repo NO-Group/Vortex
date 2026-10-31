@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 import type { JwtClaims, RoleName } from '@vortex/core';
 import { ApiError } from '../errors.js';
 
@@ -22,6 +23,7 @@ export function signToken(input: SignTokenInput, config: TokenConfig): string {
     {
       email: input.email,
       role: input.role,
+      jti: randomUUID(),
       ...(input.meta && Object.keys(input.meta).length ? { meta: input.meta } : {}),
     },
     config.secret,
@@ -52,6 +54,7 @@ export function verifyToken(token: string, config: TokenConfig): JwtClaims {
       iss: String(claims.iss ?? config.issuer),
       iat: Number(claims.iat ?? 0),
       exp: Number(claims.exp ?? 0),
+      jti: claims.jti ? String(claims.jti) : undefined,
     };
   } catch (err) {
     if (err instanceof ApiError) throw err;
