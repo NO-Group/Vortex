@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, arena/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Type-check all packages ────────────────────────────────────────────
+  typecheck:
+    name: Type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck --workspaces --if-present
+
+  # ── Build all packages ─────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+  # ── Unit + smoke tests ────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vortex
+          POSTGRES_PASSWORD: vortex-secret-1
+          POSTGRES_DB: vortex
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+        env:
+          VORTEX_DATABASE_URL: postgresql://vortex:vortex-secret-1@localhost:5432/vortex
+          VORTEX_JWT_SECRET: test-jwt-secret-for-ci-only-32chars-min

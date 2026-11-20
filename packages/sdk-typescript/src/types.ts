@@ -1,0 +1,734 @@
+/**
+ * Vortex Client SDK — shared types.
+ *
+ * All types mirror the server's wire format. The SDK is zero-dependency:
+ * it uses `fetch` and `WebSocket`, both built into modern browsers and
+ * Node.js 18+.
+ */
+
+/** Filter operators supported by the query engine. */
+export type FilterOp =
+  | 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte'
+  | 'like' | 'ilike' | 'in' | 'is' | 'contains';
+
+export interface QueryFilter {
+  column: string;
+  op?: FilterOp;
+  value: unknown;
+}
+
+export interface QueryOrder {
+  column: string;
+  direction?: 'asc' | 'desc';
+}
+
+export interface QueryInclude {
+  table: string;
+  localKey: string;
+  foreignKey: string;
+  as: string;
+  select?: string[];
+}
+
+export interface QueryRequest {
+  select?: string[];
+  filters?: QueryFilter[];
+  or?: QueryFilter[][];
+  orderBy?: QueryOrder[];
+  limit?: number;
+  offset?: number;
+  include?: QueryInclude[];
+  countTotal?: boolean;
+  explain?: boolean;
+}
+
+export interface QueryPlan {
+  cost: number | null;
+  summary: string[];
+}
+
+export interface QueryExplain {
+  plan: QueryPlan;
+  sql: string;
+  bindings: unknown[];
+}
+
+export interface QueryResult<T = Record<string, unknown>> {
+  rows: T[];
+  count: number;
+  total?: number;
+  explain?: QueryExplain;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  token: string;
+  expiresIn: number;
+}
+
+export interface SignupInput {
+  email: string;
+  password: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface MagicLinkResult {
+  ok: boolean;
+  delivery: 'email' | 'inline' | 'unconfigured';
+  expiresAt: string;
+  devToken?: string;
+}
+
+export interface Bucket {
+  name: string;
+  public: boolean;
+  ownerId: string | null;
+  createdAt: string;
+}
+
+export interface PresignUploadResponse {
+  key: string;
+  method: 'PUT';
+  url: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface PresignDownloadResponse {
+  key: string;
+  method: 'GET';
+  url: string;
+  expiresAt: string;
+}
+
+export interface StorageObject {
+  key: string;
+  size: number;
+  contentType: string;
+  ownerId: string | null;
+  createdAt: string;
+}
+
+export interface VortexFunction {
+  id: string;
+  name: string;
+  title: string;
+  status: 'active' | 'paused';
+  ownerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VortexApp {
+  name: string;
+  title: string;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface TablePermission {
+  role: string;
+  tableName: string;
+  canSelect: boolean;
+  canInsert: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  ownerColumn: string | null;
+}
+
+export interface VortexPolicy {
+  id: string;
+  name: string;
+  tableName: string;
+  action: 'select' | 'insert' | 'update' | 'delete';
+  roles: string[];
+  using: PolicyNode;
+  withCheck: PolicyNode | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PolicyNode =
+  | { column: string; op?: FilterOp; value?: unknown; valueRef?: string }
+  | { and?: PolicyNode[]; or?: PolicyNode[]; not?: PolicyNode };
+
+export interface PolicyPreview {
+  table: string;
+  action: string;
+  role: string;
+  matchedPolicies: number;
+  using: { sql: string; bindings: unknown[] } | null;
+  withCheck: { sql: string; bindings: unknown[] } | null;
+  notes: string[];
+  comparison?: {
+    vortex: string | null;
+    perRowEquivalent: string;
+    whyItMatters: string;
+  };
+}
+
+export interface SqlResult {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  durationMs: number;
+}
+
+export interface QueryLogEntry {
+  id: string;
+  table: string | null;
+  action: string | null;
+  sql: string | null;
+  cost: number | null;
+  durationMs: number;
+  userId: string | null;
+  outcome: string;
+  createdAt: string;
+}
+
+export interface InsightsOverview {
+  window: string;
+  total: number;
+  avgDurationMs: number;
+  maxDurationMs: number;
+  maxCost: number;
+  rejected: number;
+  ceiling: number | null;
+  slowQueryMs: number;
+}
+
+/** Table change event from the realtime wire. */
+export interface TableEvent {
+  id: string;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  table: string;
+  rows: Record<string, unknown>[];
+  actorId: string | null;
+  timestamp: string;
+  seq?: number;
+  replay?: boolean;
+}
+
+export interface PresencePeer {
+  clientId: string;
+  userId: string | null;
+  state: Record<string, unknown>;
+}
+
+/** Event handler for realtime table changes. */
+export type TableChangeHandler = (event: TableEvent) => void;
+/** Event handler for realtime presence changes. */
+export type PresenceHandler = (info: {
+  channel: string;
+  kind: 'sync' | 'joins' | 'leaves';
+  peers: PresencePeer[];
+}) => void;
+/** Event handler for realtime room broadcasts. */
+export type BroadcastHandler = (frame: {
+  channel: string;
+  event: string;
+  payload: unknown;
+  from?: string;
+}) => void;
+/** Event handler for reconnect replay. */
+export type ReplayHandler = (info: {
+  channel: string;
+  count: number;
+  truncated: boolean;
+  cursor: number;
+}) => void;
+/** Event handler for connection status changes. */
+export type StatusHandler = (status: 'offline' | 'connecting' | 'online') => void;
+
+export interface ApiErrorBody {
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+}
+
+// ── OAuth providers ─────────────────────────────────────────────────────
+
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  displayName: string;
+  clientId: string;
+  clientSecret: string;
+  authUrl: string;
+  tokenUrl: string;
+  userinfoUrl: string;
+  scopes: string;
+  extra: Record<string, unknown> | null;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OAuthAccount {
+  id: string;
+  userId: string;
+  provider: string;
+  providerUserId: string;
+  providerEmail: string | null;
+  profile: Record<string, unknown> | null;
+  linkedAt: string;
+}
+
+export interface OAuthLoginResult {
+  session: AuthSession;
+  isNewUser: boolean;
+  linkedProvider: string;
+}
+
+// ── Push Notifications ───────────────────────────────────────────────────
+
+export interface NotificationDevice {
+  id: string;
+  platform: string;
+  pushService: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  status: string;
+  createdAt: string;
+  deliveredAt: string | null;
+}
+
+// ── Webhooks ────────────────────────────────────────────────────────────
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  secret: string;
+  active: boolean;
+  success_count: number;
+  failure_count: number;
+  last_delivered_at: string | null;
+  created_at: string;
+}
+
+export interface WebhookLogEntry {
+  id: string;
+  event: string;
+  payload: Record<string, unknown> | null;
+  status: string;
+  http_status: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+// ── Audit Trail ──────────────────────────────────────────────────────────
+
+export interface AuditEntry {
+  id: string;
+  user_id: string;
+  role: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AuditStats {
+  totalActions: number;
+  byAction: Record<string, number>;
+  byResource: Record<string, number>;
+  lastActive: string | null;
+}
+
+// ── API Keys ─────────────────────────────────────────────────────────────
+
+export interface ApiKey {
+  id: string;
+  user_id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[] | null;
+  last_used_at: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface ApiKeyCreateResult {
+  id: string;
+  name: string;
+  key: string;
+  key_prefix: string;
+  scopes: string[] | null;
+  created_at: string;
+}
+
+// ── Two-Factor Authentication ──────────────────────────────────────────
+
+export interface TwoFactorChallenge {
+  twoFactorRequired: true;
+  tempToken: string;
+}
+
+export interface TwoFactorSetupResult {
+  secret: string;
+  otpauthUrl: string;
+  backupCodes: string[];
+}
+
+// ── Feature Flags ───────────────────────────────────────────────────────
+
+export interface FeatureFlag {
+  id: string;
+  user_id: string;
+  key: string;
+  description: string | null;
+  status: 'off' | 'on' | 'gradual';
+  rollout_percentage: number | null;
+  targeting: Record<string, unknown> | null;
+  variants: Array<Record<string, unknown>> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlagEvaluation {
+  key: string;
+  enabled: boolean;
+  variant: string | null;
+  reason: string;
+}
+
+// ── Vector Search ──────────────────────────────────────────────────────
+
+export interface VectorCollection {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  dimensions: number;
+  created_at: string;
+}
+
+export interface VectorItem {
+  id: string;
+  collection_id: string;
+  item_id: string;
+  vector: number[];
+  payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface VectorSearchResult {
+  item_id: string;
+  score: number;
+  payload: Record<string, unknown> | null;
+}
+
+// ── Custom Domains ─────────────────────────────────────────────────────
+
+export interface CustomDomain {
+  id: string;
+  user_id: string;
+  app_name: string;
+  domain: string;
+  status: 'pending' | 'active' | 'failed';
+  verification_token: string | null;
+  tls_status: string | null;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export interface DnsInstructions {
+  domain: string;
+  type: string;
+  value: string;
+  description: string;
+}
+
+// ── Cron / Scheduled Jobs ───────────────────────────────────────────────
+
+export interface CronJob {
+  id: string;
+  name: string;
+  functionName: string | null;
+  cronExpression: string;
+  payload: Record<string, unknown> | null;
+  status: 'enabled' | 'disabled';
+  lastRunAt: string | null;
+  nextRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CronJobCreate {
+  name: string;
+  functionName?: string | null;
+  cronExpression: string;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface CronJobUpdate {
+  functionName?: string | null;
+  cronExpression?: string;
+  payload?: Record<string, unknown> | null;
+  status?: 'enabled' | 'disabled';
+}
+
+export interface CronRun {
+  id: string;
+  jobId: string;
+  functionName: string | null;
+  status: 'pending' | 'success' | 'error' | 'timeout';
+  errorMessage: string | null;
+  result: Record<string, unknown> | null;
+  durationMs: number | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+// ── Full-text Search ───────────────────────────────────────────────────
+
+export interface FulltextIndex {
+  id: string;
+  tableName: string;
+  name: string;
+  columns: string[];
+  language: string;
+  indexName: string;
+  createdAt: string;
+}
+
+export interface FulltextSearchResult {
+  id: string;
+  rank: number;
+  row: Record<string, unknown>;
+}
+
+// ── QR Code Sign-in ─────────────────────────────────────────────────────
+
+export interface QrCodeSession {
+  token: string;
+  qrDataUrl: string;
+  expiresAt: string;
+}
+
+// ── Biometric Authentication ───────────────────────────────────────────
+
+export type BiometricKind = 'facial_liveness' | 'fingerprint';
+
+export interface BiometricAttestation {
+  id: string;
+  userId: string;
+  kind: BiometricKind;
+  payload: Record<string, unknown>;
+  verified: boolean;
+  livenessScore: number | null;
+  challengeId: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+}
+
+export interface BiometricChallenge {
+  challengeId: string;
+  expiresAt: string;
+  kind: BiometricKind;
+}
+
+// ── Chunked / Multipart Uploads ─────────────────────────────────────────
+
+export interface ChunkedUploadInit {
+  uploadId: string;
+  key: string;
+  contentType: string;
+  totalChunks: number;
+}
+
+export interface ChunkedUploadStatus {
+  uploadId: string;
+  key: string;
+  totalChunks: number;
+  chunksReceived: number;
+  status: 'in_progress' | 'completed' | 'aborted';
+}
+
+// ── Bulk Deletion ───────────────────────────────────────────────────────
+
+export interface BulkDeleteResult {
+  deleted: string[];
+  failed: { key: string; error: string }[];
+}
+
+// ── Media Transformations ──────────────────────────────────────────────
+
+export type TransformOperation = 'resize' | 'crop' | 'format' | 'quality' | 'rotate';
+
+export interface MediaTransformation {
+  id: string;
+  key: string;
+  operation: TransformOperation;
+  params: Record<string, unknown>;
+  outputKey: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  webhookStatus: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+// ── Shield / AppCheck ──────────────────────────────────────────────────
+
+export type AttestationType = 'app_check' | 'play_integrity' | 'safety_net';
+
+export interface ShieldAttestation {
+  id: string;
+  attestationType: AttestationType;
+  valid: boolean;
+  revision: string | null;
+  createdAt: string;
+}
+
+export interface ThrottleStatus {
+  remaining: number;
+  resetAt: number;
+  limited: boolean;
+}
+
+// ── Session Management ─────────────────────────────────────────────────
+
+export interface UserSession {
+  id: string;
+  sessionId: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  deviceType: string | null;
+  lastActiveAt: string;
+  createdAt: string;
+}
+
+// ── Password Security ──────────────────────────────────────────────────
+
+export interface PasswordSecurityStatus {
+  locked: boolean;
+  lockedUntil: string | null;
+  failedCount: number;
+  attemptsRemaining: number;
+}
+
+export interface PasswordValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface PasswordHistoryEntry {
+  id: string;
+  createdAt: string;
+}
+
+// ── Security Scoring ───────────────────────────────────────────────────
+
+export interface SecurityCheck {
+  name: string;
+  passed: boolean;
+  weight: number;
+  detail: string;
+}
+
+export interface SecurityPostureScore {
+  score: number;
+  grade: string;
+  checks: SecurityCheck[];
+  recommendations: string[];
+}
+
+export interface SecurityScoreEntry {
+  score: number;
+  grade: string;
+  createdAt: string;
+}
+
+export interface EncryptionInfo {
+  algorithm: string;
+  keyVersion: string;
+  atRest: boolean;
+  fields: string[];
+}
+
+// ── Multi-Cloud Storage Engine ─────────────────────────────────────────
+
+export type StorageProviderType =
+  | 'cloudflare_r2'
+  | 'aws_s3'
+  | 'digitalocean_spaces'
+  | 'gcs'
+  | 'azure_blob'
+  | 'local_disk';
+
+export interface StorageObjectMetadata {
+  key: string;
+  size: number;
+  mimeType: string;
+  etag: string;
+  lastModified: Date;
+  customMetadata?: Record<string, string>;
+}
+
+export interface PresignedUrlResult {
+  url: string;
+  method: 'GET' | 'PUT' | 'POST';
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface MultipartPart {
+  partNumber: number;
+  etag: string;
+}
+
+export interface MultipartUploadInit {
+  uploadId: string;
+}
+
+export interface RenderParams {
+  path: string;
+  width?: number;
+  height?: number;
+  format?: 'webp' | 'avif' | 'png' | 'jpg';
+  quality?: number;
+  fit?: 'cover' | 'contain' | 'fill';
+}
+
+export interface TransformResult {
+  key: string;
+  url: string;
+  format: string;
+  width: number;
+  height: number;
+  quality: number;
+  cached: boolean;
+}
+
+export interface StorageEngineHealth {
+  primary: string;
+  primaryHealthy: boolean;
+  fallback: string | null;
+  fallbackHealthy: boolean;
+  active: string;
+}
