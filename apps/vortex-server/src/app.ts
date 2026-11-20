@@ -92,7 +92,6 @@ export function createApp(ctx: AppContext): Express {
   // Multi-tenant app resolver — extracts app context from X-App-ID header,
   // custom domain, or subdomain. Runs before routes so req.tenant is set.
   app.use(createAppResolverMiddleware(ctx.tenant));
-
   // Rate-limited API surface — auth gets a stricter limit.
   app.use('/v1', apiLimiter, createApiRouter(ctx));
 

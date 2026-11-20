@@ -59,7 +59,11 @@ export class StorageRegistry {
         app_id: input.appId ?? null,
       })
       .onConflict('key')
-      .merge({ size: input.size, content_type: input.contentType, app_id: input.appId ?? null })
+      .merge({
+        size: input.size,
+        content_type: input.contentType,
+        app_id: input.appId ?? null,
+      })
       .returning('*');
     return toMeta(row!);
   }

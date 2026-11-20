@@ -27,8 +27,5 @@
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "embedded-postgres": "18.4.0-beta.17"
-  },
-  "dependencies": {
-    "qrcode": "^1.5.4"
   }
 }
