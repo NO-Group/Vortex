@@ -20,8 +20,8 @@ real-time sync core. Point it at PostgreSQL and you get instant REST/CRUD with
 row-level security, live table-change streams over WebSockets, and a storage
 gateway with presigned URLs — all behind one JWT.
 
-**Current status: the v0.1 core engine is complete and verified with a 22-step
-end-to-end suite against real PostgreSQL, and the v0.2 glassmorphic console is
+**Current status: the v0.0.1 core engine is complete and verified with a 22-step
+end-to-end suite against real PostgreSQL, and the v0.0.2 glassmorphic console is
 live.**
 
 ## Features
