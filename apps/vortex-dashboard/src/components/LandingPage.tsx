@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthModal } from './AuthModal';
 import type { AuthSession } from '../lib/api';
 
 /**
  * Vortex — Landing Page.
  *
- * A large, professional, interactive marketing site with:
- *  - Hero section with animated Vortex branding
+ * A polished, professional marketing site with:
+ *  - Hero section with the Vortex brand mark
  *  - Feature showcase with detailed descriptions
  *  - Architecture / how it works section
  *  - Pricing section
@@ -73,6 +73,15 @@ export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSe
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
+/*  Brand Mark                                                                    */
+/* ══════════════════════════════════════════════════════════════════════════════ */
+
+/** The Vortex logo image — no borders, reasonable size via className. */
+function VortexLogo({ className = '' }: { className?: string }) {
+  return <img src="/logo.png" alt="Vortex" className={className} />;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════ */
 /*  Background                                                                    */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
@@ -80,48 +89,10 @@ function LandingBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {/* Grid layer */}
-      <div className="grid-bg absolute inset-0 opacity-30" />
+      <div className="bg-grid-map absolute inset-0 opacity-30" />
 
-      {/* Large floating orbs */}
-      <div
-        className="orb animate-glow-pulse"
-        style={{
-          width: '700px', height: '700px',
-          top: '-200px', left: '20%',
-          background: 'radial-gradient(circle, #004BFF 0%, transparent 70%)',
-          opacity: 0.12,
-        }}
-      />
-      <div
-        className="orb animate-glow-pulse"
-        style={{
-          width: '600px', height: '600px',
-          top: '30%', right: '-150px',
-          background: 'radial-gradient(circle, #A38CFF 0%, transparent 70%)',
-          opacity: 0.08,
-          animationDelay: '2s',
-        }}
-      />
-      <div
-        className="orb animate-glow-pulse"
-        style={{
-          width: '500px', height: '500px',
-          bottom: '-100px', left: '10%',
-          background: 'radial-gradient(circle, #00D2FF 0%, transparent 70%)',
-          opacity: 0.06,
-          animationDelay: '4s',
-        }}
-      />
-      <div
-        className="orb animate-glow-pulse"
-        style={{
-          width: '400px', height: '400px',
-          bottom: '20%', right: '20%',
-          background: 'radial-gradient(circle, #00E6A6 0%, transparent 70%)',
-          opacity: 0.05,
-          animationDelay: '6s',
-        }}
-      />
+      {/* Ambient mesh glows */}
+      <div className="bg-mesh absolute inset-0" />
     </div>
   );
 }
@@ -143,9 +114,11 @@ function Navbar({
 }) {
   const [scrolled, setScrolled] = useState(false);
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('scroll', () => setScrolled(window.scrollY > 20));
-  }
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -161,18 +134,7 @@ function Navbar({
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <svg className="vortex-logo h-9 w-9" viewBox="0 0 100 100" fill="none">
-            <defs>
-              <linearGradient id="nav-logo" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#004BFF" />
-                <stop offset="50%" stopColor="#A38CFF" />
-                <stop offset="100%" stopColor="#00D2FF" />
-              </linearGradient>
-            </defs>
-            <circle cx="50" cy="50" r="42" stroke="url(#nav-logo)" strokeWidth="5" opacity="0.7" />
-            <circle cx="50" cy="50" r="24" stroke="url(#nav-logo)" strokeWidth="3" opacity="0.5" />
-            <circle cx="50" cy="50" r="8" fill="url(#nav-logo)" />
-          </svg>
+          <VortexLogo className="h-9 w-9" />
           <span className="text-gradient text-xl font-bold tracking-tight">Vortex</span>
         </div>
 
@@ -200,7 +162,7 @@ function Navbar({
           <button onClick={onSignIn} className="btn-glass !py-2 !px-4 text-sm">
             Sign In
           </button>
-          <button onClick={onSignUp} className="btn-primary !py-2 !px-4 text-sm">
+          <button onClick={onSignUp} className="btn-kinetic !py-2 !px-4 text-sm">
             Get Started
           </button>
         </div>
@@ -216,45 +178,34 @@ function Navbar({
 function Hero({ onSignUp, onSignIn, onScroll }: { onSignUp: () => void; onSignIn: () => void; onScroll: () => void }) {
   return (
     <section id="home" className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 pt-20 text-center">
-      {/* Animated Vortex emblem */}
+      {/* Brand mark with ambient glow */}
       <div className="relative mb-8">
-        <div className="absolute inset-0 animate-glow-pulse rounded-full bg-gradient-to-br from-anchor/30 to-cyber/20 blur-3xl" />
-        <svg className="relative vortex-logo h-24 w-24 animate-vortex-spin" viewBox="0 0 100 100" fill="none">
-          <defs>
-            <linearGradient id="hero-logo" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#004BFF" />
-              <stop offset="33%" stopColor="#A38CFF" />
-              <stop offset="66%" stopColor="#00D2FF" />
-              <stop offset="100%" stopColor="#00E6A6" />
-            </linearGradient>
-          </defs>
-          <circle cx="50" cy="50" r="44" stroke="url(#hero-logo)" strokeWidth="4" opacity="0.6" />
-          <circle cx="50" cy="50" r="34" stroke="url(#hero-logo)" strokeWidth="3" opacity="0.4" />
-          <circle cx="50" cy="50" r="22" stroke="url(#hero-logo)" strokeWidth="3" opacity="0.5" />
-          <circle cx="50" cy="50" r="12" fill="url(#hero-logo)" />
-        </svg>
+        <div className="absolute inset-0 animate-glow-breathe rounded-full bg-gradient-to-br from-spectrum-blue/30 to-spectrum-cyan/20 blur-3xl" />
+        <div className="relative">
+          <VortexLogo className="h-24 w-24 animate-fade-in" />
+        </div>
       </div>
 
       <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-xs text-white/40 backdrop-blur-md">
-        <span className="h-2 w-2 rounded-full bg-success animate-glow-pulse" />
+        <span className="status-dot status-live" />
         High-performance Backend-as-a-Service · Now in Production
       </p>
 
-      <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl animate-slide-up">
+      <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl animate-fade-in">
         <span className="text-gradient">Build backends at</span>
         <br />
         <span className="text-white">the speed of thought.</span>
       </h1>
 
-      <p className="mx-auto mt-6 max-w-2xl text-lg text-white/40 animate-slide-up">
+      <p className="mx-auto mt-6 max-w-2xl text-lg text-white/40 animate-fade-in">
         Vortex is the all-in-one BaaS platform that gives you authentication, databases,
         object storage, and realtime sync — all in one glassmorphic console. Deploy in
         minutes, scale to millions, and never worry about infrastructure again.
       </p>
 
       {/* CTA buttons */}
-      <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row animate-slide-up">
-        <button onClick={onSignUp} className="btn-primary !px-8 !py-4 text-base">
+      <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row animate-fade-in">
+        <button onClick={onSignUp} className="btn-kinetic !px-8 !py-4 text-base">
           Start Building Free
         </button>
         <button onClick={onSignIn} className="btn-glass !px-8 !py-4 text-base">
@@ -291,47 +242,184 @@ function Hero({ onSignUp, onSignIn, onScroll }: { onSignUp: () => void; onSignIn
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
+/*  SVG Icons                                                                    */
+/* ══════════════════════════════════════════════════════════════════════════════ */
+
+function IconAuth({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      <circle cx="12" cy="15.5" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconDatabase({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+      <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+    </svg>
+  );
+}
+
+function IconStorage({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7l9-4 9 4-9 4-9-4z" />
+      <path d="M3 7v10l9 4 9-4V7" />
+      <path d="M12 11v10" />
+    </svg>
+  );
+}
+
+function IconRealtime({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2L4.5 13.5H11l-1 8.5L19.5 10H13l0-8z" />
+    </svg>
+  );
+}
+
+function IconShield({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+function IconConsole({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M7 9l3 3-3 3" />
+      <path d="M13 15h4" />
+      <path d="M8 21h8" />
+    </svg>
+  );
+}
+
+function IconBook({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4V4z" />
+      <path d="M20 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8V4z" />
+    </svg>
+  );
+}
+
+function IconKey({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="4" />
+      <path d="M11 11l9 9" />
+      <path d="M16 16l2-2" />
+      <path d="M14 18l2-2" />
+    </svg>
+  );
+}
+
+function IconCode({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 6l-5 6 5 6" />
+      <path d="M16 6l5 6-5 6" />
+    </svg>
+  );
+}
+
+function IconUpload({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 16V4" />
+      <path d="M7 9l5-5 5 5" />
+      <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+    </svg>
+  );
+}
+
+function IconCloud({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.9-1A4.5 4.5 0 0 1 17 18H7z" />
+    </svg>
+  );
+}
+
+function IconDeploy({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="8" width="18" height="11" rx="2" />
+      <path d="M7 8V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2" />
+      <circle cx="8" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="13.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconCheck({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
+
+function IconArrowRight({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════ */
 /*  Features                                                                       */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 const FEATURES = [
   {
-    icon: '🔐',
+    icon: IconAuth,
     title: 'Authentication Engine',
     description:
       'A complete auth system built from scratch. JWT-based access and refresh tokens, bcrypt password hashing with a work factor of 12, and three-tier role-based access control (admin, developer, viewer). Every endpoint is protected by middleware that validates tokens and enforces RBAC before any data is touched. Support for OAuth providers is ready to plug in.',
     points: ['JWT access + refresh tokens', 'bcrypt password hashing (cost 12)', 'RBAC: admin / developer / viewer', 'Signup, login, and /me endpoints'],
   },
   {
-    icon: '🗄️',
+    icon: IconDatabase,
     title: 'Database Gateway',
     description:
       'A dynamic CRUD interface over PostgreSQL that lets your frontend query, insert, update, and delete rows without writing a single SQL statement. Built-in query filters support eight operators (eq, neq, gt, gte, lt, lte, like, in), pagination, and ordering. Every query is gated by RBAC — the role determines which tables and which actions are permitted. Column names are validated to prevent SQL injection.',
     points: ['Dynamic CRUD over PostgreSQL', '8 query filter operators', 'Pagination and ordering', 'RBAC on every query', 'SQL injection protection'],
   },
   {
-    icon: '📦',
+    icon: IconStorage,
     title: 'Storage Controller',
     description:
       'An abstracted storage layer that works with Cloudflare R2 (zero egress fees) or local disk for development. Generate HMAC-signed presigned upload and download URLs so clients can transfer files directly to storage without proxying through the server. Object metadata is tracked in PostgreSQL with owner scoping, content types, and ETags. Switch drivers with a single environment variable.',
     points: ['Cloudflare R2 or local disk', 'HMAC-signed presigned URLs', 'Direct client-to-storage uploads', 'Owner-scoped object management', 'Content type and ETag tracking'],
   },
   {
-    icon: '⚡',
+    icon: IconRealtime,
     title: 'Realtime WebSocket Hub',
     description:
       'A pub/sub engine that broadcasts database changes to connected clients in under 50ms. Clients subscribe to specific tables and receive insert, update, and delete events as they happen. The WebSocket hub handles connection lifecycle, subscription management, and message routing. Ideal for live dashboards, collaborative editing, and real-time data feeds.',
     points: ['Sub-50ms event broadcast', 'Subscribe / unsubscribe to tables', 'Insert, update, delete events', 'Connection lifecycle management', 'Filtered subscriptions'],
   },
   {
-    icon: '🛡️',
+    icon: IconShield,
     title: 'Security & Infrastructure',
     description:
       'Hardened by default. Helmet sets security headers, CORS is configurable, and all input is validated with Zod schemas before it reaches business logic. Centralized error handling ensures consistent API responses. The entire stack is containerized with Docker and docker-compose, with health checks for PostgreSQL, Redis, and the server.',
     points: ['Helmet security headers', 'Zod schema validation', 'Centralized error handling', 'Docker containerization', 'Health-checked services'],
   },
   {
-    icon: '🎨',
+    icon: IconConsole,
     title: 'Glassmorphic Console',
     description:
       'A beautiful, interactive admin console built with React, Vite, and Tailwind CSS. The UI implements the N.O Group design system: an AMOLED pure black canvas, frosted glass panels with backdrop blur, a six-stop chromatic gradient palette, animated branding, and ambient glow effects. The dashboard includes overview, database explorer, storage manager, and realtime event stream views.',
@@ -359,18 +447,19 @@ function Features() {
   );
 }
 
-function FeatureCard({ feature }: { feature: { icon: string; title: string; description: string; points: string[] } }) {
+function FeatureCard({ feature }: { feature: { icon: React.ComponentType<{ className?: string }>; title: string; description: string; points: string[] } }) {
+  const Icon = feature.icon;
   return (
     <div className="glass group p-6 transition-all duration-300 hover:bg-white/[0.05] hover:shadow-[0_0_40px_rgba(0,75,255,0.08)]">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-anchor/20 to-cyber/10 text-2xl">
-        {feature.icon}
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-spectrum-blue/20 to-spectrum-cyan/10 text-spectrum-cyan">
+        <Icon className="h-6 w-6" />
       </div>
       <h3 className="mb-3 text-lg font-semibold text-white">{feature.title}</h3>
       <p className="text-sm leading-relaxed text-white/40">{feature.description}</p>
       <ul className="mt-4 space-y-2">
         {feature.points.map((point) => (
           <li key={point} className="flex items-center gap-2 text-xs text-white/50">
-            <span className="text-cyber">▸</span>
+            <IconArrowRight className="h-3 w-3 flex-shrink-0 text-spectrum-cyan/70" />
             {point}
           </li>
         ))}
@@ -414,16 +503,16 @@ function Architecture() {
         <div className="glass mt-8 p-8">
           <h3 className="mb-4 text-sm font-medium text-white/60">System Components</h3>
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
-            <ArchNode label="Vortex Dashboard" color="from-anchor/20 to-cyber/10" />
+            <ArchNode label="Vortex Dashboard" color="from-spectrum-blue/20 to-spectrum-cyan/10" />
             <Arrow />
-            <ArchNode label="Express Server" color="from-iridescent/20 to-coral/10" />
+            <ArchNode label="Express Server" color="from-spectrum-lavender/20 to-spectrum-coral/10" />
             <Arrow />
             <div className="flex flex-col gap-2">
-              <ArchNode label="PostgreSQL" color="from-cyber/20 to-neon/10" />
-              <ArchNode label="Cloudflare R2" color="from-neon/20 to-tech/10" />
+              <ArchNode label="PostgreSQL" color="from-spectrum-cyan/20 to-spectrum-mint/10" />
+              <ArchNode label="Cloudflare R2" color="from-spectrum-mint/20 to-spectrum-green/10" />
             </div>
             <Arrow />
-            <ArchNode label="WebSocket Hub" color="from-anchor/20 to-iridescent/10" />
+            <ArchNode label="WebSocket Hub" color="from-spectrum-blue/20 to-spectrum-lavender/10" />
           </div>
         </div>
       </div>
@@ -440,7 +529,7 @@ function ArchNode({ label, color }: { label: string; color: string }) {
 }
 
 function Arrow() {
-  return <span className="text-white/20">→</span>;
+  return <IconArrowRight className="h-4 w-4 text-white/20" />;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
@@ -494,13 +583,13 @@ function Pricing({ onSignUp }: { onSignUp: () => void }) {
               className={`
                 glass relative p-8 transition-all duration-300
                 ${plan.highlight
-                  ? 'border-cyber/30 shadow-[0_0_40px_rgba(0,210,255,0.1)]'
+                  ? 'border-spectrum-cyan/30 shadow-[0_0_40px_rgba(0,210,255,0.1)]'
                   : 'hover:bg-white/[0.05]'
                 }
               `}
             >
               {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-anchor to-cyber px-3 py-1 text-xs font-semibold text-white">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-spectrum-blue to-spectrum-cyan px-3 py-1 text-xs font-semibold text-white">
                   Most Popular
                 </div>
               )}
@@ -513,14 +602,14 @@ function Pricing({ onSignUp }: { onSignUp: () => void }) {
               <ul className="mt-6 space-y-3">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm text-white/50">
-                    <span className="text-success">✓</span>
+                    <IconCheck className="h-4 w-4 flex-shrink-0 text-interactive-success" />
                     {f}
                   </li>
                 ))}
               </ul>
               <button
                 onClick={onSignUp}
-                className={`mt-8 w-full ${plan.highlight ? 'btn-primary' : 'btn-glass'} !py-3 text-sm`}
+                className={`mt-8 w-full ${plan.highlight ? 'btn-kinetic' : 'btn-glass'} !py-3 text-sm`}
               >
                 {plan.cta}
               </button>
@@ -538,12 +627,12 @@ function Pricing({ onSignUp }: { onSignUp: () => void }) {
 
 function Documentation() {
   const docs = [
-    { title: 'Getting Started', desc: 'Set up your Vortex project in under 5 minutes. Install the CLI, create a project, and deploy.', icon: '🚀' },
-    { title: 'Authentication', desc: 'Understand the JWT token flow, refresh tokens, and how to authenticate API requests from your frontend.', icon: '🔑' },
-    { title: 'Database API', desc: 'Full reference for the dynamic CRUD endpoints — filters, operators, pagination, and RBAC.', icon: '📋' },
-    { title: 'Storage & Uploads', desc: 'Generate presigned URLs, upload files directly to R2, and manage object metadata.', icon: '📦' },
-    { title: 'Realtime Subscriptions', desc: 'Connect to the WebSocket hub, subscribe to table changes, and handle live events.', icon: '⚡' },
-    { title: 'Deployment', desc: 'Deploy Vortex with Docker, configure environment variables, and scale for production.', icon: '🐳' },
+    { title: 'Getting Started', desc: 'Set up your Vortex project in under 5 minutes. Install the CLI, create a project, and deploy.', icon: IconBook },
+    { title: 'Authentication', desc: 'Understand the JWT token flow, refresh tokens, and how to authenticate API requests from your frontend.', icon: IconKey },
+    { title: 'Database API', desc: 'Full reference for the dynamic CRUD endpoints — filters, operators, pagination, and RBAC.', icon: IconCode },
+    { title: 'Storage & Uploads', desc: 'Generate presigned URLs, upload files directly to R2, and manage object metadata.', icon: IconUpload },
+    { title: 'Realtime Subscriptions', desc: 'Connect to the WebSocket hub, subscribe to table changes, and handle live events.', icon: IconRealtime },
+    { title: 'Deployment', desc: 'Deploy Vortex with Docker, configure environment variables, and scale for production.', icon: IconDeploy },
   ];
 
   return (
@@ -556,16 +645,22 @@ function Documentation() {
         />
 
         <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {docs.map((doc) => (
-            <div key={doc.title} className="glass group p-6 transition-all duration-300 hover:bg-white/[0.05] cursor-pointer">
-              <div className="mb-3 text-2xl">{doc.icon}</div>
-              <h3 className="text-sm font-semibold text-white group-hover:text-cyber transition-colors">{doc.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-white/40">{doc.desc}</p>
-              <div className="mt-4 text-xs text-focus opacity-0 transition-opacity group-hover:opacity-100">
-                Read more →
+          {docs.map((doc) => {
+            const Icon = doc.icon;
+            return (
+              <div key={doc.title} className="glass group p-6 transition-all duration-300 hover:bg-white/[0.05] cursor-pointer">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-spectrum-blue/20 to-spectrum-cyan/10 text-spectrum-cyan">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="text-sm font-semibold text-white group-hover:text-spectrum-cyan transition-colors">{doc.title}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-white/40">{doc.desc}</p>
+                <div className="mt-4 flex items-center gap-1 text-xs text-interactive-focus opacity-0 transition-opacity group-hover:opacity-100">
+                  Read more
+                  <IconArrowRight className="h-3 w-3" />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -632,7 +727,7 @@ function LegalCard({ title, content }: { title: string; content: React.ReactNode
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Footer                                                                         */
+/*  Footer                                                                        */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function Footer({ onNavigate, onSignIn, onSignUp }: { onNavigate: (id: string) => void; onSignIn: () => void; onSignUp: () => void }) {
@@ -643,16 +738,7 @@ function Footer({ onNavigate, onSignIn, onSignUp }: { onNavigate: (id: string) =
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2">
-              <svg className="vortex-logo h-8 w-8" viewBox="0 0 100 100" fill="none">
-                <defs>
-                  <linearGradient id="footer-logo" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#004BFF" />
-                    <stop offset="100%" stopColor="#00D2FF" />
-                  </linearGradient>
-                </defs>
-                <circle cx="50" cy="50" r="42" stroke="url(#footer-logo)" strokeWidth="5" opacity="0.7" />
-                <circle cx="50" cy="50" r="20" fill="url(#footer-logo)" />
-              </svg>
+              <VortexLogo className="h-8 w-8" />
               <span className="text-gradient text-lg font-bold">Vortex</span>
             </div>
             <p className="mt-3 text-sm text-white/30">
@@ -695,7 +781,7 @@ function FooterLinks({ title, links }: { title: string; links: { label: string; 
           <li key={link.label}>
             <button
               onClick={link.action}
-              className="text-sm text-white/40 transition-colors hover:text-cyber"
+              className="text-sm text-white/40 transition-colors hover:text-spectrum-cyan"
             >
               {link.label}
             </button>
@@ -707,7 +793,7 @@ function FooterLinks({ title, links }: { title: string; links: { label: string; 
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Shared                                                                         */
+/*  Shared                                                                        */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function SectionHeader({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {
