@@ -1,0 +1,21 @@
+{
+  "name": "vortex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vortex — High-performance Backend-as-a-Service (BaaS) and real-time infrastructure engine under N.O Group",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,dashboard -c cyan,magenta \"npm run dev -w @vortex/server\" \"npm run dev -w @vortex/dashboard\"",
+    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard",
+    "test": "npx vitest run",
+    "smoke": "node scripts/e2e-smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
