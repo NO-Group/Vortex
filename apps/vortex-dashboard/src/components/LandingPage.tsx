@@ -3,33 +3,50 @@ import { AuthModal } from './AuthModal';
 import type { AuthSession } from '../lib/api';
 
 /**
- * Vortex — Landing Page.
+ * Vortex — Multi-page Landing Site.
  *
- * A polished, professional marketing site with:
- *  - Hero section with the Vortex brand mark
- *  - Feature showcase with detailed descriptions
- *  - Architecture / how it works section
- *  - Pricing section
- *  - Documentation & legal pages (Privacy, Terms)
- *  - Footer
+ * Hash-routed marketing site with separate pages:
+ *   #/            Home
+ *   #/features    Full feature showcase
+ *   #/architecture How it works
+ *   #/pricing     Five-tier pricing
+ *   #/docs        Documentation
+ *   #/legal       Privacy & Terms
  *
- * Sign In / Sign Up buttons appear throughout the page and open
+ * Sign In / Sign Up buttons appear throughout and open
  * the glassmorphic AuthModal overlay when clicked.
  */
 
+type Page = 'home' | 'features' | 'architecture' | 'pricing' | 'docs' | 'legal';
+
+const PAGE_IDS: Page[] = ['home', 'features', 'architecture', 'pricing', 'docs', 'legal'];
+
+function pageFromHash(): Page {
+  const hash = window.location.hash.replace(/^#\/?/, '') as Page;
+  return PAGE_IDS.includes(hash) ? hash : 'home';
+}
+
 export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSession) => void }) {
+  const [page, setPage] = useState<Page>(() => (typeof window !== 'undefined' ? pageFromHash() : 'home'));
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [activeSection, setActiveSection] = useState('home');
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
     setAuthOpen(true);
   };
 
-  const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    setActiveSection(id);
+  // Hash routing
+  useEffect(() => {
+    const onHash = () => setPage(pageFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const navigate = (id: Page) => {
+    window.location.hash = `#/${id}`;
+    setPage(id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -39,34 +56,31 @@ export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSe
 
       {/* ── Navbar ───────────────────────────────────────────────────────────── */}
       <Navbar
-        onNavigate={scrollTo}
+        onNavigate={navigate}
         onSignIn={() => openAuth('login')}
         onSignUp={() => openAuth('signup')}
-        activeSection={activeSection}
+        activePage={page}
       />
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <Hero onSignUp={() => openAuth('signup')} onSignIn={() => openAuth('login')} onScroll={() => scrollTo('features')} />
-
-      {/* ── Features ────────────────────────────────────────────────────────── */}
-      <Features />
-
-      {/* ── Architecture / How it works ────────────────────────────────────── */}
-      <Architecture />
-
-      {/* ── Pricing ──────────────────────────────────────────────────────────── */}
-      <Pricing onSignUp={() => openAuth('signup')} />
-
-      {/* ── Documentation ────────────────────────────────────────────────────── */}
-      <Documentation />
-
-      {/* ── Legal: Privacy & Terms ──────────────────────────────────────────── */}
-      <Legal />
+      {/* ── Page content ───────────────────────────────────────────────────── */}
+      <main className="relative z-10">
+        {page === 'home' && (
+          <>
+            <Hero onSignUp={() => openAuth('signup')} onSignIn={() => openAuth('login')} onNavigate={navigate} />
+            <HomeFeatures onNavigate={navigate} />
+          </>
+        )}
+        {page === 'features' && <Features />}
+        {page === 'architecture' && <Architecture />}
+        {page === 'pricing' && <Pricing onSignUp={() => openAuth('signup')} />}
+        {page === 'docs' && <Documentation />}
+        {page === 'legal' && <Legal />}
+      </main>
 
       {/* ── Footer ───────────────────────────────────────────────────────────── */}
-      <Footer onNavigate={scrollTo} onSignIn={() => openAuth('login')} onSignUp={() => openAuth('signup')} />
+      <Footer onNavigate={navigate} onSignIn={() => openAuth('login')} onSignUp={() => openAuth('signup')} />
 
-      {/* ── Auth Modal (opens from any CTA) ─────────────────────────────────── */}
+      {/* ── Auth Modal ─────────────────────────────────────────────────────── */}
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthSuccess={onAuthSuccess} />
     </div>
   );
@@ -105,12 +119,12 @@ function Navbar({
   onNavigate,
   onSignIn,
   onSignUp,
-  activeSection,
+  activePage,
 }: {
-  onNavigate: (id: string) => void;
+  onNavigate: (page: Page) => void;
   onSignIn: () => void;
   onSignUp: () => void;
-  activeSection: string;
+  activePage: Page;
 }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -120,7 +134,7 @@ function Navbar({
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const navItems = [
+  const navItems: { id: Page; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'features', label: 'Features' },
     { id: 'architecture', label: 'Architecture' },
@@ -133,10 +147,10 @@ function Navbar({
     <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${scrolled ? 'glass border-b border-white/[0.06]' : 'bg-transparent'}`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         {/* Logo */}
-        <div className="flex items-center gap-3">
+        <button onClick={() => onNavigate('home')} className="flex items-center gap-3">
           <VortexLogo className="h-9 w-9" />
           <span className="text-gradient text-xl font-bold tracking-tight">Vortex</span>
-        </div>
+        </button>
 
         {/* Nav links */}
         <div className="hidden items-center gap-1 md:flex">
@@ -146,7 +160,7 @@ function Navbar({
               onClick={() => onNavigate(item.id)}
               className={`
                 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200
-                ${activeSection === item.id
+                ${activePage === item.id
                   ? 'text-white bg-white/5'
                   : 'text-white/40 hover:text-white/70 hover:bg-white/[0.02]'
                 }
@@ -172,17 +186,17 @@ function Navbar({
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Hero                                                                          */
+/*  Home / Hero                                                                   */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
-function Hero({ onSignUp, onSignIn, onScroll }: { onSignUp: () => void; onSignIn: () => void; onScroll: () => void }) {
+function Hero({ onSignUp, onSignIn, onNavigate }: { onSignUp: () => void; onSignIn: () => void; onNavigate: (page: Page) => void }) {
   return (
     <section id="home" className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 pt-20 text-center">
-      {/* Brand mark with ambient glow */}
-      <div className="relative mb-8">
+      {/* Large brand mark with ambient glow — 3x original size */}
+      <div className="relative mb-10">
         <div className="absolute inset-0 animate-glow-breathe rounded-full bg-gradient-to-br from-spectrum-blue/30 to-spectrum-cyan/20 blur-3xl" />
         <div className="relative">
-          <VortexLogo className="h-24 w-24 animate-fade-in" />
+          <VortexLogo className="h-72 w-72 animate-fade-in" />
         </div>
       </div>
 
@@ -208,8 +222,8 @@ function Hero({ onSignUp, onSignIn, onScroll }: { onSignUp: () => void; onSignIn
         <button onClick={onSignUp} className="btn-kinetic !px-8 !py-4 text-base">
           Start Building Free
         </button>
-        <button onClick={onSignIn} className="btn-glass !px-8 !py-4 text-base">
-          Sign In
+        <button onClick={() => onNavigate('pricing')} className="btn-glass !px-8 !py-4 text-base">
+          View Pricing
         </button>
       </div>
 
@@ -227,16 +241,60 @@ function Hero({ onSignUp, onSignIn, onScroll }: { onSignUp: () => void; onSignIn
           </div>
         ))}
       </div>
+    </section>
+  );
+}
 
-      {/* Scroll indicator */}
-      <button
-        onClick={onScroll}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/20 transition-colors hover:text-white/50"
-      >
-        <svg className="h-6 w-6 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-        </svg>
-      </button>
+/* ══════════════════════════════════════════════════════════════════════════════ */
+/*  Home: Feature preview                                                       */
+/* ══════════════════════════════════════════════════════════════════════════════ */
+
+function HomeFeatures({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const preview = [
+    { icon: IconAuth, title: 'Authentication', desc: 'JWT, bcrypt, RBAC — complete auth from scratch.' },
+    { icon: IconDatabase, title: 'Database', desc: 'Dynamic CRUD over PostgreSQL with 8 filter operators.' },
+    { icon: IconStorage, title: 'Storage', desc: 'Cloudflare R2 with HMAC-signed presigned URLs.' },
+    { icon: IconRealtime, title: 'Realtime', desc: 'Sub-50ms WebSocket pub/sub for live data feeds.' },
+  ];
+
+  return (
+    <section className="relative z-10 py-32 px-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="text-gradient text-sm font-semibold uppercase tracking-widest">Platform</span>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
+            Everything you need, nothing you don't
+          </h2>
+          <p className="mt-4 text-base text-white/40 sm:text-lg">
+            Four core services, one unified platform. No separate providers, no glue code.
+          </p>
+        </div>
+
+        <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {preview.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <button
+                key={feature.title}
+                onClick={() => onNavigate('features')}
+                className="glass group p-6 text-left transition-all duration-300 hover:bg-white/[0.05] hover:shadow-[0_0_40px_rgba(0,75,255,0.08)]"
+              >
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-spectrum-blue/20 to-spectrum-cyan/10 text-spectrum-cyan">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-white">{feature.title}</h3>
+                <p className="text-sm leading-relaxed text-white/40">{feature.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-12 text-center">
+          <button onClick={() => onNavigate('features')} className="btn-glass !px-6 !py-3 text-sm">
+            Explore all features
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -342,14 +400,6 @@ function IconUpload({ className = '' }: { className?: string }) {
   );
 }
 
-function IconCloud({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.9-1A4.5 4.5 0 0 1 17 18H7z" />
-    </svg>
-  );
-}
-
 function IconDeploy({ className = '' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -379,7 +429,7 @@ function IconArrowRight({ className = '' }: { className?: string }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Features                                                                       */
+/*  Features page                                                                   */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 const FEATURES = [
@@ -469,7 +519,7 @@ function FeatureCard({ feature }: { feature: { icon: React.ComponentType<{ class
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Architecture                                                                  */
+/*  Architecture page                                                              */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function Architecture() {
@@ -533,36 +583,93 @@ function Arrow() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Pricing                                                                       */
+/*  Pricing page                                                                    */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function Pricing({ onSignUp }: { onSignUp: () => void }) {
   const plans = [
     {
-      name: 'Hobby',
+      name: 'Free',
       price: '$0',
-      period: '/month',
+      period: '/mo',
       desc: 'For individuals and side projects getting started with Vortex.',
-      features: ['1 project', '1GB database', '1GB storage', '10K realtime events/day', 'Community support'],
+      features: [
+        '1 project',
+        '1 GB database',
+        '1 GB storage',
+        '10K realtime events/day',
+        'Community support',
+      ],
       cta: 'Start Free',
       highlight: false,
     },
     {
+      name: 'Starter',
+      price: '$9',
+      period: '/mo',
+      desc: 'For developers building personal apps and experiments.',
+      features: [
+        '3 projects',
+        '5 GB database',
+        '10 GB storage',
+        '100K realtime events/day',
+        'Email support',
+      ],
+      cta: 'Choose Starter',
+      highlight: false,
+    },
+    {
       name: 'Pro',
-      price: '$19',
-      period: '/month',
+      price: '$29',
+      period: '/mo',
       desc: 'For teams building production applications with Vortex.',
-      features: ['10 projects', '10GB database', '50GB storage', '100K realtime events/day', 'Email support', 'Custom domains'],
-      cta: 'Get Started',
+      features: [
+        '10 projects',
+        '25 GB database',
+        '50 GB storage',
+        '500K realtime events/day',
+        'Email support',
+        'Custom domains',
+        'Priority queue',
+      ],
+      cta: 'Choose Pro',
       highlight: true,
     },
     {
-      name: 'Scale',
-      price: '$99',
-      period: '/month',
+      name: 'Business',
+      price: '$79',
+      period: '/mo',
+      desc: 'For growing applications that need more power and scale.',
+      features: [
+        '25 projects',
+        '100 GB database',
+        '200 GB storage',
+        '2M realtime events/day',
+        'Priority support',
+        'Advanced analytics',
+        'Webhook integrations',
+        'SLA 99.9% uptime',
+      ],
+      cta: 'Choose Business',
+      highlight: false,
+    },
+    {
+      name: 'Enterprise',
+      price: '$199',
+      period: '/mo',
       desc: 'For high-traffic applications that need maximum performance.',
-      features: ['Unlimited projects', '100GB database', '500GB storage', '1M realtime events/day', 'Priority support', 'Dedicated infrastructure'],
-      cta: 'Contact Us',
+      features: [
+        'Unlimited projects',
+        '500 GB database',
+        '1 TB storage',
+        '10M realtime events/day',
+        'Dedicated support',
+        'Dedicated infrastructure',
+        'Custom SLAs',
+        'On-premise option',
+        'SSO & SAML',
+      ],
+      cta: 'Contact Sales',
       highlight: false,
     },
   ];
@@ -573,15 +680,15 @@ function Pricing({ onSignUp }: { onSignUp: () => void }) {
         <SectionHeader
           eyebrow="Pricing"
           title="Simple, transparent pricing"
-          subtitle="Start free, upgrade when you need more. No hidden fees, no surprise bills."
+          subtitle="Start free, upgrade when you need more. No hidden fees, no surprise bills. Cancel anytime."
         />
 
-        <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {plans.map((plan) => (
             <div
               key={plan.name}
               className={`
-                glass relative p-8 transition-all duration-300
+                glass relative flex flex-col p-6 transition-all duration-300
                 ${plan.highlight
                   ? 'border-spectrum-cyan/30 shadow-[0_0_40px_rgba(0,210,255,0.1)]'
                   : 'hover:bg-white/[0.05]'
@@ -595,34 +702,38 @@ function Pricing({ onSignUp }: { onSignUp: () => void }) {
               )}
               <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
               <p className="mt-1 text-sm text-white/40">{plan.desc}</p>
-              <div className="mt-6 flex items-baseline gap-1">
+              <div className="mt-5 flex items-baseline gap-1">
                 <span className="text-gradient text-4xl font-bold">{plan.price}</span>
                 <span className="text-sm text-white/30">{plan.period}</span>
               </div>
-              <ul className="mt-6 space-y-3">
+              <ul className="mt-5 flex-1 space-y-2.5">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-white/50">
-                    <IconCheck className="h-4 w-4 flex-shrink-0 text-interactive-success" />
+                  <li key={f} className="flex items-start gap-2 text-xs text-white/50">
+                    <IconCheck className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-interactive-success" />
                     {f}
                   </li>
                 ))}
               </ul>
               <button
                 onClick={onSignUp}
-                className={`mt-8 w-full ${plan.highlight ? 'btn-kinetic' : 'btn-glass'} !py-3 text-sm`}
+                className={`mt-6 w-full ${plan.highlight ? 'btn-kinetic' : 'btn-glass'} !py-3 text-sm`}
               >
                 {plan.cta}
               </button>
             </div>
           ))}
         </div>
+
+        <p className="mt-12 text-center text-xs text-white/30">
+          All plans include SSL, global CDN, and automatic backups. Prices in USD, billed monthly.
+        </p>
       </div>
     </section>
   );
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Documentation                                                                  */
+/*  Documentation page                                                             */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function Documentation() {
@@ -668,7 +779,7 @@ function Documentation() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
-/*  Legal                                                                          */
+/*  Legal page                                                                     */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
 function Legal() {
@@ -730,17 +841,17 @@ function LegalCard({ title, content }: { title: string; content: React.ReactNode
 /*  Footer                                                                        */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
-function Footer({ onNavigate, onSignIn, onSignUp }: { onNavigate: (id: string) => void; onSignIn: () => void; onSignUp: () => void }) {
+function Footer({ onNavigate, onSignIn, onSignUp }: { onNavigate: (page: Page) => void; onSignIn: () => void; onSignUp: () => void }) {
   return (
     <footer className="relative z-10 border-t border-white/[0.06] px-6 py-12">
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2">
+            <button onClick={() => onNavigate('home')} className="flex items-center gap-2">
               <VortexLogo className="h-8 w-8" />
               <span className="text-gradient text-lg font-bold">Vortex</span>
-            </div>
+            </button>
             <p className="mt-3 text-sm text-white/30">
               High-performance Backend-as-a-Service. Build, scale, and ship — faster.
             </p>
