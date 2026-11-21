@@ -4,7 +4,10 @@
 
 import 'dotenv/config';
 import { createServer, type Server } from 'node:http';
+import type { IncomingMessage } from 'node:http';
+import type { Duplex } from 'node:stream';
 import type { Knex } from 'knex';
+import { verifyToken } from '@vortex/core';
 import { loadEnv } from './env.js';
 import { EdgeCache, type AppContext, type StorageDriver } from './context.js';
 import { createApp } from './app.js';
@@ -51,15 +54,35 @@ async function main(): Promise<void> {
   wss.removeAllListeners('connection');
   (wss as unknown as { server: Server }).server = server;
 
-  server.on('upgrade', (req, socket, head) => {
+  server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const pathname = new URL(req.url ?? '', 'http://localhost').pathname;
-    if (pathname === env.realtime.path) {
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit('connection', ws, req);
-      });
-    } else {
+    if (pathname !== env.realtime.path) {
       socket.destroy();
+      return;
     }
+
+    // Verify JWT token from the Authorization header or ?token= query param
+    const authHeader = req.headers.authorization;
+    const token =
+      authHeader?.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : new URL(req.url ?? '', 'http://localhost').searchParams.get('token') ?? '';
+
+    if (!token) {
+      socket.destroy();
+      return;
+    }
+
+    try {
+      verifyToken(token, env.jwt);
+    } catch {
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(req, socket as never, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
   });
 
   hub.attach(wss);

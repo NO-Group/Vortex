@@ -14,7 +14,10 @@ interface RealtimeEvent {
 }
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? 'http://localhost:4000/v1';
-const WS_URL = API_BASE.replace('/v1', '').replace('http', 'ws') + '/v1/realtime';
+
+function getToken(): string | null {
+  return localStorage.getItem('vortex_token');
+}
 
 export function RealtimeView() {
   const [connected, setConnected] = useState(false);
@@ -28,7 +31,9 @@ export function RealtimeView() {
       wsRef.current.close();
     }
 
-    const ws = new WebSocket(WS_URL);
+    const token = getToken();
+    const wsUrl = `${API_BASE.replace('/v1', '').replace('http', 'ws')}/v1/realtime?token=${token ?? ''}`;
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {

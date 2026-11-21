@@ -32,7 +32,14 @@ export interface ServerEnv {
 export function loadEnv(): ServerEnv {
   const port = Number(process.env.PORT ?? 4000);
   const nodeEnv = process.env.NODE_ENV ?? 'development';
-  const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
+  const isProduction = nodeEnv === 'production';
+
+  // Hard fail in production if JWT_SECRET is not set
+  const jwtSecret = process.env.JWT_SECRET;
+  if (isProduction && !jwtSecret) {
+    throw new Error('JWT_SECRET environment variable is required in production. Refusing to start with a default secret.');
+  }
+  const resolvedJwtSecret = jwtSecret ?? 'dev-secret-change-in-production';
 
   const storageDriver = (process.env.STORAGE_DRIVER ?? 'local') as 'local' | 'r2';
 
@@ -44,7 +51,7 @@ export function loadEnv(): ServerEnv {
     port,
     nodeEnv,
     jwt: {
-      secret: jwtSecret,
+      secret: resolvedJwtSecret,
       accessExpiry: process.env.JWT_ACCESS_EXPIRY ?? '1h',
       refreshExpiry: process.env.JWT_REFRESH_EXPIRY ?? '7d',
     },
@@ -68,8 +75,12 @@ export function loadEnv(): ServerEnv {
       path: process.env.REALTIME_PATH ?? '/v1/realtime',
     },
     publicAppUrl: process.env.PUBLIC_APP_URL ?? 'http://localhost:3000',
-    corsOrigin: process.env.CORS_ORIGIN ?? '*',
+    corsOrigin: process.env.CORS_ORIGIN ?? (isProduction ? '' : '*'),
   };
+
+  if (isProduction && !process.env.CORS_ORIGIN) {
+    console.warn('[vortex:warn] CORS_ORIGIN not set in production. Defaulting to most restrictive (no external origins).');
+  }
 
   return env;
 }

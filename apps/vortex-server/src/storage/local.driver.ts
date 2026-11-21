@@ -19,9 +19,13 @@ export class LocalStorageDriver implements StorageDriver {
   }
 
   private filePath(key: string): string {
-    // Prevent path traversal
+    // Prevent path traversal: resolve the key and ensure it stays within root
     const safe = key.replace(/\.\./g, '').replace(/^\/+/, '');
-    return path.join(this.root, safe);
+    const resolved = path.resolve(this.root, safe);
+    if (!resolved.startsWith(this.root + path.sep) && resolved !== this.root) {
+      throw ApiError.forbidden('Invalid storage key: path traversal detected');
+    }
+    return resolved;
   }
 
   async put(opts: { key: string; body: Buffer; contentType: string }): Promise<{ key: string; size: number; contentType: string; etag?: string }> {
