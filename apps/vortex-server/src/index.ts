@@ -9,6 +9,7 @@ import { loadEnv } from './env.js';
 import { EdgeCache, type AppContext, type StorageDriver } from './context.js';
 import { createApp } from './app.js';
 import { LocalStorageDriver } from './storage/local.driver.js';
+import { R2StorageDriver } from './storage/r2.driver.js';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -24,10 +25,15 @@ async function main(): Promise<void> {
   console.log('[vortex:db] Connected to PostgreSQL');
 
   // ── Storage driver ──────────────────────────────────────────────────────────
-  const storage: StorageDriver = new LocalStorageDriver(
-    env.storage.localPath ?? './.vortex-storage',
-    env.jwt.secret,
-  );
+  const storage: StorageDriver =
+    env.storage.driver === 'r2' && env.storage.r2
+      ? new R2StorageDriver(env.storage.r2, env.jwt.secret)
+      : new LocalStorageDriver(
+          env.storage.localPath ?? './.vortex-storage',
+          env.jwt.secret,
+        );
+
+  console.log(`[vortex:storage] Driver: ${env.storage.driver === 'r2' ? 'R2 (Cloudflare)' : 'Local Disk'}`);
 
   // ── App context ────────────────────────────────────────────────────────────
   const ctx: AppContext = {
