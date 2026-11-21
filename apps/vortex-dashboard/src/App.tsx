@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, type AuthUser } from './api';
-import { AuthScreen } from './components/AuthScreen';
+import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
 
 /**
  * Vortex Dashboard — App root.
  *
- * Routes between the auth screen (login/signup) and the post-auth
+ * Routes between the landing page (with auth modal) and the post-auth
  * dashboard console based on the stored JWT token.
  */
 
@@ -45,7 +45,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
   }
 
   return <Dashboard user={user} onLogout={handleLogout} />;
