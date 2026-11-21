@@ -1,0 +1,479 @@
+# Vortex Dart SDK
+
+The official Vortex client for Flutter and Dart apps.
+
+## Installation
+
+```yaml
+# pubspec.yaml
+dependencies:
+  vortex_client:
+    path: packages/sdk-dart
+```
+
+## Quick start
+
+```dart
+import 'package:vortex_client/vortex_client.dart';
+
+void main() async {
+  final vortex = VortexClient(baseUrl: 'https://vortex.example.com');
+
+  // Sign in
+  final session = await vortex.auth.signIn(
+    email: 'user@example.com',
+    password: 'secret123',
+  );
+
+  // Query the database
+  final result = await vortex.db
+      .from('notes')
+      .where('owner_id', 'eq', session.user.id)
+      .limit(10)
+      .execute();
+
+  for (final row in result.rows) {
+    print(row);
+  }
+}
+```
+
+## Auth
+
+### Sign up
+
+```dart
+final session = await vortex.auth.signUp(
+  email: 'newuser@example.com',
+  password: 'secret123',
+  metadata: {'displayName': 'New User'},
+);
+```
+
+### Sign in
+
+```dart
+final session = await vortex.auth.signIn(
+  email: 'user@example.com',
+  password: 'secret123',
+);
+```
+
+### Get profile
+
+```dart
+final user = await vortex.auth.getUser();
+print(user.email);
+```
+
+### Update profile
+
+```dart
+await vortex.auth.updateProfile(metadata: {
+  'displayName': 'Updated Name',
+  'avatar': '/images/me.png',
+});
+```
+
+### Change password
+
+```dart
+await vortex.auth.changePassword(
+  currentPassword: 'oldpass',
+  newPassword: 'newpass123',
+);
+```
+
+### Delete account
+
+```dart
+await vortex.auth.deleteAccount();
+```
+
+### Sign out
+
+```dart
+vortex.auth.signOut();
+```
+
+## Database
+
+### Query
+
+```dart
+final result = await vortex.db
+    .from('notes')
+    .select(['id', 'title', 'content'])
+    .where('owner_id', 'eq', session.user.id)
+    .orderBy('created_at', descending: true)
+    .limit(20)
+    .execute();
+
+print('Found ${result.rows.length} notes');
+```
+
+### Insert
+
+```dart
+final result = await vortex.db
+    .into('notes')
+    .insert({'title': 'Hello', 'content': 'World', 'owner_id': session.user.id})
+    .execute();
+```
+
+### Update
+
+```dart
+await vortex.db
+    .update('notes')
+    .set({'status': 'done'})
+    .where('id', 'eq', noteId)
+    .execute();
+```
+
+### Delete
+
+```dart
+await vortex.db
+    .delete('notes')
+    .where('id', 'eq', noteId)
+    .execute();
+```
+
+## Storage
+
+### Upload
+
+```dart
+final file = File('photo.jpg');
+await vortex.storage.upload(
+  'images/photo.jpg',
+  await file.readAsBytes(),
+  contentType: 'image/jpeg',
+);
+```
+
+### Download
+
+```dart
+final bytes = await vortex.storage.download('images/photo.jpg');
+```
+
+### List objects
+
+```dart
+final objects = await vortex.storage.list('images');
+```
+
+### Delete object
+
+```dart
+await vortex.storage.remove('images/photo.jpg');
+```
+
+## Realtime
+
+### Subscribe to a table
+
+```dart
+final subscription = await vortex.realtime.subscribeTable('notes');
+
+vortex.realtime.onTableChange('notes', (action, rows) {
+  if (action == 'INSERT') {
+    print('New note: $rows');
+  }
+});
+```
+
+### Broadcast
+
+```dart
+await vortex.realtime.broadcast('room:general', 'message', {
+  'body': 'Hello world',
+});
+```
+
+### Presence
+
+```dart
+await vortex.realtime.track('room:general', {'name': 'Alice'});
+
+vortex.realtime.onPresenceChange('room:general', (peers) {
+  print('Peers: ${peers.map((p) => p['name'])}');
+});
+```
+
+## Functions
+
+### Deploy a function
+
+```dart
+final fn = await vortex.functions.deploy(
+  name: 'hello',
+  title: 'Hello Function',
+  source: 'export default async function(ctx) { return { status: 200, body: "Hello" }; }',
+);
+```
+
+### Invoke a function
+
+```dart
+final result = await vortex.functions.invoke('hello', body: {'name': 'World'});
+print(result['body']);
+```
+
+### List functions
+
+```dart
+final functions = await vortex.functions.list();
+```
+
+## Webhooks
+
+### Create a webhook
+
+```dart
+final webhook = await vortex.webhooks.create(
+  url: 'https://example.com/api/webhooks',
+  events: ['database.insert', 'database.update'],
+);
+```
+
+### List webhooks
+
+```dart
+final webhooks = await vortex.webhooks.list();
+```
+
+### View delivery log
+
+```dart
+final log = await vortex.webhooks.log(webhookId, limit: 20);
+```
+
+## API Keys
+
+### Create an API key
+
+```dart
+final result = await vortex.apiKeys.create(
+  name: 'production-server',
+  scopes: ['database:read', 'storage:write'],
+);
+// result['key'] — copy this now, it won't be shown again
+```
+
+### List API keys
+
+```dart
+final keys = await vortex.apiKeys.list();
+```
+
+### Revoke an API key
+
+```dart
+await vortex.apiKeys.revoke(apiKeyId);
+```
+
+### Using API keys
+
+API keys authenticate via the standard bearer header:
+
+```dart
+// In your Dart HTTP client or server:
+final response = await http.post(
+  Uri.parse('https://vortex.example.com/v1/db/notes/query'),
+  headers: {'Authorization': 'Bearer $apiKey'},
+  body: jsonEncode({'columns': ['id', 'title']}),
+);
+```
+
+## Two-Factor Authentication
+
+### Enable 2FA
+
+```dart
+final setup = await vortex.auth.setup2FA();
+// setup['otpauthUrl'] — scan with authenticator app
+// setup['backupCodes'] — store securely
+
+final result = await vortex.auth.enable2FA(code: '123456');
+```
+
+### Handle 2FA at login
+
+```dart
+final result = await vortex.auth.signIn(email: email, password: password);
+
+if (result['twoFactorRequired'] == true) {
+  final code = prompt('Enter 6-digit code');
+  final session = await vortex.auth.verify2FA(
+    tempToken: result['tempToken'],
+    code: code,
+  );
+}
+```
+
+### Disable 2FA
+
+```dart
+await vortex.auth.disable2FA(
+  password: currentPassword,
+  code: '123456',
+);
+```
+
+## Feature Flags
+
+### Create a flag
+
+```dart
+await vortex.flags.create(
+  key: 'new-dashboard',
+  status: 'gradual',
+  rolloutPercentage: 25,
+);
+```
+
+### Check a flag
+
+```dart
+final result = await vortex.flags.evaluate('new-dashboard');
+// result['enabled'] → true or false
+// result['reason'] → 'on', 'off', 'gradual_in', 'gradual_out', etc.
+```
+
+### Get all flags
+
+```dart
+final all = await vortex.flags.evaluateAll();
+// {'new-dashboard': true, 'dark-mode': false}
+```
+
+### Toggle a flag
+
+```dart
+await vortex.flags.update(flagId, status: 'on');
+```
+
+## Vector Search
+
+### Create a collection
+
+```dart
+final collection = await vortex.vector.createCollection(
+  name: 'documents',
+  dimensions: 1536,
+);
+```
+
+### Insert embeddings
+
+```dart
+await vortex.vector.insert(collection['id'] as String, itemId: 'doc-1', vector: embedding, payload: {'title': 'Hello'});
+```
+
+### Search for similar vectors
+
+```dart
+final results = await vortex.vector.search(
+  collection['id'] as String,
+  queryEmbedding,
+  limit: 5,
+);
+// [{'item_id': 'doc-1', 'score': 0.95, 'payload': {...}}]
+```
+
+## Custom Domains
+
+### Add a custom domain
+
+```dart
+final result = await vortex.domains.addDomain('my-app', 'app.mydomain.com');
+// result['dnsInstructions']['description'] → DNS setup instructions
+```
+
+### Verify a domain
+
+```dart
+await vortex.domains.verifyDomain('my-app', domainId);
+```
+
+### List domains
+
+```dart
+final domains = await vortex.domains.listDomains('my-app');
+```
+
+## Scheduled Jobs
+
+Schedule Vortex Functions to run on cron schedules. The scheduler runs autonomously on the server — no external cron service needed.
+
+```dart
+// Create a scheduled job
+await vortex.cron.createJob(
+  name: 'hourly-cleanup',
+  functionName: 'cleanup-task',
+  cronExpression: '0 * * * *', // every hour
+  payload: {'limit': 100},
+);
+
+// List all jobs
+final jobs = await vortex.cron.listJobs();
+
+// Manually trigger a job
+final result = await vortex.cron.trigger('hourly-cleanup');
+
+// View execution history
+final runs = await vortex.cron.listRuns('hourly-cleanup');
+
+// Pause or resume
+await vortex.cron.updateJob('hourly-cleanup', status: 'disabled');
+await vortex.cron.updateJob('hourly-cleanup', status: 'enabled');
+
+// Delete a job
+await vortex.cron.deleteJob('hourly-cleanup');
+
+// Check scheduler status
+final status = await vortex.cron.schedulerStatus();
+// {'running': true, 'tickCount': 42}
+```
+
+### Cron Expression Format
+
+Standard 5-field cron: `minute hour day-of-month month day-of-week`
+
+| Expression | Meaning |
+|---|---|
+| `0 * * * *` | Every hour |
+| `0 0 * * *` | Daily at midnight |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9 * * 1` | Every Monday at 9 AM |
+
+## UI
+
+The Dart SDK includes the N.O Group design system — Controlled
+Glassmorphism with pure dark canvas and a 6-stop spectrum.
+
+```dart
+import 'package:vortex_client/vortex_client.dart';
+
+// Use the Vortex theme
+Widget build(BuildContext context) {
+  return VortexTheme(
+    child: GlassPanel(
+      child: Text('Hello Vortex'),
+    ),
+  );
+}
+```
+
+## Error handling
+
+```dart
+try {
+  final session = await vortex.auth.signIn(email: email, password: password);
+} on ApiException catch (e) {
+  print('Error ${e.statusCode}: ${e.message}');
+}
+```

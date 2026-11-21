@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type AuthUser } from '../api';
+import { api, type AuthSession } from '../lib/api';
 
 /**
  * Vortex — Auth Modal.
@@ -18,7 +18,7 @@ export function AuthModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: AuthUser) => void;
+  onAuthSuccess: (session: AuthSession) => void;
 }) {
   const [mode, setMode] = useState<Mode>('login');
   const [loading, setLoading] = useState(false);
@@ -36,11 +36,18 @@ export function AuthModal({
     setLoading(true);
     try {
       if (mode === 'signup') {
-        const res = await api.signup(form.email, form.password, form.name);
-        onAuthSuccess(res.user);
+        const res = await api.post<AuthSession>('/v1/auth/signup', {
+          email: form.email,
+          password: form.password,
+          metadata: { name: form.name },
+        });
+        onAuthSuccess(res);
       } else {
-        const res = await api.login(form.email, form.password);
-        onAuthSuccess(res.user);
+        const res = await api.post<AuthSession>('/v1/auth/login', {
+          email: form.email,
+          password: form.password,
+        });
+        onAuthSuccess(res);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');

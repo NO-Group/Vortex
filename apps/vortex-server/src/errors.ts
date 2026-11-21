@@ -1,18 +1,30 @@
-/**
- * Vortex Server — Centralized API error handling.
- */
+import type { ApiErrorBody } from '@vortex/core';
 
+/**
+ * Typed HTTP error with a stable machine-readable code.
+ * Thrown from services and rendered by the global error middleware.
+ */
 export class ApiError extends Error {
-  readonly statusCode: number;
+  readonly status: number;
   readonly code: string;
   readonly details?: unknown;
 
-  constructor(statusCode: number, code: string, message: string, details?: unknown) {
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
-    this.statusCode = statusCode;
+    this.name = 'ApiError';
+    this.status = status;
     this.code = code;
     this.details = details;
-    this.name = 'ApiError';
+  }
+
+  toBody(): ApiErrorBody {
+    return {
+      error: {
+        code: this.code,
+        message: this.message,
+        ...(this.details !== undefined ? { details: this.details } : {}),
+      },
+    };
   }
 
   static badRequest(message: string, details?: unknown): ApiError {
@@ -31,11 +43,21 @@ export class ApiError extends Error {
     return new ApiError(404, 'not_found', message);
   }
 
-  static conflict(message: string): ApiError {
-    return new ApiError(409, 'conflict', message);
+  static conflict(message: string, details?: unknown): ApiError {
+    return new ApiError(409, 'conflict', message, details);
   }
 
-  static internal(message = 'Internal server error'): ApiError {
-    return new ApiError(500, 'internal_error', message);
+  /**
+   * The planner says this query costs more than the operator allows.
+   * Supabase would have run it and billed you; Vortex declines up front
+   * with the cost it measured and the ceiling it breached.
+   */
+  static tooExpensive(cost: number, limit: number, details?: unknown): ApiError {
+    return new ApiError(
+      429,
+      'query_too_expensive',
+      `Query plan cost ${cost} exceeds the configured ceiling of ${limit}`,
+      details,
+    );
   }
 }

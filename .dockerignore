@@ -1,0 +1,14 @@
+.git
+node_modules
+**/node_modules
+**/dist
+.vortex-data
+**/.vortex-data
+*.log
+.env
+.env.*
+!.env.example
+docs
+scripts
+README.md
+LICENSE

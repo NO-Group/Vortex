@@ -2,20 +2,30 @@
   "name": "vortex",
   "version": "0.1.0",
   "private": true,
-  "description": "Vortex — High-performance Backend-as-a-Service (BaaS) and real-time infrastructure engine under N.O Group",
+  "description": "Vortex — high-performance Backend-as-a-Service and real-time infrastructure engine by N.O Group",
+  "license": "Apache-2.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "dev": "concurrently -n server,dashboard -c cyan,magenta \"npm run dev -w @vortex/server\" \"npm run dev -w @vortex/dashboard\"",
-    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard",
-    "test": "npx vitest run",
-    "smoke": "node scripts/e2e-smoke.mjs"
+    "build": "npm run build -w @vortex/core && npm run build -w @vortex/server && npm run build -w @vortex/dashboard && npm run build -w @vortex/client",
+    "dev": "npm run dev -w @vortex/server",
+    "dev:dashboard": "npm run dev -w @vortex/dashboard",
+    "start": "npm run start -w @vortex/server",
+    "typecheck": "npm run typecheck -w @vortex/core && npm run typecheck -w @vortex/server && npm run typecheck -w @vortex/dashboard && npm run typecheck -w @vortex/client",
+    "test": "npm run build -w @vortex/core && npm run test -w @vortex/server",
+    "migrate": "npm run migrate -w @vortex/server",
+    "admin": "node scripts/admin-cli.mjs",
+    "smoke": "npm run build && node scripts/e2e-smoke.mjs",
+    "preview:stack": "node scripts/preview-stack.mjs",
+    "clean": "rm -rf packages/vortex-core/dist apps/vortex-server/dist apps/vortex-dashboard/dist"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0",
-    "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "@types/qrcode": "^1.5.6",
+    "embedded-postgres": "18.4.0-beta.17"
   }
 }

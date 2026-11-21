@@ -1,65 +1,87 @@
-/**
- * Vortex Server — Storage Registry: tracks object metadata in PostgreSQL.
- */
-
 import type { Knex } from 'knex';
 import type { StorageObjectMeta } from '@vortex/core';
+import type { ServerEnv } from '../config/env.js';
+import { LocalStorageDriver } from './local.driver.js';
+import { S3StorageDriver } from './s3.driver.js';
+import type { StorageDriver } from './storage.types.js';
 
+interface StorageObjectRow {
+  id: string;
+  key: string;
+  size: string | number;
+  content_type: string;
+  owner_id: string | null;
+  app_id: string | null;
+  created_at: Date;
+}
+
+function toMeta(row: StorageObjectRow): StorageObjectMeta {
+  return {
+    id: row.id,
+    key: row.key,
+    size: Number(row.size),
+    contentType: row.content_type,
+    ownerId: row.owner_id,
+    appId: row.app_id,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+/** Construct the configured storage driver. */
+export function createStorageDriver(env: ServerEnv): StorageDriver {
+  if (env.storage.driver === 's3') {
+    return new S3StorageDriver(env.storage.s3);
+  }
+  return new LocalStorageDriver(
+    env.storage.localDir,
+    env.jwt.secret,
+    env.storage.publicApiBase,
+  );
+}
+
+/** Persisted metadata registry for storage objects. */
 export class StorageRegistry {
-  constructor(private db: Knex) {}
+  constructor(private readonly db: Knex) {}
 
-  async record(opts: {
+  async record(input: {
     key: string;
     size: number;
     contentType: string;
     ownerId: string | null;
     appId?: string | null;
   }): Promise<StorageObjectMeta> {
-    await this.db('storage_objects')
-      .where({ key: opts.key })
-      .delete();
-
-    const [row] = await this.db('storage_objects')
+    const [row] = await this.db<StorageObjectRow>('storage_objects')
       .insert({
-        key: opts.key,
-        size: opts.size,
-        content_type: opts.contentType,
-        owner_id: opts.ownerId,
-        app_id: opts.appId ?? null,
+        key: input.key,
+        size: input.size,
+        content_type: input.contentType,
+        owner_id: input.ownerId,
+        app_id: input.appId ?? null,
+      })
+      .onConflict('key')
+      .merge({
+        size: input.size,
+        content_type: input.contentType,
+        app_id: input.appId ?? null,
       })
       .returning('*');
-
-    return this.toMeta(row);
+    return toMeta(row!);
   }
 
   async find(key: string): Promise<StorageObjectMeta | null> {
-    const row = await this.db('storage_objects').where({ key }).first<Record<string, unknown>>();
-    if (!row) return null;
-    return this.toMeta(row);
-  }
-
-  async listForOwner(ownerId: string, limit: number = 100, appId?: string | null): Promise<StorageObjectMeta[]> {
-    let query = this.db('storage_objects').where({ owner_id: ownerId });
-    if (appId) query = query.where({ app_id: appId });
-    query = query.orderBy('created_at', 'desc').limit(limit);
-
-    const rows = (await query) as Record<string, unknown>[];
-    return rows.map((r) => this.toMeta(r));
+    const row = await this.db<StorageObjectRow>('storage_objects').where({ key }).first();
+    return row ? toMeta(row) : null;
   }
 
   async remove(key: string): Promise<void> {
-    await this.db('storage_objects').where({ key }).delete();
+    await this.db('storage_objects').where({ key }).del();
   }
 
-  private toMeta(row: Record<string, unknown>): StorageObjectMeta {
-    return {
-      key: row.key as string,
-      size: Number(row.size) || 0,
-      contentType: row.content_type as string,
-      ownerId: row.owner_id as string | null,
-      appId: (row.app_id as string | null) ?? null,
-      createdAt: row.created_at as string,
-      etag: row.etag as string | undefined,
-    };
+  async listForOwner(ownerId: string, limit = 100, appId?: string | null): Promise<StorageObjectMeta[]> {
+    const query = this.db<StorageObjectRow>('storage_objects')
+      .where({ owner_id: ownerId });
+    if (appId) query.where({ app_id: appId });
+    const rows = await query.orderBy('created_at', 'desc').limit(limit);
+    return rows.map(toMeta);
   }
 }

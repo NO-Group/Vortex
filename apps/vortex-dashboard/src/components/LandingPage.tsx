@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthModal } from './AuthModal';
-import type { AuthUser } from '../api';
+import type { AuthSession } from '../lib/api';
 
 /**
  * Vortex — Landing Page.
@@ -17,7 +17,7 @@ import type { AuthUser } from '../api';
  * the glassmorphic AuthModal overlay when clicked.
  */
 
-export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (user: AuthUser) => void }) {
+export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSession) => void }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [activeSection, setActiveSection] = useState('home');
