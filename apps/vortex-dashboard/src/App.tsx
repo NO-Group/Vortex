@@ -16,6 +16,8 @@ import {
 import { RealtimeClient, type RealtimeStatus } from './lib/realtime.js';
 import { Background } from './components/Background.js';
 import { Sidebar, type PageKey } from './components/Sidebar.js';
+import { LandingPage } from './components/LandingPage.js';
+import { AuthModal } from './components/AuthModal.js';
 import { Login } from './pages/Login.js';
 import { Overview } from './pages/Overview.js';
 import { DatabasePage } from './pages/DatabasePage.js';
@@ -87,6 +89,7 @@ function restoreSession(): Session | null {
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => restoreSession());
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [page, setPage] = useState<PageKey>(pageFromHash);
   const [events, setEvents] = useState<TableEvent[]>([]);
   const [rtStatus, setRtStatus] = useState<RealtimeStatus>('offline');
@@ -255,7 +258,7 @@ export default function App() {
     <>
       <Background />
       {!authed ? (
-        <Login onLogin={signIn} notice={notice} />
+        <LandingPage onAuthSuccess={signIn} />
       ) : (
         <div className="min-h-screen">
           <Sidebar
