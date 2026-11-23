@@ -1,0 +1,25 @@
+name: vortex_client
+description: >-
+  Official Vortex Flutter / Dart client SDK by N.O Group — auth, database,
+  realtime, and storage gateways plus the N.O Group design system.
+version: 0.1.0
+homepage: https://github.com/NO-Group/Vortex
+repository: https://github.com/NO-Group/Vortex
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  web_socket_channel: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
