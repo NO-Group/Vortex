@@ -10,6 +10,8 @@ build/
 .env
 .env.local
 .env.*.local
+scripts/secrets.env
+.memory-override.env
 
 # Runtime data (local storage driver, docker volumes)
 .vortex-data/

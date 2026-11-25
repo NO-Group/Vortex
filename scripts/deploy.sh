@@ -178,18 +178,40 @@ echo "  Shield key:        ${SHIELD_KEY:0:16}... (32 bytes)"
 # ── Step 5: Create .env with Cloudflare R2 ──────────────────────────────────
 echo -e "${GREEN}[5/9] Creating production .env (Cloudflare R2 storage)...${NC}"
 
-# ── Cloudflare R2 + SMTP credentials (pre-configured) ────────────────────────
-R2_ACCOUNT_ID="R2_ACCOUNT_PLACEHOLDER"
-R2_BUCKET="vortex"
-R2_ACCESS_KEY="R2_ACCESS_PLACEHOLDER"
-R2_SECRET_KEY="R2_SECRET_PLACEHOLDER"
+# ── Source secrets.env (gitignored, holds real credentials) ──────────────────
+SECRETS_FILE="$REPO_ROOT/scripts/secrets.env"
+if [[ -f "$SECRETS_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$SECRETS_FILE"
+  echo "  ✓ Loaded credentials from scripts/secrets.env"
+else
+  echo "  ⚠ scripts/secrets.env not found — creating from template"
+  cp "$REPO_ROOT/scripts/secrets.env.example" "$SECRETS_FILE"
+  echo "    Please edit $SECRETS_FILE with your R2 + SMTP credentials, then re-run deploy.sh"
+  echo "  Aborting (secrets required for production deploy)."
+  exit 1
+fi
+
+# Validate required secrets
+missing=()
+for var in R2_ACCOUNT_ID R2_ACCESS_KEY R2_SECRET_KEY SMTP_PASS; do
+  if [[ -z "${!var:-}" ]]; then
+    missing+=("$var")
+  fi
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "  ⚠ Missing required secrets in scripts/secrets.env: ${missing[*]}"
+  echo "    Fill them in and re-run deploy.sh."
+  exit 1
+fi
+
+R2_BUCKET="${R2_BUCKET:-vortex}"
 R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
-# SMTP (Resend)
-SMTP_HOST="smtp.resend.com"
-SMTP_USER="resend"
-SMTP_PASS="REPLACE_WITH_YOUR_RESEND_KEY"
+SMTP_HOST="${SMTP_HOST:-smtp.resend.com}"
+SMTP_USER="${SMTP_USER:-resend}"
 SMTP_URL="smtps://${SMTP_USER}:${SMTP_PASS}@${SMTP_HOST}:465"
+PAYSTACK_SECRET_KEY="${PAYSTACK_SECRET_KEY:-}"
 
 DOMAIN="${VORTEX_DOMAIN:-vortex.no-group.org}"
 PUBLIC_URL="${VORTEX_PUBLIC_URL:-https://${DOMAIN}}"
