@@ -9,6 +9,13 @@ import type { TokenConfig } from './tokens.js';
 import { OidcService } from './oidc.service.js';
 import type { OAuthClient, OAuthClientCreateInput } from './oidc.types.js';
 
+const SUPER_ADMIN_EMAIL = process.env.VORTEX_SUPER_ADMIN?.trim().toLowerCase();
+
+/** True if the user is the super admin (bypasses all role checks). */
+function isSuperAdmin(req: { auth?: { email?: string } }): boolean {
+  return req.auth?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
 const clientCreateSchema = z.object({
   name: z.string().min(1).max(128),
   description: z.string().max(256).optional(),
@@ -227,7 +234,7 @@ export function createOidcRoutes(ctx: AppContext): Router {
 
   router.get('/clients', auth, async (req, res, next) => {
     try {
-      const isAdmin = req.auth!.role === 'admin';
+      const isAdmin = req.auth!.role === 'admin' || isSuperAdmin(req);
       const clients = await service.listClients(req.auth!.sub, isAdmin);
       res.json({ clients: clients.map(publicClient) });
     } catch (err) {
@@ -265,7 +272,7 @@ export function createOidcRoutes(ctx: AppContext): Router {
     try {
       const client = await service.getClient(req.params.clientId!);
       if (!client) throw ApiError.notFound('Client not found');
-      if (req.auth!.role !== 'admin' && client.ownerId !== req.auth!.sub) {
+      if (req.auth!.role !== 'admin' && !isSuperAdmin(req) && client.ownerId !== req.auth!.sub) {
         throw ApiError.forbidden('You do not own this client');
       }
       res.json({ client: publicClient(client) });
@@ -279,7 +286,7 @@ export function createOidcRoutes(ctx: AppContext): Router {
       const client = await service.updateClient(
         req.params.clientId!,
         req.auth!.sub,
-        req.auth!.role === 'admin',
+        req.auth!.role === 'admin' || isSuperAdmin(req),
         req.body,
       );
       res.json({ client: publicClient(client) });
@@ -293,7 +300,7 @@ export function createOidcRoutes(ctx: AppContext): Router {
       await service.removeClient(
         req.params.clientId!,
         req.auth!.sub,
-        req.auth!.role === 'admin',
+        req.auth!.role === 'admin' || isSuperAdmin(req),
       );
       res.status(204).end();
     } catch (err) {

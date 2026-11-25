@@ -18,6 +18,26 @@ declare global {
 }
 
 /**
+ * Super admin email from VORTEX_SUPER_ADMIN env var.
+ * This email always has admin access — bypasses any paywall,
+ * role restriction, or subscription check. Set during deploy.
+ */
+const SUPER_ADMIN_EMAIL = process.env.VORTEX_SUPER_ADMIN?.trim().toLowerCase();
+
+/**
+ * Apply super admin bypass: if the authenticated user's email matches
+ * VORTEX_SUPER_ADMIN, force their role to 'admin'. This runs after token
+ * verification so it overrides whatever role is in the JWT claim —
+ * paywalls and role restrictions cannot restrict this account.
+ */
+function applySuperAdmin(req: Request): void {
+  if (!SUPER_ADMIN_EMAIL || !req.auth) return;
+  if (req.auth.email?.toLowerCase() === SUPER_ADMIN_EMAIL) {
+    req.auth.role = 'admin';
+  }
+}
+
+/**
  * Express middleware that accepts either a JWT bearer token or a Vortex
  * service API key (`vortex_live_…`). JWT tokens take priority; if the
  * token doesn't start with the API key prefix, it's treated as a JWT.
@@ -59,6 +79,7 @@ export function requireAuthWithApiKeys(db: Knex, config: TokenConfig) {
     // Fall back to JWT
     try {
       req.auth = verifyToken(token, config);
+      applySuperAdmin(req);
       next();
     } catch (err) {
       next(err);
@@ -90,6 +111,7 @@ export function requireAuth(config: TokenConfig, sessionService?: SessionService
     try {
       const claims = verifyToken(token, config);
       req.auth = claims;
+      applySuperAdmin(req);
       if (sessionService && claims.sub && claims.jti) {
         sessionService.ensure(claims.sub, claims.jti, {
           userAgent: req.header('user-agent') ?? undefined,
@@ -117,6 +139,7 @@ export function softAuth(config: TokenConfig) {
     }
     try {
       req.auth = verifyToken(token, config);
+      applySuperAdmin(req);
     } catch {
       // Invalid token — don't reject, just leave req.auth undefined
     }
@@ -124,7 +147,7 @@ export function softAuth(config: TokenConfig) {
   };
 }
 
-/** Require a specific role (admins always pass). */
+/** Require a specific role (admins and super admin always pass). */
 export function requireRole(role: string) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const auth = req.auth;
@@ -132,6 +155,9 @@ export function requireRole(role: string) {
       next(ApiError.unauthorized());
       return;
     }
+    // Re-check super admin on every role gate — even if req.auth was
+    // set by an earlier middleware that didn't call applySuperAdmin.
+    applySuperAdmin(req);
     if (auth.role === 'admin' || auth.role === role) {
       next();
       return;

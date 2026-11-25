@@ -91,7 +91,10 @@ const passwordChangeSchema = z.object({
   newPassword: z.string().min(8, 'Password must be at least 8 characters').max(128),
 });
 
-const requireAdmin = (role: string | undefined): void => {
+const SUPER_ADMIN_EMAIL = process.env.VORTEX_SUPER_ADMIN?.trim().toLowerCase();
+
+const requireAdmin = (role: string | undefined, email?: string): void => {
+  if (email?.toLowerCase() === SUPER_ADMIN_EMAIL) return; // super admin bypass
   if (role !== 'admin') throw ApiError.forbidden('Admin access required');
 };
 
@@ -195,7 +198,7 @@ export function createAuthRoutes(ctx: AppContext): Router {
   /** GET /v1/auth/users — admin: list accounts. */
   router.get('/users', auth, async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       const users = await service.listUsers();
       res.json({ users });
     } catch (err) {
@@ -206,7 +209,7 @@ export function createAuthRoutes(ctx: AppContext): Router {
   /** PATCH /v1/auth/users/:id — admin: change role / custom claims. */
   router.patch('/users/:id', auth, validateBody(adminPatchSchema), async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       const user = await service.updateUser(req.params.id!, req.body);
       res.json({ user });
     } catch (err) {
@@ -217,7 +220,7 @@ export function createAuthRoutes(ctx: AppContext): Router {
   /** DELETE /v1/auth/users/:id — admin: remove an account. */
   router.delete('/users/:id', auth, async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       await service.deleteUser(req.auth!.sub, req.params.id!);
       res.status(204).end();
     } catch (err) {

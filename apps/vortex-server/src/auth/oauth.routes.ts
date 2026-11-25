@@ -44,7 +44,10 @@ export function createOAuthRoutes(ctx: AppContext): Router {
   );
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
 
-  function requireAdmin(role: string | undefined): void {
+  const SUPER_ADMIN_EMAIL = process.env.VORTEX_SUPER_ADMIN?.trim().toLowerCase();
+
+  function requireAdmin(role: string | undefined, email?: string): void {
+    if (email?.toLowerCase() === SUPER_ADMIN_EMAIL) return; // super admin bypass
     if (role !== 'admin') throw ApiError.forbidden('Admin access required');
   }
 
@@ -127,7 +130,7 @@ export function createOAuthRoutes(ctx: AppContext): Router {
   // ── Admin: list all providers ─────────────────────────────────────────
   router.get('/admin/providers', auth, async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       const providers = await service.listProviders();
       // Mask client secrets in the response.
       res.json({
@@ -144,7 +147,7 @@ export function createOAuthRoutes(ctx: AppContext): Router {
   // ── Admin: create/update a provider ───────────────────────────────────
   router.post('/admin/providers', auth, validateBody(providerUpsertSchema), async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       const provider = await service.upsertProvider(req.body);
       res.status(201).json({ provider });
     } catch (err) {
@@ -155,7 +158,7 @@ export function createOAuthRoutes(ctx: AppContext): Router {
   // ── Admin: remove a provider ──────────────────────────────────────────
   router.delete('/admin/providers/:name', auth, async (req, res, next) => {
     try {
-      requireAdmin(req.auth!.role);
+      requireAdmin(req.auth!.role, req.auth!.email);
       await service.removeProvider(req.params.name!);
       res.status(204).end();
     } catch (err) {

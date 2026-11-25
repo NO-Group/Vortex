@@ -10,7 +10,10 @@
 </p>
 
 <p align="center">
-  An <b>N.O Group</b> project · Apache-2.0 · v0.1.0 “Core Engine”
+  An <b>N.O Group</b> project · MIT Licensed · v1.0.0 "Launch"
+</p>
+<p align="center">
+  🚀 <b>Launch ready</b> — deployment suite, monitoring, backups, and launch checklist included
 </p>
 
 ---
@@ -20,9 +23,9 @@ real-time sync core. Point it at PostgreSQL and you get instant REST/CRUD with
 row-level security, live table-change streams over WebSockets, and a storage
 gateway with presigned URLs — all behind one JWT.
 
-**Current status: the v0.0.1 core engine is complete and verified with a 22-step
-end-to-end suite against real PostgreSQL, and the v0.0.2 glassmorphic console is
-live.**
+**Current status: v1.0.0 Launch — the core engine is complete, verified with a 22-step
+end-to-end suite against real PostgreSQL, the glassmorphic console is
+live, and the full deployment suite (Docker, Caddy, backups, monitoring) is production-ready.**
 
 ## Features
 

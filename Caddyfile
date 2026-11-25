@@ -10,7 +10,7 @@
 #
 # Caddy auto-obtains SSL certificates. No manual cert management needed.
 
-vortex.example.com {
+vortex.no-group.org {
     # Reverse proxy to the Vortex engine
     reverse_proxy localhost:8080
 

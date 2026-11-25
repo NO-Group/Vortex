@@ -18,9 +18,9 @@ import type { AuthSession } from '../lib/api';
  * the glassmorphic AuthModal overlay when clicked.
  */
 
-type Page = 'home' | 'features' | 'architecture' | 'pricing' | 'howto' | 'faq' | 'changelog' | 'integrations' | 'compare' | 'security' | 'roadmap' | 'usecases' | 'status' | 'contact' | 'community' | 'glossary' | 'tutorials' | 'blog' | 'casestudies' | 'opensource' | 'enterprise' | 'docs' | 'legal' | 'notfound';
+type Page = 'home' | 'features' | 'architecture' | 'pricing' | 'howto' | 'faq' | 'changelog' | 'integrations' | 'compare' | 'security' | 'roadmap' | 'usecases' | 'status' | 'contact' | 'community' | 'glossary' | 'tutorials' | 'blog' | 'casestudies' | 'opensource' | 'enterprise' | 'deploy' | 'docs' | 'legal' | 'notfound';
 
-const PAGE_IDS: Page[] = ['home', 'features', 'architecture', 'pricing', 'howto', 'faq', 'changelog', 'integrations', 'compare', 'security', 'roadmap', 'usecases', 'status', 'contact', 'community', 'glossary', 'tutorials', 'blog', 'casestudies', 'opensource', 'enterprise', 'docs', 'legal', 'notfound'];
+const PAGE_IDS: Page[] = ['home', 'features', 'architecture', 'pricing', 'howto', 'faq', 'changelog', 'integrations', 'compare', 'security', 'roadmap', 'usecases', 'status', 'contact', 'community', 'glossary', 'tutorials', 'blog', 'casestudies', 'opensource', 'enterprise', 'deploy', 'docs', 'legal', 'notfound'];
 
 function pageFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '') as Page;
@@ -113,6 +113,7 @@ export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSe
         {page === 'casestudies' && <CaseStudies />}
         {page === 'opensource' && <OpenSource />}
         {page === 'enterprise' && <Enterprise />}
+        {page === 'deploy' && <Deploy />}
         {page === 'docs' && <Documentation />}
         {page === 'notfound' && <NotFound />}
         {page === 'legal' && <Legal />}
@@ -222,6 +223,7 @@ function Navbar({
         { id: 'casestudies', label: 'Case Studies' },
         { id: 'enterprise', label: 'Enterprise' },
         { id: 'opensource', label: 'Open Source' },
+        { id: 'deploy', label: 'Deploy' },
       ],
     },
     {
@@ -389,9 +391,9 @@ function Hero({ onSignUp, onSignIn, onNavigate }: { onSignUp: () => void; onSign
         </div>
       </div>
 
-      <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-xs text-white/40 backdrop-blur-md">
+      <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-spectrum-cyan/20 bg-spectrum-cyan/[0.06] px-4 py-1.5 text-xs text-spectrum-cyan backdrop-blur-md animate-fade-in">
         <span className="status-dot status-live" />
-        High-performance Backend-as-a-Service · Now in Production
+        v1.0.0 Launch — Now Live · Production-Ready
       </p>
 
       <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl animate-fade-in">
@@ -1630,6 +1632,22 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 function Changelog() {
   const releases = [
+    {
+      version: 'v1.0.0',
+      date: 'October 2026',
+      tag: 'Launch',
+      changes: [
+        '🎉 Official public launch of Vortex',
+        '24-page marketing site: Home, Features, Architecture, Pricing, How to Use, FAQ, Changelog, Integrations, Compare, Security, Roadmap, Use Cases, Status, Contact, Community, Glossary, Tutorials, Blog, Case Studies, Open Source, Enterprise, Docs, Legal, 404',
+        'Professional navbar with grouped dropdowns and mobile hamburger menu',
+        'Monthly/annual pricing toggle with 17% annual discount',
+        'Pricing FAQ, scroll progress bar, back-to-top button, FAQ search filter',
+        'Testimonials with category filters, footer newsletter signup',
+        'Production deployment suite: Docker Compose, Caddy TLS, systemd auto-start, automated backups, health monitoring',
+        'Automated VPS deployment script (scripts/deploy.sh)',
+        'Launch checklist and social app quick-start guide',
+      ],
+    },
     {
       version: 'v0.1.0',
       date: 'October 2026',
@@ -3362,6 +3380,144 @@ function Enterprise() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════ */
+/*  Deployment page                                                                */
+/* ══════════════════════════════════════════════════════════════════════════════ */
+
+function Deploy() {
+  const steps = [
+    {
+      num: '01',
+      title: 'Get a VPS',
+      desc: "Pick a VPS with at least 4GB RAM and 2 vCPU. Ubuntu 24.04 LTS or Debian 12 recommended. Point your domain's DNS A record to the server IP.",
+      icon: IconDeploy,
+    },
+    {
+      num: '02',
+      title: 'Run the Deploy Script',
+      desc: "Clone the repo and run the automated deployment script. It installs Docker, Caddy, generates secure secrets, creates the .env, and starts all services.",
+      icon: IconConsole,
+    },
+    {
+      num: '03',
+      title: 'Configure Your Domain',
+      desc: "Edit the Caddyfile with your domain name, start Caddy for automatic HTTPS, and verify SSL is working. Caddy handles TLS via Let's Encrypt.",
+      icon: IconShield,
+    },
+    {
+      num: '04',
+      title: 'Set Up Email',
+      desc: "Configure SMTP in .env for authentication emails. Choose a provider like Resend, Brevo, or Mailgun. Create your admin account after SMTP is working.",
+      icon: IconAuth,
+    },
+    {
+      num: '05',
+      title: 'Verify & Monitor',
+      desc: "Run the monitoring script to verify all services are healthy. Set up automated backups and cron jobs for daily health checks and data backups.",
+      icon: IconDatabase,
+    },
+    {
+      num: '06',
+      title: 'Go Live',
+      desc: "Test your application, verify realtime works, and you're ready for launch. Vortex is production-ready with health checks, rate limiting, and TLS.",
+      icon: IconArrowRight,
+    },
+  ];
+
+  const features = [
+    { title: 'Docker Compose', desc: 'Postgres, Redis, MinIO, and Vortex engine — one command to start everything.' },
+    { title: 'Caddy TLS', desc: "Automatic SSL certificates via Let's Encrypt. Security headers and rate limiting built in." },
+    { title: 'Automated Backups', desc: 'Daily Postgres dumps and MinIO snapshots with 7-day retention, run via cron.' },
+    { title: 'Health Monitoring', desc: 'Monitoring script checks all services, disk space, and memory — alerts on issues.' },
+    { title: 'Systemd Auto-Start', desc: 'Vortex starts automatically on server boot. Survives reboots and crashes.' },
+    { title: 'One-Command Deploy', desc: 'scripts/deploy.sh handles the entire setup — secrets, env, build, and start.' },
+  ];
+
+  return (
+    <section id="deploy" className="relative z-10 py-32 px-6">
+      <div className="mx-auto max-w-5xl">
+        <SectionHeader
+          eyebrow="Deployment"
+          title="Deploy Vortex in 6 steps"
+          subtitle="Self-host Vortex on your own VPS with Docker, Caddy, and automated backups. Production-ready in under 10 minutes."
+        />
+
+        {/* Step timeline */}
+        <div className="mt-16 space-y-6">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            return (
+              <div key={step.num} className="glass flex items-start gap-6 p-6 transition-all duration-300 hover:bg-white/[0.05]">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-spectrum-blue/20 to-spectrum-cyan/10 text-spectrum-cyan">
+                  <Icon className="h-7 w-7" />
+                </div>
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-3">
+                    <span className="text-gradient text-sm font-bold">{step.num}</span>
+                    <h3 className="text-lg font-semibold text-white">{step.title}</h3>
+                  </div>
+                  <p className="text-sm leading-relaxed text-white/40">{step.desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Deployment features grid */}
+        <div className="mt-12">
+          <h3 className="mb-6 text-xl font-bold text-white">What's included</h3>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature) => (
+              <div key={feature.title} className="glass p-6">
+                <h4 className="mb-2 text-sm font-semibold text-white">{feature.title}</h4>
+                <p className="text-xs leading-relaxed text-white/40">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick start commands */}
+        <div className="glass mt-12 p-8">
+          <h3 className="mb-4 text-sm font-bold text-white">Quick start</h3>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-white/30">$</span>
+              <code className="text-xs text-spectrum-cyan">git clone https://github.com/NO-Group/Vortex.git</code>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-white/30">$</span>
+              <code className="text-xs text-spectrum-cyan">cd Vortex && sudo bash scripts/deploy.sh</code>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-white/30">$</span>
+              <code className="text-xs text-spectrum-cyan">nano Caddyfile && caddy start</code>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-white/30">$</span>
+              <code className="text-xs text-spectrum-cyan">docker compose exec vortex-server npm run admin -- promote you@example.com</code>
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-white/30">
+            Full guide: see <a href="https://github.com/NO-Group/Vortex/blob/main/docs/DEPLOY.md" className="text-spectrum-cyan hover:underline" target="_blank" rel="noreferrer">DEPLOY.md</a> and <a href="https://github.com/NO-Group/Vortex/blob/main/docs/LAUNCH.md" className="text-spectrum-cyan hover:underline" target="_blank" rel="noreferrer">LAUNCH.md</a>
+          </p>
+        </div>
+
+        {/* CTA */}
+        <div className="glass mt-12 p-8 text-center">
+          <h3 className="text-lg font-semibold text-white">Ready to deploy?</h3>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-white/40">
+            Grab a VPS, run the script, and you're live in minutes. Vortex handles the rest.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <a href="https://github.com/NO-Group/Vortex" className="btn-kinetic !py-2 !px-5 text-sm">View on GitHub</a>
+            <a href="#/status" className="btn-glass !py-2 !px-5 text-sm">Check Status</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════ */
 /*  Documentation page                                                             */
 /* ══════════════════════════════════════════════════════════════════════════════ */
 
@@ -3510,6 +3666,7 @@ function Footer({ onNavigate, onSignIn, onSignUp }: { onNavigate: (page: Page) =
             { label: 'Case Studies', action: () => onNavigate('casestudies') },
             { label: 'Open Source', action: () => onNavigate('opensource') },
             { label: 'Enterprise', action: () => onNavigate('enterprise') },
+            { label: 'Deploy', action: () => onNavigate('deploy') },
             { label: 'Documentation', action: () => onNavigate('docs') },
             { label: 'Privacy Policy', action: () => onNavigate('legal') },
             { label: 'Terms of Service', action: () => onNavigate('legal') },
