@@ -126,10 +126,6 @@ CRON
   echo "  ✓ Cron jobs: Docker cleanup (3am) + backups (4am)"
 fi
 
-  SWAP_TOTAL=$(swapon --show=SWAPSIZE "$SWAP_FILE" 2>/dev/null || echo "$SWAP_SIZE")
-  echo "  ✓ Swap enabled: $SWAP_TOTAL at $SWAP_FILE"
-fi
-
 # ── Step 2: Install Docker ──────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
   echo -e "${GREEN}[2/9] Installing Docker + Docker Compose...${NC}"
@@ -300,6 +296,15 @@ echo "  .env created at $REPO_ROOT/.env"
 
 # Export for docker-compose interpolation
 export POSTGRES_PASSWORD="${PG_PASSWORD}"
+
+# ── Step 5b: Adaptive memory configuration ─────────────────────────────────
+echo -e "${GREEN}[5b/9] Running adaptive memory configuration...${NC}"
+if command -v bash &>/dev/null; then
+  bash "$REPO_ROOT/scripts/memory-config.sh" || {
+    echo -e "${YELLOW}Warning: memory-config.sh failed — using defaults${NC}"
+  }
+fi
+echo ""
 
 # ── Step 6: Build and start ─────────────────────────────────────────────────
 echo -e "${GREEN}[6/9] Building and starting services...${NC}"

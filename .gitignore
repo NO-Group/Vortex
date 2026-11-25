@@ -11,6 +11,7 @@ build/
 .env.local
 .env.*.local
 scripts/secrets.env
+scripts/secrets.cf.env
 .memory-override.env
 
 # Runtime data (local storage driver, docker volumes)
