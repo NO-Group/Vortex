@@ -58,13 +58,16 @@ export function checkAccess(
   action: 'read' | 'write',
   rules: PathRule[] = DEFAULT_RULES,
 ): void {
-  // Non-public objects reject unsigned requests with 403
+  // Non-public objects reject unsigned requests with 403.
+  // Unsigned users may only READ from public buckets — never write.
   if (!claims) {
-    // Check if it's a public bucket
-    const isPublic = rules.some(
-      (r) => r.pattern.test(key) && r.access !== 'write',
+    if (action === 'write') {
+      throw ApiError.forbidden('Authentication required for this resource');
+    }
+    const isPublicReadable = rules.some(
+      (r) => r.pattern.test(key) && (r.access === 'read' || r.access === 'both'),
     );
-    if (!isPublic) {
+    if (!isPublicReadable) {
       throw ApiError.forbidden('Authentication required for this resource');
     }
     return;
@@ -97,9 +100,13 @@ export function checkAccess(
       return;
     }
 
-    // General bucket: check if the user owns the bucket
-    // In a real system, this would check a bucket ownership table
-    // For now, we allow access if the user is authenticated
+    // General bucket: enforce ownership. The bucket name must match the
+    // authenticated user's ID — this prevents any authenticated user from
+    // reading or writing to another user's private bucket.
+    const bucketName = match[1];
+    if (bucketName !== claims.sub) {
+      throw ApiError.forbidden('You can only access your own buckets');
+    }
     return;
   }
 

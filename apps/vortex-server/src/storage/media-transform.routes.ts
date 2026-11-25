@@ -3,7 +3,9 @@ import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { ApiError } from '../errors.js';
 import { MediaTransformService } from './media-transform.service.js';
+import { StorageRegistry } from './storage.service.js';
 import { WebhookService } from '../webhooks/webhook.service.js';
 import type { TokenConfig } from '../auth/tokens.js';
 
@@ -36,10 +38,16 @@ export function createTransformRoutes(ctx: AppContext): Router {
   const router = Router();
   const auth = requireAuth(ctx.env.jwt as TokenConfig);
   const service = new MediaTransformService(ctx.db, getWebhookService(ctx));
+  const registry = new StorageRegistry(ctx.db);
 
   /** POST /v1/storage/transformations — request a media transformation. */
   router.post('/', auth, validateBody(transformSchema), async (req, res, next) => {
     try {
+      // Verify the user owns the source object before requesting a transform.
+      const meta = await registry.find(req.body.key);
+      if (meta && meta.ownerId && meta.ownerId !== req.auth!.sub && req.auth!.role !== 'admin') {
+        throw ApiError.forbidden('You do not own this object');
+      }
       const row = await service.request(req.auth!.sub, req.body);
       res.status(202).json({
         id: row.id,

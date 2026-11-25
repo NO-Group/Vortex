@@ -96,10 +96,11 @@ export function createTwoFactorRoutes(ctx: AppContext): Router {
         two_factor_enabled: true,
       });
 
-      // If backup code was used, store remaining hashes
+      // If backup code was used, remove only the used hash
       if (remainingBackups !== null) {
+        const usedIndex = remainingBackups as number;
         await ctx.db('users').where({ id: userId }).update({
-          two_factor_backup_codes: backupHashes.filter(() => false), // removed used one
+          two_factor_backup_codes: backupHashes.filter((_: string, idx: number) => idx !== usedIndex),
         });
       }
 
@@ -131,10 +132,11 @@ export function createTwoFactorRoutes(ctx: AppContext): Router {
         throw ApiError.badRequest('Invalid code');
       }
 
-      // If backup code was used, store remaining hashes
+      // If backup code was used, remove only the used hash
       if (remainingBackups !== null) {
+        const usedIndex = remainingBackups as number;
         await ctx.db('users').where({ id: userId }).update({
-          two_factor_backup_codes: backupHashes.slice(0, -1),
+          two_factor_backup_codes: backupHashes.filter((_: string, idx: number) => idx !== usedIndex),
         });
       }
 

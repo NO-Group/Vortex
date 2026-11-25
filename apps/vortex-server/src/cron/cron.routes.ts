@@ -95,10 +95,15 @@ export function createCronRoutes(ctx: AppContext): Router {
       const scheduler = ctx.cronScheduler;
       if (!scheduler) throw new Error('Cron scheduler not initialized');
 
+      // Verify ownership before triggering — non-admins may only trigger
+      // their own jobs.
+      const isAdmin = req.auth!.role === 'admin';
+      await service.requireOwned(req.params.name!, req.auth!.sub, isAdmin);
+
       const payloadOverride = req.body?.payload;
       const triggerResult = await scheduler.triggerJob(req.params.name!, payloadOverride);
       res.json({
-        job: await service.get(req.params.name!, req.auth!.sub, req.auth!.role === 'admin'),
+        job: await service.get(req.params.name!, req.auth!.sub, isAdmin),
         result: triggerResult.result,
         status: triggerResult.status,
         durationMs: triggerResult.durationMs,
@@ -113,7 +118,8 @@ export function createCronRoutes(ctx: AppContext): Router {
   router.get('/jobs/:name/runs', auth, async (req, res, next) => {
     try {
       const isAdmin = req.auth!.role === 'admin';
-      const limit = req.query.limit ? Math.min(Number(req.query.limit), 200) : 50;
+      const rawLimit = req.query.limit ? Number(req.query.limit) : 50;
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
       const runs = await service.listRuns(
         req.params.name!,
         req.auth!.sub,

@@ -130,13 +130,11 @@ export function createTwoFactorService(): TwoFactorService {
       return codes.map(hashBackupCode);
     },
 
-    verifyBackupCode(storedHashes, code) {
+  verifyBackupCode(storedHashes, code) {
       const hash = hashBackupCode(code);
       const index = storedHashes.indexOf(hash);
       if (index === -1) return null;
-      // Return the remaining hashes (remove the used one)
-      const remaining = storedHashes.filter((_, i) => i !== index);
-      return remaining.length;
+      return index;
     },
   };
 }

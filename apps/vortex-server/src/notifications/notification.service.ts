@@ -130,11 +130,18 @@ export class NotificationService {
     if (!input.token?.trim()) {
       throw ApiError.badRequest('Device token is required');
     }
+    const token = input.token.trim();
+    if (token.length < 16 || token.length > 4096) {
+      throw ApiError.badRequest('Device token must be 16-4096 characters');
+    }
+    if (/[\x00-\x1f\x7f]/.test(token)) {
+      throw ApiError.badRequest('Device token contains invalid control characters');
+    }
 
     const [device] = await this.db<DeviceRow>('vortex_devices')
       .insert({
         user_id: input.userId,
-        token: input.token,
+        token,
         platform: input.platform ?? 'web',
         push_service: input.pushService ?? 'web_push',
         metadata: input.metadata ?? null,
@@ -147,7 +154,7 @@ export class NotificationService {
 
     // Update existing device if it was already registered.
     await this.db('vortex_devices')
-      .where({ user_id: input.userId, token: input.token })
+      .where({ user_id: input.userId, token })
       .update({
         platform: input.platform ?? 'web',
         push_service: input.pushService ?? 'web_push',

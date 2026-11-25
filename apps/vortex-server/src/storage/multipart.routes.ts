@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+import { ApiError } from '../errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { storageGuard, validateKey } from './storage-guard.js';
@@ -137,12 +138,15 @@ export function createMultipartRoutes(ctx: AppContext): Router {
     },
   );
 
-  /** POST /v1/storage/multipart/cleanup — clean up orphaned uploads. */
+  /** POST /v1/storage/multipart/cleanup — clean up orphaned uploads (admin only). */
   router.post(
     '/multipart/cleanup',
     auth,
-    async (_req, res, next) => {
+    async (req, res, next) => {
       try {
+        if (req.auth!.role !== 'admin') {
+          throw ApiError.forbidden('Only admins can clean up orphaned uploads');
+        }
         const olderThan = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const count = await driver.cleanupOrphanedMultipartUploads(olderThan);
         res.json({ cleaned: count });
