@@ -10,7 +10,6 @@ build/
 .env
 .env.local
 .env.*.local
-scripts/secrets.env
 scripts/secrets.cf.env
 .memory-override.env
 
