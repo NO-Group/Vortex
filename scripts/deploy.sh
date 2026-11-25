@@ -199,6 +199,7 @@ echo "  R2 Bucket:         $R2_BUCKET"
 echo "  R2 Endpoint:       $R2_ENDPOINT"
 echo "  SMTP:              $SMTP_HOST (Resend)"
 echo "  Domain:            $DOMAIN"
+echo "  Super Admin:       n.ogroup@yahoo.com"
 
 cat > .env << EOF
 # ── Vortex Production Configuration ──────────────────────────────────────────
@@ -253,6 +254,16 @@ VAPID_SUBJECT=noreply@${DOMAIN}
 # Get these from: console.firebase.google.com > Project Settings > Service Accounts
 FCM_PROJECT_ID=
 FCM_PRIVATE_KEY=
+
+# ── Paystack ────────────────────────────────────────────────────────────────
+# Public key from ACI (African-Children-Initiative) repo
+# Secret key: get from dashboard.paystack.com > Settings > Developer
+PAYSTACK_PUBLIC_KEY=pk_live_1d48c7981d1abf7396474499a369ab7bef17740a
+PAYSTACK_SECRET_KEY=
+
+# ── Super Admin Bypass ──────────────────────────────────────────────────────
+# Email that always has admin access, bypassing any paywall or role check.
+VORTEX_SUPER_ADMIN=n.ogroup@yahoo.com
 
 # Query governance
 SLOW_QUERY_MS=250

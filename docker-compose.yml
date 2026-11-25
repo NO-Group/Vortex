@@ -2,11 +2,27 @@
 # Storage uses Cloudflare R2 (zero egress fees) — no MinIO needed.
 # The engine serves the console, the API, hosted apps, and functions on :8080.
 #
+# Memory limits are auto-configured by scripts/memory-config.sh.
+# If .memory-override.env exists, limits come from there. If not,
+# sensible defaults are used. Re-run memory-config.sh after VPS upgrade.
+#
 #   cp .env.example .env   # set JWT_SECRET + R2 credentials
+#   bash scripts/memory-config.sh   # auto-configure memory
 #   docker compose up -d
-#   open http://localhost:8080
 #
 # First admin:  npm run admin -- promote you@example.com
+
+x-memory-defaults: &memory-defaults
+  postgres_mem_limit: 512m
+  postgres_mem_res: 256m
+  redis_mem_limit: 128m
+  redis_mem_res: 64m
+  vortex_mem_limit: 768m
+  vortex_mem_res: 384m
+  pg_shared_buffers: 128MB
+  pg_max_conn: 50
+  redis_maxmem: 64mb
+  node_heap: 512
 
 services:
   postgres:
@@ -15,15 +31,14 @@ services:
       POSTGRES_USER: vortex
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vortex}
       POSTGRES_DB: vortex
-      # Tune Postgres for low-RAM: reduce shared buffers
-      shared_buffers: 128MB
-      max_connections: 50
+      shared_buffers: ${POSTGRES_SHARED_BUFFERS:-128MB}
+      max_connections: ${POSTGRES_MAX_CONNECTIONS:-50}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    mem_limit: 512m
-    mem_reservation: 256m
+    mem_limit: ${POSTGRES_MEM_LIMIT:-512m}
+    mem_reservation: ${POSTGRES_MEM_RESERVATION:-256m}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vortex"]
       interval: 5s
@@ -32,11 +47,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-64mb} --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
-    mem_limit: 128m
-    mem_reservation: 32m
+    mem_limit: ${REDIS_MEM_LIMIT:-128m}
+    mem_reservation: ${REDIS_MEM_RESERVATION:-64m}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -54,15 +69,14 @@ services:
       - .env
     environment:
       DATABASE_URL: postgres://vortex:${POSTGRES_PASSWORD:-vortex}@postgres:5432/vortex
-      # Constrain Node.js heap to prevent unbounded memory growth
-      NODE_OPTIONS: "--max-old-space-size=512"
+      NODE_OPTIONS: "--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE:-512}"
     ports:
       - "8080:8080"
     volumes:
       # Local storage driver persistence (uploads, hosted app files, fallback).
       - appdata:/workspace/.vortex-data
-    mem_limit: 768m
-    mem_reservation: 384m
+    mem_limit: ${VORTEX_MEM_LIMIT:-768m}
+    mem_reservation: ${VORTEX_MEM_RESERVATION:-384m}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s

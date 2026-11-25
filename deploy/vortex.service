@@ -1,0 +1,29 @@
+# ── Vortex systemd service ──────────────────────────────────────────────────
+# Auto-starts the Vortex stack on boot. Installs to /etc/systemd/system/
+#
+#   sudo cp deploy/vortex.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vortex
+#
+# Manage:
+#   systemctl status vortex
+#   systemctl restart vortex
+#   journalctl -u vortex -f
+
+[Unit]
+Description=Vortex Platform (Docker Compose Stack)
+After=network.target docker.service
+Wants=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/Vortex
+ExecStart=/usr/bin/docker compose -f /opt/Vortex/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose -f /opt/Vortex/docker-compose.yml stop
+ExecReload=/usr/bin/docker compose -f /opt/Vortex/docker-compose.yml restart
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

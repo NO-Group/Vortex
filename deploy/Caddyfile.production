@@ -1,0 +1,77 @@
+# ── Vortex Production Caddyfile ───────────────────────────────────────────────
+# Copy to /etc/caddy/Caddyfile, replace YOUR_DOMAIN.com, then: caddy start
+#
+# Caddy auto-obtains TLS certificates via Let's Encrypt. No manual cert setup.
+# Rate limits, security headers, and compression are configured below.
+
+# ── Main domain ──────────────────────────────────────────────────────────────
+YOUR_DOMAIN.com {
+    # Reverse proxy to the Vortex engine on port 8080
+    reverse_proxy localhost:8080
+
+    # Security headers
+    header {
+        -Server
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Long cache for static assets
+        Cache-Control "public, max-age=31536000, immutable" for /assets/*
+    }
+
+    # Compression
+    encode zstd gzip
+
+    # Rate limiting — auth endpoints (prevent brute force)
+    @auth_limit path /v1/auth/*
+    limit @auth_limit {
+        burst 20
+        period 15s
+    }
+
+    # Rate limiting — general API
+    @api_limit path /v1/*
+    limit @api_limit {
+        burst 100
+        period 1m
+    }
+
+    # Rate limiting — file uploads
+    @upload_limit path /v1/storage/upload*
+    limit @upload_limit {
+        burst 5
+        period 1h
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/vortex.log
+        format json
+    }
+}
+
+# ── Optional: www redirect ───────────────────────────────────────────────────
+www.YOUR_DOMAIN.com {
+    redir https://YOUR_DOMAIN.com{uri} permanent
+}
+
+# ── Optional: API subdomain (separate rate limits) ───────────────────────────
+# api.YOUR_DOMAIN.com {
+#     reverse_proxy localhost:8080
+#     header {
+#         -Server
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         X-Content-Type-Options "nosniff"
+#     }
+#     encode zstd gzip
+#     @api_limit path /v1/*
+#     limit @api_limit {
+#         burst 200
+#         period 1m
+#     }
+#     log {
+#         output file /var/log/caddy/api.log
+#         format json
+#     }
+# }

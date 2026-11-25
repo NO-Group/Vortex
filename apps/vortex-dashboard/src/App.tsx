@@ -1,52 +1,276 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, type AuthUser } from './api';
-import { LandingPage } from './components/LandingPage';
-import { Dashboard } from './components/Dashboard';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  api,
+  clearToken,
+  getStoredUser,
+  getToken,
+  isTokenExpired,
+  markSignIn,
+  setStoredUser,
+  setToken,
+  type AuthSession,
+  type Health,
+  type StoredUser,
+  type TableEvent,
+} from './lib/api.js';
+import { RealtimeClient, type RealtimeStatus } from './lib/realtime.js';
+import { Background } from './components/Background.js';
+import { Sidebar, type PageKey } from './components/Sidebar.js';
+import { LandingPage } from './components/LandingPage.js';
+import { AuthModal } from './components/AuthModal.js';
+import { Login } from './pages/Login.js';
+import { Overview } from './pages/Overview.js';
+import { DatabasePage } from './pages/DatabasePage.js';
+import { SqlPage } from './pages/SqlPage.js';
+import { RealtimePage } from './pages/RealtimePage.js';
+import { StoragePage } from './pages/StoragePage.js';
+import { AppsPage } from './pages/AppsPage.js';
+import { FunctionsPage } from './pages/FunctionsPage.js';
+import { AuthPage } from './pages/AuthPage.js';
+import { PolicyPage } from './pages/PolicyPage.js';
+import { OAuthPage } from './pages/OAuthPage.js';
+import { NotificationPage } from './pages/NotificationPage.js';
+import { WebhookPage } from './pages/WebhookPage.js';
+import AuditPage from './pages/AuditPage.js';
+import ApiKeysPage from './pages/ApiKeysPage.js';
+import FlagsPage from './pages/FlagsPage.js';
+import VectorPage from './pages/VectorPage.js';
+import CronPage from './pages/CronPage.js';
+import { ShieldPage } from './pages/ShieldPage.js';
+import { MediaPage } from './pages/MediaPage.js';
+
+const PAGES: PageKey[] = [
+  'overview',
+  'database',
+  'sql',
+  'realtime',
+  'storage',
+  'apps',
+  'functions',
+  'auth',
+  'policies',
+  'oauth',
+  'notifications',
+  'webhooks',
+  'audit',
+  'api-keys',
+  'flags',
+  'vector',
+  'cron',
+  'shield',
+  'media',
+];
+
+interface Session {
+  user: StoredUser;
+  token: string;
+}
+
+function pageFromHash(): PageKey {
+  const key = window.location.hash.replace(/^#\/?/, '') as PageKey;
+  return PAGES.includes(key) ? key : 'overview';
+}
 
 /**
- * Vortex Dashboard — App root.
- *
- * Routes between the landing page (with auth modal) and the post-auth
- * dashboard console based on the stored JWT token.
+ * Restore a persisted session — but only if the JWT is still alive.
+ * An expired token is cleared up front so we never flash the dashboard
+ * only to 401-storm the user back to login.
  */
+function restoreSession(): Session | null {
+  const token = getToken();
+  const user = getStoredUser();
+  if (!token || !user) return null;
+  if (isTokenExpired(token)) {
+    clearToken();
+    return null;
+  }
+  return { user, token };
+}
 
 export default function App() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(() => restoreSession());
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [page, setPage] = useState<PageKey>(pageFromHash);
+  const [events, setEvents] = useState<TableEvent[]>([]);
+  const [rtStatus, setRtStatus] = useState<RealtimeStatus>('offline');
+  const [wsConnections, setWsConnections] = useState<number | null>(null);
+  const [client, setClient] = useState<RealtimeClient | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  // Check for existing token on mount
+  const authed = session !== null;
+
+  // ── Realtime client — one WS for the whole session ─────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('vortex_token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    api.me()
-      .then((res) => setUser(res.user))
-      .catch(() => localStorage.removeItem('vortex_token'))
-      .finally(() => setLoading(false));
+    const token = getToken();
+    if (!authed || !token) return;
+
+    const rt = new RealtimeClient({
+      onStatus: setRtStatus,
+      onEvent: (evt) => setEvents((prev) => [...prev.slice(-299), evt]),
+    });
+    rt.connect(token);
+    rt.subscribe('table:*');
+    setClient(rt);
+
+    return () => {
+      rt.disconnect();
+      setClient(null);
+    };
+  }, [authed]);
+
+  // ── Engine health polling (live ws-connection vitals) ──────────────────
+  useEffect(() => {
+    if (!authed) return;
+    let alive = true;
+    const poll = async () => {
+      try {
+        const h = await api.get<Health>('/healthz');
+        if (alive) setWsConnections(h.realtime.connections);
+      } catch {
+        /* engine unreachable — sidebar indicator goes dark */
+      }
+    };
+    void poll();
+    const t = window.setInterval(poll, 4000);
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
+  }, [authed]);
+
+  // ── Hash routing ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const onHash = () => setPage(pageFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  const handleAuthSuccess = useCallback((u: AuthUser) => {
-    setUser(u);
+  const navigate = useCallback((key: PageKey) => {
+    window.location.hash = `#/${key}`;
+    setPage(key);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    api.logout();
-    setUser(null);
+  // ── Session lifecycle ─────────────────────────────────────────────────
+  const signIn = useCallback((next: AuthSession) => {
+    setToken(next.token);
+    setStoredUser(next.user);
+    markSignIn();
+    setSession({ user: next.user, token: next.token });
+    setNotice(null);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-canvas">
-        <div className="text-gradient text-lg font-semibold animate-pulse">Vortex</div>
-      </div>
+  const signOut = useCallback((reason?: string, detail?: string) => {
+    clearToken();
+    setSession(null);
+    setEvents([]);
+    setRtStatus('offline');
+    setClient(null);
+    setNotice(
+      reason === 'expired'
+        ? `Session ended: ${detail ?? 'your session expired'} — please sign in again.`
+        : null,
     );
-  }
+    window.location.hash = '#/overview';
+  }, []);
 
-  if (!user) {
-    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
-  }
+  // Auto-logout events (401 with the current token) land here.
+  useEffect(() => {
+    const onLogout = (e: Event) => {
+      const d = (e as CustomEvent<{ reason?: string; path?: string; message?: string }>).detail;
+      signOut(d?.reason, d?.path ? `${d.message ?? 'unauthorized'} (${d.path})` : d?.message);
+    };
+    window.addEventListener('vortex:logout', onLogout);
+    return () => window.removeEventListener('vortex:logout', onLogout);
+  }, [signOut]);
 
-  return <Dashboard user={user} onLogout={handleLogout} />;
+  // ── Email sign-in links (?magic=<token>) verify themselves on load ─────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('magic');
+    if (!token) return;
+    params.delete('magic');
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', clean);
+
+    void (async () => {
+      try {
+        const session = await api.post<AuthSession>('/v1/auth/magic-link/verify', { token });
+        if (session?.token && session?.user) {
+          signIn(session);
+          setNotice('Signed in via email link.');
+        }
+      } catch (err) {
+        setNotice(
+          `Sign-in link failed: ${err instanceof Error ? err.message : 'invalid or expired'}`,
+        );
+      }
+    })();
+  }, [signIn]);
+
+  const clearEvents = useCallback(() => setEvents([]), []);
+
+  const content = useMemo(() => {
+    switch (page) {
+      case 'database':
+        return <DatabasePage />;
+      case 'sql':
+        return <SqlPage isAdmin={session?.user.role === 'admin'} />;
+      case 'realtime':
+        return client ? (
+          <RealtimePage client={client} status={rtStatus} events={events} onClear={clearEvents} />
+        ) : null;
+      case 'storage':
+        return <StoragePage />;
+      case 'apps':
+        return <AppsPage />;
+      case 'functions':
+        return <FunctionsPage />;
+      case 'auth':
+        return <AuthPage user={session?.user ?? null} onLogout={() => signOut()} />;
+      case 'policies':
+        return <PolicyPage isAdmin={session?.user.role === 'admin'} />;
+      case 'oauth':
+        return <OAuthPage isAdmin={session?.user.role === 'admin'} />;
+      case 'notifications':
+        return <NotificationPage />;
+      case 'webhooks':
+        return <WebhookPage />;
+      case 'audit':
+        return <AuditPage />;
+      case 'api-keys':
+        return <ApiKeysPage />;
+      case 'flags':
+        return <FlagsPage />;
+      case 'vector':
+        return <VectorPage />;
+      case 'cron':
+        return <CronPage />;
+      case 'shield':
+        return <ShieldPage />;
+      case 'media':
+        return <MediaPage />;
+      default:
+        return <Overview wsConnections={wsConnections} />;
+    }
+  }, [page, client, rtStatus, events, clearEvents, session, signOut, wsConnections]);
+
+  return (
+    <>
+      <Background />
+      {!authed ? (
+        <LandingPage onAuthSuccess={signIn} />
+      ) : (
+        <div className="min-h-screen">
+          <Sidebar
+            active={page}
+            onNavigate={navigate}
+            email={session.user.email}
+            engineOnline={rtStatus === 'online'}
+            onLogout={() => signOut()}
+          />
+          <main className="ml-[248px] min-h-screen p-8">{content}</main>
+        </div>
+      )}
+    </>
+  );
 }

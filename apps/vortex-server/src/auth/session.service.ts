@@ -1,73 +1,109 @@
-/**
- * Vortex Server — Session/Auth service: user management, signup, login.
- */
-
+import { randomUUID } from 'node:crypto';
 import type { Knex } from 'knex';
-import { generateTokens, hashPassword, verifyPassword, normalizeRole, type User, type AuthTokens, type UserRole, type JwtConfig } from '@vortex/core';
 import { ApiError } from '../errors.js';
 
+interface SessionRow {
+  id: string;
+  user_id: string;
+  session_id: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  device_type: string | null;
+  last_active_at: Date;
+  created_at: Date;
+  revoked: boolean;
+  revoked_at: Date | null;
+}
+
+function detectDeviceType(userAgent: string | null): string | null {
+  if (!userAgent) return null;
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('mobile') || ua.includes('android')) return 'mobile';
+  if (ua.includes('ios') || ua.includes('iphone') || ua.includes('ipad')) return 'mobile';
+  if (ua.includes('bot') || ua.includes('crawler')) return 'bot';
+  return 'desktop';
+}
+
+/**
+ * Session management — tracks active sessions per user, enables
+ * listing, individual revocation, and revoke-all.
+ */
 export class SessionService {
-  constructor(
-    private db: Knex,
-    private jwtConfig: JwtConfig,
-  ) {}
+  constructor(private readonly db: Knex) {}
 
-  async findByEmail(email: string): Promise<User | null> {
-    const row = await this.db('users').where({ email }).first<Record<string, unknown>>();
-    if (!row) return null;
-    return this.toUser(row);
-  }
-
-  async findById(id: string): Promise<User | null> {
-    const row = await this.db('users').where({ id }).first<Record<string, unknown>>();
-    if (!row) return null;
-    return this.toUser(row);
-  }
-
-  async createUser(opts: { email: string; password: string; name: string; role?: string }): Promise<User> {
-    const existing = await this.findByEmail(opts.email);
-    if (existing) {
-      throw ApiError.conflict('A user with this email already exists');
-    }
-
-    const passwordHash = await hashPassword(opts.password);
-    const [id] = await this.db('users')
+  /** Record a new session. */
+  async create(
+    userId: string,
+    info: { userAgent?: string; ipAddress?: string; sessionId: string },
+  ): Promise<SessionRow> {
+    const [row] = await this.db<SessionRow>('user_sessions')
       .insert({
-        email: opts.email,
-        name: opts.name,
-        password_hash: passwordHash,
-        role: normalizeRole(opts.role),
+        user_id: userId,
+        session_id: info.sessionId,
+        user_agent: info.userAgent ?? null,
+        ip_address: info.ipAddress ?? null,
+        device_type: detectDeviceType(info.userAgent ?? null),
       })
-      .returning('id');
-
-    const user = await this.findById(id as string);
-    if (!user) throw ApiError.internal('Failed to create user');
-    return user;
+      .returning('*');
+    return row!;
   }
 
-  async login(email: string, password: string): Promise<{ user: User; tokens: AuthTokens }> {
-    const row = await this.db('users').where({ email }).first<Record<string, unknown>>();
-    if (!row || !row.password_hash) {
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-
-    const valid = await verifyPassword(password, row.password_hash as string);
-    if (!valid) {
-      throw ApiError.unauthorized('Invalid email or password');
-    }
-
-    const user = this.toUser(row);
-    return { user, tokens: generateTokens(user, this.jwtConfig) };
+  /** Touch a session's last_active_at. */
+  async touch(sessionId: string): Promise<void> {
+    await this.db('user_sessions')
+      .where({ session_id: sessionId, revoked: false })
+      .update({ last_active_at: new Date() });
   }
 
-  private toUser(row: Record<string, unknown>): User {
-    return {
-      id: row.id as string,
-      email: row.email as string,
-      name: row.name as string,
-      role: (row.role as UserRole) ?? 'developer',
-      createdAt: row.created_at as string,
-      updatedAt: row.updated_at as string,
-    };
+  /** Get-or-create a session. Touches if exists, creates if not. */
+  async ensure(
+    userId: string,
+    sessionId: string,
+    info: { userAgent?: string; ipAddress?: string },
+  ): Promise<SessionRow> {
+    const existing = await this.db<SessionRow>('user_sessions')
+      .where({ session_id: sessionId })
+      .first();
+    if (existing && !existing.revoked) {
+      await this.touch(sessionId);
+      return existing;
+    }
+    return this.create(userId, { ...info, sessionId });
+  }
+
+  /** List active sessions for a user. */
+  async list(userId: string): Promise<SessionRow[]> {
+    return this.db<SessionRow>('user_sessions')
+      .where({ user_id: userId, revoked: false })
+      .orderBy('last_active_at', 'desc');
+  }
+
+  /** Revoke a single session. */
+  async revoke(userId: string, sessionId: string): Promise<boolean> {
+    const updated = await this.db('user_sessions')
+      .where({ user_id: userId, session_id: sessionId, revoked: false })
+      .update({ revoked: true, revoked_at: new Date() });
+    return updated > 0;
+  }
+
+  /** Revoke all sessions for a user (optionally except one). */
+  async revokeAll(userId: string, exceptSessionId?: string): Promise<number> {
+    const query = this.db('user_sessions')
+      .where({ user_id: userId, revoked: false });
+    if (exceptSessionId) {
+      query.where('session_id', '!=', exceptSessionId);
+    }
+    const updated = await query.update({ revoked: true, revoked_at: new Date() });
+    return updated;
+  }
+
+  /** Check if a session is still active. */
+  async isActive(sessionId: string): Promise<boolean> {
+    const row = await this.db<SessionRow>('user_sessions')
+      .where({ session_id: sessionId })
+      .first();
+    return !!row && !row.revoked;
   }
 }
+
+export { detectDeviceType };

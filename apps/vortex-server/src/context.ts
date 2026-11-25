@@ -1,55 +1,34 @@
-/**
- * Vortex Server — Application context shared across modules.
- */
-
 import type { Knex } from 'knex';
-import type { ServerEnv } from './env.js';
+import type { ServerEnv } from './config/env.js';
+import type { VortexEventBus } from './realtime/bus.js';
+import type { RealtimeHub } from './realtime/hub.js';
+import type { StorageDriver } from './storage/storage.types.js';
+import type { PolicyService } from './policies/policy.service.js';
+import type { QueryGovernor } from './governance/query-governor.js';
+import type { EdgeCache } from './governance/edge-cache.js';
+import type { CronScheduler } from './cron/scheduler.service.js';
+import type { SessionService } from './auth/session.service.js';
+import type { TenantService } from './tenant/tenant.service.js';
 
+/**
+ * Application-wide dependencies, injected into routes/services so the
+ * engine stays modular and testable (no hidden globals).
+ */
 export interface AppContext {
   env: ServerEnv;
   db: Knex;
-  edgeCache: EdgeCache;
+  bus: VortexEventBus;
+  hub: RealtimeHub;
   storage: StorageDriver;
-}
-
-/** Minimal in-memory cache with TTL, used for presigned URLs and tokens. */
-export class EdgeCache {
-  private store = new Map<string, { value: unknown; expiresAt: number }>();
-
-  set(key: string, value: unknown, ttlSeconds: number): void {
-    this.store.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
-  }
-
-  get<T = unknown>(key: string): T | undefined {
-    const entry = this.store.get(key);
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) {
-      this.store.delete(key);
-      return undefined;
-    }
-    return entry.value as T;
-  }
-
-  delete(key: string): void {
-    this.store.delete(key);
-  }
-
-  invalidatePrefix(prefix: string): void {
-    for (const key of this.store.keys()) {
-      if (key.startsWith(prefix)) this.store.delete(key);
-    }
-  }
-
-  clear(): void {
-    this.store.clear();
-  }
-}
-
-/** Storage driver interface — implemented by LocalStorageDriver and R2StorageDriver. */
-export interface StorageDriver {
-  put(opts: { key: string; body: Buffer; contentType: string }): Promise<{ key: string; size: number; contentType: string; etag?: string }>;
-  get(key: string): Promise<{ body: Buffer; contentType: string; size: number }>;
-  delete(key: string): Promise<void>;
-  presignUpload(opts: { key: string; contentType?: string; expiresIn?: number }, baseUrl?: string): Promise<{ url: string; expiresAt: string; expiresIn: number; method: 'PUT' }>;
-  presignDownload(key: string, expiresIn?: number, baseUrl?: string): Promise<{ url: string; expiresAt: string; expiresIn: number; method: 'GET' }>;
+  /** Row policies (v0.7). */
+  policies: PolicyService;
+  /** Cost governance + query audit log (v0.7). */
+  governor: QueryGovernor;
+  /** Shared edge cache — public storage reads, invalidation on writes. */
+  edgeCache: EdgeCache;
+  /** Cron scheduler — autonomous tick loop for scheduled jobs. */
+  cronScheduler?: CronScheduler;
+  sessions: SessionService;
+  /** Multi-tenant app resolver — extracts app context from requests. */
+  tenant: TenantService;
 }

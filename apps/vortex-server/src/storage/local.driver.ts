@@ -1,107 +1,190 @@
-/**
- * Vortex Server — Local Storage Driver: disk-based storage with HMAC-signed presigned URLs.
- */
-
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { AppContext, StorageDriver } from '../context.js';
 import { ApiError } from '../errors.js';
+import type {
+  GetObjectResult,
+  PresignUploadInput,
+  PresignedUrl,
+  PutObjectInput,
+  PutObjectResult,
+  StorageDriver,
+} from './storage.types.js';
 
+const DEFAULT_EXPIRES = 900;
+const MAX_EXPIRES = 3600;
+const MAX_OBJECT_BYTES = 64 * 1024 * 1024; // 64 MiB
+
+interface SignedPayload {
+  key: string;
+  op: 'put' | 'get';
+  exp: number;
+  contentType?: string;
+}
+
+/**
+ * Local-disk storage driver with presigned-URL semantics: upload/download
+ * endpoints accept HMAC-signed expiring tokens, mirroring the S3 flow so
+ * clients can switch drivers without changing code paths.
+ */
 export class LocalStorageDriver implements StorageDriver {
-  private root: string;
-  private secret: string;
+  readonly name = 'local' as const;
 
-  constructor(localPath: string, secret: string) {
-    this.root = path.resolve(localPath);
-    this.secret = secret;
-    fs.mkdir(this.root, { recursive: true }).catch(() => undefined);
-  }
+  constructor(
+    private readonly rootDir: string,
+    private readonly secret: string,
+    private readonly publicApiBase: string,
+  ) {}
 
-  private filePath(key: string): string {
-    // Prevent path traversal: resolve the key and ensure it stays within root
-    const safe = key.replace(/\.\./g, '').replace(/^\/+/, '');
-    const resolved = path.resolve(this.root, safe);
-    if (!resolved.startsWith(this.root + path.sep) && resolved !== this.root) {
-      throw ApiError.forbidden('Invalid storage key: path traversal detected');
+  /** Resolve a storage key to a safe absolute path (blocks traversal). */
+  private resolveKey(key: string): string {
+    const normalized = key.replace(/^\/+/, '');
+    if (
+      normalized.includes('..') ||
+      normalized.includes('\0') ||
+      path.isAbsolute(normalized) ||
+      normalized.length === 0
+    ) {
+      throw ApiError.badRequest(`Invalid storage key: "${key}"`);
     }
-    return resolved;
+    const full = path.resolve(this.rootDir, normalized);
+    const root = path.resolve(this.rootDir);
+    if (!full.startsWith(root + path.sep)) {
+      throw ApiError.badRequest(`Invalid storage key: "${key}"`);
+    }
+    return full;
   }
 
-  async put(opts: { key: string; body: Buffer; contentType: string }): Promise<{ key: string; size: number; contentType: string; etag?: string }> {
-    const fp = this.filePath(opts.key);
-    await fs.writeFile(fp, opts.body);
-    return { key: opts.key, size: opts.body.length, contentType: opts.contentType, etag: `"${opts.body.length}"` };
+  async put(input: PutObjectInput): Promise<PutObjectResult> {
+    const full = this.resolveKey(input.key);
+    const body = input.body instanceof Buffer ? input.body : Buffer.from(input.body);
+    if (body.byteLength > MAX_OBJECT_BYTES) {
+      throw ApiError.badRequest(`Object exceeds ${MAX_OBJECT_BYTES} byte limit`);
+    }
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, body);
+    return {
+      key: input.key.replace(/^\/+/, ''),
+      size: body.byteLength,
+      contentType: input.contentType ?? 'application/octet-stream',
+    };
   }
 
-  async get(key: string): Promise<{ body: Buffer; contentType: string; size: number }> {
-    const fp = this.filePath(key);
+  async get(key: string): Promise<GetObjectResult> {
+    const full = this.resolveKey(key);
     try {
-      const body = await fs.readFile(fp);
-      return { body, contentType: 'application/octet-stream', size: body.length };
+      const body = await fs.readFile(full);
+      return { body, contentType: 'application/octet-stream', size: body.byteLength };
     } catch {
-      throw ApiError.notFound(`Object not found: ${key}`);
+      throw ApiError.notFound(`Object not found: "${key}"`);
     }
   }
 
   async delete(key: string): Promise<void> {
+    const full = this.resolveKey(key);
+    await fs.rm(full, { force: true });
+  }
+
+  async exists(key: string): Promise<boolean> {
     try {
-      await fs.unlink(this.filePath(key));
+      await fs.access(this.resolveKey(key));
+      return true;
     } catch {
-      // Already gone
+      return false;
     }
   }
 
-  async presignUpload(opts: { key: string; contentType?: string; expiresIn?: number }, baseUrl?: string): Promise<{ url: string; expiresAt: string; expiresIn: number; method: 'PUT' }> {
-    const expiresIn = opts.expiresIn ?? 900;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-    const base = baseUrl ?? `http://localhost:4000`;
-    const token = this.signToken({ op: 'put', key: opts.key, contentType: opts.contentType ?? '', exp: expiresIn });
-    return { url: `${base}/v1/storage/local/upload?token=${token}`, expiresAt, expiresIn, method: 'PUT' };
+  async list(prefix: string, limit: number): Promise<string[]> {
+    const root = path.resolve(this.rootDir);
+    const results: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      if (results.length >= limit) return;
+      const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        if (results.length >= limit) return;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(full);
+        } else {
+          const key = path.relative(root, full).split(path.sep).join('/');
+          if (key.startsWith(prefix)) results.push(key);
+        }
+      }
+    };
+
+    await walk(root);
+    return results.sort();
   }
 
-  async presignDownload(key: string, expiresIn?: number, baseUrl?: string): Promise<{ url: string; expiresAt: string; expiresIn: number; method: 'GET' }> {
-    const expires = expiresIn ?? 900;
-    const expiresAt = new Date(Date.now() + expires * 1000).toISOString();
-    const base = baseUrl ?? `http://localhost:4000`;
-    const token = this.signToken({ op: 'get', key, exp: expires });
-    return { url: `${base}/v1/storage/local/object?token=${token}`, expiresAt, expiresIn: expires, method: 'GET' };
+  /** Sign an expiring token for a presigned-style URL. */
+  private sign(payload: SignedPayload): string {
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const sig = createHmac('sha256', this.secret).update(body).digest('base64url');
+    return `${body}.${sig}`;
   }
 
-  verifySigned(token: string): { op: 'put' | 'get'; key: string; contentType?: string; exp: number } {
+  /** Verify a signed token; throws ApiError(403) on tamper/expiry. */
+  verifySigned(token: string): SignedPayload {
     const parts = token.split('.');
-    if (parts.length !== 2) throw ApiError.forbidden('Invalid token format');
-
-    const [payloadB64, sig] = parts;
-    const expectedSig = this.signPayload(payloadB64);
-    const expected = Buffer.from(expectedSig);
-    const actual = Buffer.from(sig);
-
-    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-      throw ApiError.forbidden('Invalid token signature');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw ApiError.forbidden('Malformed signed token');
+    }
+    const [body, sig] = parts as [string, string];
+    const expected = createHmac('sha256', this.secret).update(body).digest('base64url');
+    const sigBuf = Buffer.from(sig);
+    const expectedBuf = Buffer.from(expected);
+    if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+      throw ApiError.forbidden('Invalid signature');
     }
 
-    let payload: { op: 'put' | 'get'; key: string; contentType?: string; exp: number };
+    let payload: SignedPayload;
     try {
-      payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf8'));
+      payload = JSON.parse(Buffer.from(body, 'base64url').toString()) as SignedPayload;
     } catch {
-      throw ApiError.forbidden('Invalid token payload');
+      throw ApiError.forbidden('Malformed signed token');
     }
-
-    if (payload.exp * 1000 < Date.now()) {
-      throw ApiError.forbidden('Token expired');
+    if (typeof payload.exp !== 'number' || payload.exp * 1000 < Date.now()) {
+      throw ApiError.forbidden('Signed token expired');
     }
-
     return payload;
   }
 
-  private signPayload(payloadB64: string): string {
-    return createHmac('sha256', this.secret).update(payloadB64).digest('hex');
+  private expiresInSeconds(expiresIn?: number): number {
+    return Math.min(Math.max(expiresIn ?? DEFAULT_EXPIRES, 1), MAX_EXPIRES);
   }
 
-  private signToken(payload: Record<string, unknown>): string {
-    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64');
-    const sig = this.signPayload(payloadB64);
-    return `${payloadB64}.${sig}`;
+  async presignUpload(input: PresignUploadInput, baseUrl?: string): Promise<PresignedUrl> {
+    const key = input.key.replace(/^\/+/, '');
+    this.resolveKey(key); // validate early
+    const seconds = this.expiresInSeconds(input.expiresIn);
+    const exp = Math.floor(Date.now() / 1000) + seconds;
+    const token = this.sign({ key, op: 'put', exp, contentType: input.contentType });
+    const base = (baseUrl ?? this.publicApiBase).replace(/\/+$/, '');
+
+    return {
+      key,
+      method: 'PUT',
+      url: `${base}/v1/storage/local/upload?token=${encodeURIComponent(token)}`,
+      headers: input.contentType ? { 'content-type': input.contentType } : {},
+      expiresAt: new Date(exp * 1000).toISOString(),
+    };
+  }
+
+  async presignDownload(key: string, expiresIn: number, baseUrl?: string): Promise<PresignedUrl> {
+    const clean = key.replace(/^\/+/, '');
+    this.resolveKey(clean);
+    const seconds = this.expiresInSeconds(expiresIn);
+    const exp = Math.floor(Date.now() / 1000) + seconds;
+    const token = this.sign({ key: clean, op: 'get', exp });
+    const base = (baseUrl ?? this.publicApiBase).replace(/\/+$/, '');
+
+    return {
+      key: clean,
+      method: 'GET',
+      url: `${base}/v1/storage/local/object?token=${encodeURIComponent(token)}`,
+      headers: {},
+      expiresAt: new Date(exp * 1000).toISOString(),
+    };
   }
 }

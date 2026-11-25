@@ -1,0 +1,315 @@
+import type { HttpClient } from './http.js';
+import type { FilterOp } from './types.js';
+import type {
+  QueryRequest, QueryResult, QueryFilter,
+} from './types.js';
+
+/**
+ * Vortex Database — dynamic CRUD with filters, OR-groups, embeds,
+ * row policies, and plan-level cost governance.
+ *
+ * ```ts
+ * const result = await vortex.database
+ *   .from('notes')
+ *   .select(['id', 'title', 'body'])
+ *   .filter('owner_id', 'eq', userId)
+ *   .orderBy('created_at', 'desc')
+ *   .limit(10)
+ *   .execute();
+ * ```
+ */
+export class Database {
+  constructor(private readonly http: HttpClient) {}
+
+  /** Start building a query on a table. */
+  from(table: string): QueryBuilder {
+    return new QueryBuilder(this.http, table);
+  }
+
+  /** Raw dynamic query (escape hatch for full control). */
+  async query<T = Record<string, unknown>>(
+    table: string,
+    req: QueryRequest,
+  ): Promise<QueryResult<T>> {
+    return this.http.request<QueryResult<T>>(`/v1/db/${table}/query`, {
+      method: 'POST',
+      body: req,
+    });
+  }
+
+  /** Insert one or more rows. */
+  async insert(
+    table: string,
+    rows: Record<string, unknown>[],
+  ): Promise<QueryResult> {
+    return this.http.request<QueryResult>(`/v1/db/${table}`, {
+      method: 'POST',
+      body: { rows },
+    });
+  }
+
+  /**
+   * Upsert rows — insert or update on conflict.
+   *
+   * Uses ON CONFLICT DO UPDATE SET — the row is updated if it already
+   * exists (matching the conflict target), otherwise inserted.
+   *
+   * ```ts
+   * await vortex.database.upsert('notes', [
+   *   { id: '1', title: 'Hello', owner_id: userId },
+   * ], ['id']);
+   * ```
+   */
+  async upsert(
+    table: string,
+    rows: Record<string, unknown>[],
+    conflictKeys: string[],
+    patch?: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.http.request<QueryResult>(`/v1/db/${table}/upsert`, {
+      method: 'POST',
+      body: { rows, conflictKeys, patch },
+    });
+  }
+
+  /** Update rows matching filters. */
+  async update(
+    table: string,
+    patch: Record<string, unknown>,
+    filters: QueryFilter[],
+  ): Promise<QueryResult> {
+    return this.http.request<QueryResult>(`/v1/db/${table}`, {
+      method: 'PATCH',
+      body: { patch, filters },
+    });
+  }
+
+  /** Delete rows matching filters. */
+  async delete(
+    table: string,
+    filters: QueryFilter[],
+  ): Promise<QueryResult> {
+    return this.http.request<QueryResult>(`/v1/db/${table}`, {
+      method: 'DELETE',
+      body: { filters },
+    });
+  }
+
+  /** Bulk delete rows by ID — builds `id IN (...)` filter automatically. */
+  async bulkRemove(table: string, ids: string[]): Promise<QueryResult> {
+    return this.delete(table, [{ column: 'id', op: 'in', value: ids }]);
+  }
+
+  /** Bulk update rows by ID — builds `id IN (...)` filter automatically. */
+  async bulkUpdate(
+    table: string,
+    ids: string[],
+    patch: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.update(table, patch, [{ column: 'id', op: 'in', value: ids }]);
+  }
+
+  /** List non-system table names. */
+  async tables(): Promise<string[]> {
+    const { tables } = await this.http.request<{ tables: string[] }>('/v1/db/tables');
+    return tables;
+  }
+
+  /**
+   * Create a table with a custom schema.
+   *
+   * ```ts
+   * await vortex.database.createTable('notes', [
+   *   { name: 'title', type: 'text', required: true },
+   *   { name: 'body', type: 'text' },
+   *   { name: 'metadata', type: 'jsonb' },
+   * ]);
+   * ```
+   *
+   * Auto-adds: id (uuid PK), owner_id (uuid), created_at, updated_at.
+   */
+  async createTable(
+    table: string,
+    columns: Array<{ name: string; type: 'text' | 'jsonb' | 'integer' | 'boolean' | 'timestamptz'; required?: boolean }>,
+  ): Promise<{ table: string; columns: typeof columns; created: boolean }> {
+    return this.http.request(`/v1/db/${encodeURIComponent(table)}/create`, {
+      method: 'POST',
+      body: { columns },
+    });
+  }
+
+  /**
+   * Get the column definitions for a table.
+   *
+   * ```ts
+   * const { columns } = await vortex.database.schema('notes');
+   * // → [{ name: 'id', type: 'uuid', nullable: false, default: '...' }, ...]
+   * ```
+   */
+  async schema(
+    table: string,
+  ): Promise<{ table: string; columns: Array<{ name: string; type: string; nullable: boolean; defaultValue: string | null }> }> {
+    return this.http.request(`/v1/db/${encodeURIComponent(table)}/schema`);
+  }
+
+  /** Count rows matching filters. */
+  async count(
+    table: string,
+    filters?: QueryFilter[],
+  ): Promise<number> {
+    const result = await this.http.request<QueryResult>(`/v1/db/${table}/query`, {
+      method: 'POST',
+      body: { select: ['id'], filters, countTotal: true, limit: 1 },
+    });
+    return result.total ?? 0;
+  }
+
+  /**
+   * Create a single row (convenience wrapper for insert).
+   *
+   * ```ts
+   * const { rows } = await vortex.database.create('notes', {
+   *   title: 'Hello', body: 'World', owner_id: userId,
+   * });
+   * ```
+   */
+  async create(
+    table: string,
+    row: Record<string, unknown>,
+  ): Promise<QueryResult> {
+    return this.insert(table, [row]);
+  }
+
+  /**
+   * Find a single row by primary key (convenience wrapper for query).
+   *
+   * ```ts
+   * const { rows } = await vortex.database.findById('notes', '123');
+   * ```
+   */
+  async findById(
+    table: string,
+    id: string,
+    column = 'id',
+  ): Promise<Record<string, unknown> | null> {
+    const result = await this.http.request<QueryResult>(`/v1/db/${table}/query`, {
+      method: 'POST',
+      body: {
+        select: ['*'],
+        filters: [{ column, op: 'eq', value: id }],
+        limit: 1,
+      },
+    });
+    return result.rows[0] ?? null;
+  }
+
+  /**
+   * Remove a single row by primary key (convenience wrapper for delete).
+   *
+   * ```ts
+   * await vortex.database.remove('notes', '123');
+   * ```
+   */
+  async remove(
+    table: string,
+    id: string,
+    column = 'id',
+  ): Promise<void> {
+    await this.delete(table, [{ column, op: 'eq', value: id }]);
+  }
+}
+
+/**
+ * Fluent query builder. Chain filters, ordering, pagination, embeds,
+ * and policies, then `.execute()`.
+ */
+export class QueryBuilder {
+  private selectCols: string[] | undefined;
+  private filters: QueryFilter[] = [];
+  private orGroups: QueryFilter[][] = [];
+  private orderCols: Array<{ column: string; direction: 'asc' | 'desc' }> = [];
+  private includeList: import('./types.js').QueryInclude[] = [];
+  private limitVal: number | undefined;
+  private offsetVal: number | undefined;
+  private countTotalVal: boolean = false;
+  private explainVal: boolean = false;
+
+  constructor(
+    private readonly http: HttpClient,
+    private readonly table: string,
+  ) {}
+
+  /** Choose which columns to return (default: all). */
+  select(columns: string[]): this {
+    this.selectCols = columns;
+    return this;
+  }
+
+  /** Add a single filter. */
+  filter(column: string, op: FilterOp, value: unknown): this {
+    this.filters.push({ column, op, value });
+    return this;
+  }
+
+  /** Add an OR-group (each group is AND-ed internally, groups are OR-ed). */
+  or(groups: QueryFilter[][]): this {
+    this.orGroups.push(...groups);
+    return this;
+  }
+
+  /** Order by a column. */
+  orderBy(column: string, direction: 'asc' | 'desc' = 'asc'): this {
+    this.orderCols.push({ column, direction });
+    return this;
+  }
+
+  /** Limit the number of rows. */
+  limit(n: number): this {
+    this.limitVal = Math.min(n, 500);
+    return this;
+  }
+
+  /** Skip N rows (use with limit for pagination). */
+  offset(n: number): this {
+    this.offsetVal = Math.max(n, 0);
+    return this;
+  }
+
+  /** Attach related rows from another table. */
+  include(include: NonNullable<QueryRequest['include']>[number]): this {
+    this.includeList.push(include);
+    return this;
+  }
+
+  /** Return the total count of matching rows (ignores limit/offset). */
+  countTotal(): this {
+    this.countTotalVal = true;
+    return this;
+  }
+
+  /** Return the planner's cost + plan summary alongside the rows. */
+  explain(): this {
+    this.explainVal = true;
+    return this;
+  }
+
+  /** Execute the query. */
+  async execute<T = Record<string, unknown>>(): Promise<QueryResult<T>> {
+    const req: QueryRequest = {
+      ...(this.selectCols?.length ? { select: this.selectCols } : {}),
+      ...(this.filters.length ? { filters: this.filters } : {}),
+      ...(this.orGroups.length ? { or: this.orGroups } : {}),
+      ...(this.orderCols.length ? { orderBy: this.orderCols } : {}),
+      ...(this.includeList?.length ? { include: this.includeList } : {}),
+      ...(this.limitVal !== undefined ? { limit: this.limitVal } : {}),
+      ...(this.offsetVal !== undefined ? { offset: this.offsetVal } : {}),
+      ...(this.countTotalVal ? { countTotal: true } : {}),
+      ...(this.explainVal ? { explain: true } : {}),
+    };
+
+    return this.http.request<QueryResult<T>>(`/v1/db/${this.table}/query`, {
+      method: 'POST',
+      body: req,
+    });
+  }
+}

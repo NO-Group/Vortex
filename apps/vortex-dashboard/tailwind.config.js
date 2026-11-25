@@ -1,60 +1,79 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        // N.O Group — AMOLED Pure Black Canvas
+        // ── N.O Group brand tokens (Pure Dark Canvas Edition) ──
         canvas: '#000000',
         surface: '#090C10',
-        border: '#161B22',
-        // 6-stop gradient palette
-        anchor: '#004BFF',
-        iridescent: '#A38CFF',
-        coral: '#FFA1C5',
-        cyber: '#00D2FF',
-        neon: '#00E6A6',
-        tech: '#1BFF6B',
-        // Interactive accents
-        focus: '#3379FF',
-        success: '#00FF66',
+        stroke: '#161B22',
+        spectrum: {
+          blue: '#004BFF',
+          lavender: '#A38CFF',
+          coral: '#FFA1C5',
+          cyan: '#00D2FF',
+          mint: '#00E6A6',
+          green: '#1BFF6B',
+        },
+        interactive: {
+          focus: '#3379FF',
+          success: '#00FF66',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-      },
-      animation: {
-        'vortex-spin': 'vortexSpin 20s linear infinite',
-        'glow-pulse': 'glowPulse 3s ease-in-out infinite',
-        'shimmer': 'shimmer 2s linear infinite',
-        'fade-in': 'fadeIn 0.6s ease-out',
-        'slide-up': 'slideUp 0.5s ease-out',
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SF Mono',
+          'JetBrains Mono',
+          'Menlo',
+          'Consolas',
+          'monospace',
+        ],
       },
       keyframes: {
-        vortexSpin: {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
-        },
-        glowPulse: {
-          '0%, 100%': { opacity: '0.6' },
-          '50%': { opacity: '1' },
-        },
         shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
         },
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+        'grid-drift': {
+          '0%': { backgroundPosition: '0 0, 0 0' },
+          '100%': { backgroundPosition: '40px 40px, 40px 40px' },
         },
-        slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(20px)' },
+        'ripple-pulse': {
+          '0%': { transform: 'scale(0.6)', opacity: '0.35' },
+          '80%': { transform: 'scale(2.4)', opacity: '0' },
+          '100%': { transform: 'scale(2.4)', opacity: '0' },
+        },
+        'status-pulse': {
+          '0%, 100%': { opacity: '1', boxShadow: '0 0 0 0 currentColor' },
+          '50%': { opacity: '0.75', boxShadow: '0 0 8px 1px currentColor' },
+        },
+        'glow-breathe': {
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '0.85' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
-      backdropFilter: {
-        'glass': 'blur(12px)',
-        'glass-lg': 'blur(24px)',
+      animation: {
+        shimmer: 'shimmer 1.6s linear infinite',
+        'grid-drift': 'grid-drift 60s linear infinite',
+        'ripple-pulse': 'ripple-pulse 7s ease-out infinite',
+        'status-pulse': 'status-pulse 2s ease-in-out infinite',
+        'glow-breathe': 'glow-breathe 8s ease-in-out infinite',
+        'fade-in': 'fade-in 0.35s ease-out both',
       },
     },
   },

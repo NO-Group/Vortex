@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type AuthUser } from '../api';
+import { api, type AuthSession } from '../lib/api';
 
 /**
  * Vortex — Auth Modal.
@@ -18,7 +18,7 @@ export function AuthModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: AuthUser) => void;
+  onAuthSuccess: (session: AuthSession) => void;
 }) {
   const [mode, setMode] = useState<Mode>('login');
   const [loading, setLoading] = useState(false);
@@ -36,11 +36,18 @@ export function AuthModal({
     setLoading(true);
     try {
       if (mode === 'signup') {
-        const res = await api.signup(form.email, form.password, form.name);
-        onAuthSuccess(res.user);
+        const res = await api.post<AuthSession>('/v1/auth/signup', {
+          email: form.email,
+          password: form.password,
+          metadata: { name: form.name },
+        });
+        onAuthSuccess(res);
       } else {
-        const res = await api.login(form.email, form.password);
-        onAuthSuccess(res.user);
+        const res = await api.post<AuthSession>('/v1/auth/login', {
+          email: form.email,
+          password: form.password,
+        });
+        onAuthSuccess(res);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -60,7 +67,7 @@ export function AuthModal({
       {/* Modal card */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong relative w-full max-w-md p-8 sm:p-10 shadow-2xl shadow-black/80 animate-slide-up"
+        className="glass-strong relative w-full max-w-md p-8 sm:p-10 shadow-2xl shadow-black/80 animate-fade-in"
       >
         {/* Close button */}
         <button
@@ -134,7 +141,7 @@ export function AuthModal({
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <button type="submit" disabled={loading} className="btn-kinetic w-full">
             {loading ? (
               <>
                 <Spinner />
@@ -163,14 +170,14 @@ export function AuthModal({
           {mode === 'login' ? (
             <>
               No account?{' '}
-              <button onClick={() => { setMode('signup'); setError(null); }} className="font-medium text-focus hover:text-cyber">
+              <button onClick={() => { setMode('signup'); setError(null); }} className="font-medium text-interactive-focus hover:text-spectrum-cyan">
                 Sign up
               </button>
             </>
           ) : (
             <>
               Already have an account?{' '}
-              <button onClick={() => { setMode('login'); setError(null); }} className="font-medium text-focus hover:text-cyber">
+              <button onClick={() => { setMode('login'); setError(null); }} className="font-medium text-interactive-focus hover:text-spectrum-cyan">
                 Sign in
               </button>
             </>
@@ -184,22 +191,7 @@ export function AuthModal({
 /* ── Sub-components ───────────────────────────────────────────────────────── */
 
 function VortexLogo() {
-  return (
-    <svg className="vortex-logo h-14 w-14 animate-vortex-spin" viewBox="0 0 100 100" fill="none">
-      <defs>
-        <linearGradient id="auth-logo" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#004BFF" />
-          <stop offset="40%" stopColor="#A38CFF" />
-          <stop offset="70%" stopColor="#00D2FF" />
-          <stop offset="100%" stopColor="#00E6A6" />
-        </linearGradient>
-      </defs>
-      <circle cx="50" cy="50" r="42" stroke="url(#auth-logo)" strokeWidth="5" opacity="0.8" />
-      <circle cx="50" cy="50" r="28" stroke="url(#auth-logo)" strokeWidth="4" opacity="0.5" />
-      <circle cx="50" cy="50" r="14" stroke="url(#auth-logo)" strokeWidth="3" opacity="0.4" />
-      <circle cx="50" cy="50" r="6" fill="url(#auth-logo)" />
-    </svg>
-  );
+  return <img src="/logo.png" alt="Vortex" className="h-14 w-14" />;
 }
 
 function ModeToggle({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
@@ -209,7 +201,7 @@ function ModeToggle({ active, onClick, label }: { active: boolean; onClick: () =
       className={`
         flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-300
         ${active
-          ? 'bg-gradient-to-r from-anchor/20 to-cyber/20 text-white border border-white/10 shadow-[0_0_20px_rgba(0,75,255,0.15)]'
+          ? 'bg-gradient-to-r from-spectrum-blue/20 to-spectrum-cyan/20 text-white border border-white/10 shadow-[0_0_20px_rgba(0,75,255,0.15)]'
           : 'text-white/40 hover:text-white/70 border border-transparent'
         }
       `}
@@ -234,7 +226,7 @@ function Field({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="glass-input w-full text-sm"
+        className="input-vortex w-full text-sm"
       />
     </div>
   );
