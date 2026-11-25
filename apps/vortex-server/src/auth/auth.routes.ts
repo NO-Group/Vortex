@@ -52,9 +52,10 @@ async function deliverWebhook(
   ctx: AppContext,
   event: string,
   data: Record<string, unknown>,
+  appId?: string | null,
 ): Promise<void> {
   try {
-    await getWebhookService(ctx).deliver(event, data);
+    await getWebhookService(ctx).deliver(event, data, appId);
   } catch {
     // Webhook delivery failures must never break the request
   }
@@ -115,7 +116,7 @@ export function createAuthRoutes(ctx: AppContext): Router {
         'user', session.user.id, { email: session.user.email });
       void deliverWebhook(ctx, 'auth.signup', {
         user: session.user,
-      });
+      }, req.tenant?.id ?? null);
       res.status(201).json(session);
     } catch (err) {
       next(err);

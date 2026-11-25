@@ -22,14 +22,14 @@ export function createPublicAppRoutes(ctx: AppContext): Router {
 
       const file = await service.readPublic(name, pathParam);
       if (!file) {
-        const safeName = name.replace(/[<>&"']/g, '');
+        // Generic 404 — do NOT reveal the app name (info disclosure).
         res
           .status(404)
           .type('html')
           .send(
             `<!doctype html><html><body style="background:#000;color:#8B949E;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
              <div style="text-align:center"><div style="font-size:48px">🌪️</div>
-             <p>App <b style="color:#fff">${safeName}</b> not found or still deploying.</p></div></body></html>`,
+             <p>App not found or still deploying.</p></div></body></html>`,
           );
         return;
       }

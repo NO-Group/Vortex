@@ -20,15 +20,30 @@ export function createApp(ctx: AppContext): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  // Behind Caddy/nginx/preview proxies: trust X-Forwarded-* (presign auto,
-  // real client IPs).
-  app.set('trust proxy', 1);
+  // Behind Cloudflare → Caddy. Trust exactly 2 proxy hops:
+  // Cloudflare (hop 1) → Caddy (hop 2) → Engine.
+  // This prevents X-Forwarded-For spoofing by direct clients.
+  app.set('trust proxy', 2);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(securityHeaders());
   app.use(compression());
   app.use(
     cors({
-      origin: ctx.env.corsOrigins === '*' ? true : ctx.env.corsOrigins,
+      // In production, CORS_ORIGINS must be explicitly set to your domain.
+      // If unset or set to '*', deny all cross-origin requests (fail closed).
+      origin: (origin, callback) => {
+        const allowed = ctx.env.corsOrigins;
+        if (!allowed || allowed === '*') {
+          // No explicit CORS configuration — deny all cross-origin requests.
+          // Same-origin requests (no Origin header) are still allowed by Express.
+          return callback(null, origin === undefined);
+        }
+        // allowed is string[] here
+        if (origin && allowed.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
     }),
   );
 
@@ -52,6 +67,15 @@ export function createApp(ctx: AppContext): Express {
     standardHeaders: true,
     legacyHeaders: false,
   });
+  // Public storage reads (especially image transforms with sharp) are
+  // CPU-intensive — rate limit to prevent resource exhaustion.
+  const publicStorageLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 60, // 60 public storage requests per IP per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'rate_limit_exceeded', message: 'Too many storage requests. Try again later.' },
+  });
 
   // Raw body capture for storage/app uploads MUST run before the JSON parser
   // so binary/JSON file payloads land intact instead of being re-serialized.
@@ -62,11 +86,11 @@ export function createApp(ctx: AppContext): Express {
   app.use(express.json({ limit: '10mb' }));
 
   // Liveness probe (unauthenticated, load-balancer friendly).
+  // Does NOT expose version — prevents version scanning by attackers.
   app.get('/healthz', (_req, res) => {
     res.json({
       status: 'ok',
       engine: 'vortex',
-      version: '0.1.0',
       realtime: {
         connections: ctx.hub.connectionCount,
       },
@@ -74,14 +98,23 @@ export function createApp(ctx: AppContext): Express {
   });
 
   // Serve the Vortex Notes showcase app for one-click deploy from the console.
+  // Path is hardcoded and validated against containment to prevent directory
+  // traversal if this handler is ever parameterized in the future.
   app.get('/api/showcase/index.html', async (_req, res) => {
     try {
       const showcaseDir = path.resolve(
         path.dirname(fileURLToPath(import.meta.url)),
         '../../vortex-showcase/public',
       );
+      const targetFile = path.join(showcaseDir, 'index.html');
+      // Validate the resolved path is within the showcase directory
+      const resolved = path.resolve(targetFile);
+      if (!resolved.startsWith(showcaseDir + path.sep)) {
+        res.status(403).type('text').send('Forbidden');
+        return;
+      }
       const html = await import('node:fs/promises').then((fs) =>
-        fs.readFile(path.join(showcaseDir, 'index.html'), 'utf-8'),
+        fs.readFile(resolved, 'utf-8'),
       );
       res.type('text/html').send(html);
     } catch {
@@ -102,9 +135,10 @@ export function createApp(ctx: AppContext): Express {
   app.use('/functions', createPublicFunctionRoutes(ctx));
 
   // Anonymous reads for public buckets: /v1/storage/public/<bucket>/*
+  // Rate-limited — image transforms invoke sharp (CPU-intensive).
   // (mounted via the api router would require auth middleware context — kept
   // here as its own family for a clean public surface.)
-  app.use('/v1/storage/public', createPublicStorageRoutes(ctx));
+  app.use('/v1/storage/public', publicStorageLimiter, createPublicStorageRoutes(ctx));
 
   // ── The console: single-process deploys serve the built dashboard ──────
   // (dev keeps using Vite; SERVE_CONSOLE=false disables this entirely.)

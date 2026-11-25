@@ -50,9 +50,10 @@ async function deliverWebhook(
   ctx: AppContext,
   event: string,
   data: Record<string, unknown>,
+  appId?: string | null,
 ): Promise<void> {
   try {
-    await getWebhookService(ctx).deliver(event, data);
+    await getWebhookService(ctx).deliver(event, data, appId);
   } catch {
     // Webhook delivery failures must never break the request
   }
@@ -161,7 +162,7 @@ export function createDbRoutes(ctx: AppContext): Router {
         table: req.params.table,
         rows: result.rows,
         count: result.count,
-      });
+      }, req.tenant?.id ?? null);
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -184,7 +185,7 @@ export function createDbRoutes(ctx: AppContext): Router {
         table: req.params.table,
         rows: result.rows,
         count: result.count,
-      });
+      }, req.tenant?.id ?? null);
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -207,7 +208,7 @@ export function createDbRoutes(ctx: AppContext): Router {
         rows: result.rows,
         count: result.count,
         patch: req.body.patch,
-      });
+      }, req.tenant?.id ?? null);
       res.json(result);
     } catch (err) {
       next(err);
@@ -223,7 +224,7 @@ export function createDbRoutes(ctx: AppContext): Router {
       void deliverWebhook(ctx, 'database.delete', {
         table: req.params.table,
         count: result.count,
-      });
+      }, req.tenant?.id ?? null);
       res.json(result);
     } catch (err) {
       next(err);
@@ -272,7 +273,13 @@ export function createDbRoutes(ctx: AppContext): Router {
         'updated_at timestamptz default now()',
       ];
 
+      // Validate column names to prevent SQL injection through identifier injection.
+      const IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
       for (const col of req.body.columns) {
+        if (!IDENTIFIER_RE.test(col.name)) {
+          throw ApiError.badRequest(`Invalid column name: "${col.name}"`);
+        }
         const type = col.type === 'jsonb' ? 'jsonb'
           : col.type === 'integer' ? 'integer'
           : col.type === 'boolean' ? 'boolean'

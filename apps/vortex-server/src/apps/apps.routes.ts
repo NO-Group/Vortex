@@ -24,9 +24,10 @@ async function deliverWebhook(
   ctx: AppContext,
   event: string,
   data: Record<string, unknown>,
+  appId?: string | null,
 ): Promise<void> {
   try {
-    await getWebhookService(ctx).deliver(event, data);
+    await getWebhookService(ctx).deliver(event, data, appId);
   } catch {
     // Webhook delivery failures must never break the request
   }
@@ -54,7 +55,7 @@ export function createAppsRoutes(ctx: AppContext): Router {
       const app = await service.create(req.auth!.sub, req.body.name, req.body.title);
       void deliverWebhook(ctx, 'apps.deploy', {
         app: { name: app.name, title: app.title },
-      });
+      }, req.tenant?.id ?? null);
       res.status(201).json({ app });
     } catch (err) {
       next(err);
