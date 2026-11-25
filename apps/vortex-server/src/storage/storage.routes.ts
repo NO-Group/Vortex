@@ -50,9 +50,10 @@ async function deliverWebhook(
   ctx: AppContext,
   event: string,
   data: Record<string, unknown>,
+  appId?: string | null,
 ): Promise<void> {
   try {
-    await getWebhookService(ctx).deliver(event, data);
+    await getWebhookService(ctx).deliver(event, data, appId);
   } catch {
     // Webhook delivery failures must never break the request
   }
@@ -111,12 +112,35 @@ export function createStorageRoutes(ctx: AppContext): Router {
   /** POST /v1/storage/presign-download — get a direct-download URL. */
   router.post('/presign-download', auth, validateBody(presignDownloadSchema), async (req, res, next) => {
     try {
-      const presigned = await driver.presignDownload(req.body.key, req.body.expiresIn ?? 900, baseFor(req));
+      const key = req.body.key as string;
+      // Verify ownership before presigning. If the object isn't in the
+      // registry (meta is null), deny access — it could be an unregistered
+      // object that any authenticated user could otherwise download by guessing.
+      const meta = await registry.find(key);
+      if (!meta) {
+        if (req.auth!.role !== 'admin') {
+          throw ApiError.forbidden('Object not found or access denied');
+        }
+      } else if (meta.ownerId && meta.ownerId !== req.auth!.sub && req.auth!.role !== 'admin') {
+        throw ApiError.forbidden('You do not own this object');
+      }
+      const presigned = await driver.presignDownload(key, req.body.expiresIn ?? 900, baseFor(req));
       res.json(presigned);
     } catch (err) {
       next(err);
     }
   });
+
+  /** Content types that can execute in a browser context — blocked on upload
+   *  unless the bucket is explicitly configured as a "raw" bucket. */
+  const DANGEROUS_CONTENT_TYPES = new Set([
+    'text/html',
+    'image/svg+xml',
+    'application/javascript',
+    'text/javascript',
+    'application/x-javascript',
+    'text/vbscript',
+  ]);
 
   /** POST /v1/storage/upload — proxied upload (auth + owner registration). */
   router.post(
@@ -129,7 +153,22 @@ export function createStorageRoutes(ctx: AppContext): Router {
         if (!key) throw ApiError.badRequest('Missing "key" query parameter');
         await bucketService.assertKeyAllowed(key);
         const contentType = req.header('content-type') ?? 'application/octet-stream';
+
+        // Block content types that can execute in a browser (stored XSS /
+        // malicious script hosting). Admins bypass this check.
+        if (req.auth!.role !== 'admin') {
+          const baseType = (contentType.split(';')[0] ?? contentType).trim().toLowerCase();
+          if (DANGEROUS_CONTENT_TYPES.has(baseType)) {
+            throw ApiError.badRequest(
+              `Content type "${baseType}" is not allowed for uploads. ` +
+              'Use a data format like JSON, plain text, or binary.',
+            );
+          }
+        }
+
         const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+        // req.body is guaranteed to be a Buffer after the raw() middleware
+        const bodyBuffer = body;
 
         const result = await driver.put({ key, body, contentType });
         const meta = await registry.record({
@@ -146,7 +185,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
           size: meta.size,
           contentType: meta.contentType,
           ownerId: meta.ownerId,
-        });
+        }, req.tenant?.id ?? null);
         res.status(201).json({ object: meta });
       } catch (err) {
         next(err);
@@ -269,7 +308,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       void deliverWebhook(ctx, 'storage.delete', {
         key,
         ownerId: meta?.ownerId ?? null,
-      });
+      }, req.tenant?.id ?? null);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -304,7 +343,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
           void deliverWebhook(ctx, 'storage.delete', {
             key,
             ownerId: meta.ownerId ?? null,
-          });
+          }, req.tenant?.id ?? null);
           deleted.push(key);
         } catch (err) {
           failed.push({ key, error: (err as Error).message });

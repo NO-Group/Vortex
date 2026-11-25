@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { raw } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { ApiError } from '../errors.js';
@@ -33,9 +34,10 @@ async function deliverWebhook(
   ctx: AppContext,
   event: string,
   data: Record<string, unknown>,
+  appId?: string | null,
 ): Promise<void> {
   try {
-    await getWebhookService(ctx).deliver(event, data);
+    await getWebhookService(ctx).deliver(event, data, appId);
   } catch {
     // Webhook delivery failures must never break the request
   }
@@ -70,7 +72,7 @@ export function createFunctionsRoutes(ctx: AppContext): Router {
       );
       void deliverWebhook(ctx, 'functions.deploy', {
         function: { name: fn.name, title: fn.title, status: fn.status },
-      });
+      }, req.tenant?.id ?? null);
       res.status(201).json({ function: fn });
     } catch (err) {
       next(err);
@@ -149,7 +151,11 @@ export function createPublicFunctionRoutes(ctx: AppContext): Router {
   const queryService = new QueryService(ctx.db, new RbacService(ctx.db), ctx.bus);
   const quota = new FunctionQuota();
 
-  router.all('/:name', async (req, res, next) => {
+  // Body size limit for function invocations — prevents memory exhaustion
+  // from large payloads sent to user-defined functions.
+  const bodyParser = raw({ type: '*/*', limit: '5mb' });
+
+  router.all('/:name', bodyParser, async (req, res, next) => {
     try {
       const row = await service.getForInvoke(String(req.params.name ?? ''));
       if (!row || row.status !== 'active') {
@@ -189,8 +195,15 @@ export function createPublicFunctionRoutes(ctx: AppContext): Router {
         user,
       };
 
-      // Service-level (admin-scoped) helpers — functions are operator code.
-      const serviceActor = { userId: user?.sub ?? row.owner_id ?? 'system', role: 'admin' };
+      // Service-level helpers — functions get scoped to their owner's data.
+      // Anonymous callers get a restricted actor (not admin) so they cannot
+      // read/write arbitrary tables. The function owner retains access to
+      // their own data; admins retain full access.
+      const isAdminCaller = user?.role === 'admin';
+      const serviceActor = {
+        userId: user?.sub ?? row.owner_id ?? 'system',
+        role: isAdminCaller ? 'admin' : 'user',
+      };
       const sandboxGlobals: FnSandboxGlobals = {
         data: {
           query: (table, q = {}) => queryService.select(serviceActor, table, q as never),

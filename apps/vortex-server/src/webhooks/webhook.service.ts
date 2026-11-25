@@ -105,15 +105,34 @@ export class WebhookService {
       .limit(limit);
   }
 
-  /** Deliver an event to all matching webhooks. */
+  /**
+   * Deliver an event to all matching webhooks.
+   * When an appId is provided, only webhooks owned by that app's users
+   * (or globally active webhooks with app_id = null) receive the event.
+   * This prevents cross-tenant event leakage.
+   */
   async deliver(
     event: string,
     payload: Record<string, unknown>,
+    appId?: string | null,
   ): Promise<void> {
     const eventType = event.split('.')[0]; // e.g. 'database' from 'database.insert'
-    const webhooks = await this.db<WebhookRow>('vortex_webhooks')
-      .where({ active: true })
-      .select('*');
+
+    let webhooks: WebhookRow[];
+    if (appId) {
+      // Scope to the app: webhooks owned by this app's users, plus global
+      // webhooks that aren't bound to a specific app.
+      webhooks = await this.db<WebhookRow>('vortex_webhooks')
+        .where({ active: true })
+        .where((q) => {
+          q.where('app_id', appId).orWhereNull('app_id');
+        })
+        .select('*');
+    } else {
+      webhooks = await this.db<WebhookRow>('vortex_webhooks')
+        .where({ active: true })
+        .select('*');
+    }
 
     for (const webhook of webhooks) {
       const subscribed = webhook.events.split(',').some((e) => {

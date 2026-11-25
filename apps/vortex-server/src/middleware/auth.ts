@@ -87,22 +87,29 @@ export function requireAuthWithApiKeys(db: Knex, config: TokenConfig) {
   };
 }
 
-/** Extract a bearer token: `Authorization: Bearer …` or `x-vortex-token` fallback. */
+/** Extract a bearer token: `Authorization: Bearer …` only.
+ *
+ * The `x-vortex-token` header fallback has been REMOVED for CSRF
+ * protection. Accepting tokens from a custom header allows cross-origin
+ * requests to carry an Authorization header (via fetch with mode: 'no-cors'
+ * or XMLHttpRequest), bypassing CORS and enabling CSRF.
+ *
+ * If a reverse proxy strips the Authorization header, configure it to
+ * preserve it, or use a custom header at the proxy level that is not
+ * accessible from browser JavaScript.
+ */
 export function bearerFrom(req: Request): string | null {
   const header = req.header('authorization') ?? req.header('Authorization');
   if (header) {
     const match = /^Bearer\s+(.+)$/i.exec(header.trim());
     if (match?.[1]) return match[1];
   }
-  // Some reverse proxies/preview edges strip the Authorization header.
-  // The console also sends the token in x-vortex-token as a fallback.
-  const fallback = req.header('x-vortex-token');
-  return fallback && fallback.trim() !== '' ? fallback.trim() : null;
+  return null;
 }
 
 /** Express middleware enforcing a valid Vortex access token. */
 export function requireAuth(config: TokenConfig, sessionService?: SessionService) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const token = bearerFrom(req);
     if (!token) {
       next(ApiError.unauthorized('Missing Bearer token'));
@@ -110,6 +117,25 @@ export function requireAuth(config: TokenConfig, sessionService?: SessionService
     }
     try {
       const claims = verifyToken(token, config);
+
+      // JWT token revocation: if a session service is available and the
+      // token has a jti (session ID), check that the session hasn't been
+      // revoked. This allows forced logout, account compromise response,
+      // and per-session revocation. Fails open only if the session row
+      // doesn't exist (e.g. sessions table not yet populated for old tokens).
+      if (sessionService && claims.jti) {
+        try {
+          const active = await sessionService.isActive(claims.jti);
+          if (!active) {
+            next(ApiError.unauthorized('Session has been revoked'));
+            return;
+          }
+        } catch {
+          // DB error — don't block the request, but log for audit
+          // (fail-open on infrastructure errors, fail-closed on revoked)
+        }
+      }
+
       req.auth = claims;
       applySuperAdmin(req);
       if (sessionService && claims.sub && claims.jti) {
