@@ -44,9 +44,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$REPO_ROOT"
 
-# ── Step 1: Swap file (prevents OOM crashes) ────────────────────────────────
-echo -e "${GREEN}[1/8] Configuring swap file...${NC}"
-SWAP_SIZE="${SWAP_SIZE:-4G}"
+# ── Step 1: Swap file + system tuning (prevents OOM crashes on 2GB VPS) ────
+echo -e "${GREEN}[1/9] Configuring swap file + system tuning...${NC}"
+SWAP_SIZE="${SWAP_SIZE:-6G}"
 SWAP_FILE="/swapfile"
 
 if [[ -f "$SWAP_FILE" ]]; then
@@ -63,13 +63,76 @@ else
     echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
   fi
 
+  echo "  ✓ Swap enabled: $SWAP_SIZE at $SWAP_FILE"
+fi
+
+# ── Swappiness tuning: use swap earlier on low-RAM systems ──────────────────
+# Default vm.swappiness=60 means the system prefers RAM over swap.
+# On a 2GB VPS, we want to swap earlier to avoid OOM kills.
+echo "  Tuning swappiness for 2GB VPS..."
+if ! grep -q "vm.swappiness" /etc/sysctl.d/99-vortex.conf; then
+  cat > /etc/sysctl.d/99-vortex.conf << 'SYSCTL'
+# Vortex system tuning for low-RAM VPS
+vm.swappiness = 10
+vm.overcommit_memory = 0
+vm.min_free_kbytes = 65536
+SYSCTL
+  sysctl --system
+  echo "  ✓ Swappiness set to 10 (swap early to protect against OOM)"
+fi
+
+# ── OOM killer preference: protect critical services ────────────────────────
+echo "  Configuring OOM killer protection..."
+if ! grep -q "oom_score_adj" /etc/systemd/system/docker.service.d/oom-protection.conf 2>/dev/null; then
+  mkdir -p /etc/systemd/system/docker.service.d
+  cat > /etc/systemd/system/docker.service.d/oom-protection.conf << 'OOM'
+# Protect Docker daemon from OOM killer
+[Service]
+OOMScoreAdjust=-500
+OOM
+  systemctl daemon-reload
+  echo "  ✓ Docker daemon protected from OOM killer"
+fi
+
+# ── Log rotation: prevent disk fill from logs ──────────────────────────────
+echo "  Setting up log rotation..."
+if ! command -v logrotate &>/dev/null; then
+  apt-get install -y logrotate
+fi
+
+if ! grep -q "vortex" /etc/logrotate.d/vortex 2>/dev/null; then
+  cat > /etc/logrotate.d/vortex << 'LOGROTATE'
+/var/log/caddy/vortex.log /var/log/syslog {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+}
+LOGROTATE
+  echo "  ✓ Log rotation configured (7 days, compressed)"
+fi
+
+# ── Cron: daily Docker cleanup + backup reminders ───────────────────────────
+echo "  Setting up maintenance cron jobs..."
+if ! grep -q "vortex-maintenance" /etc/crontab; then
+  cat >> /etc/crontab << 'CRON'
+# Vortex maintenance (runs as root)
+0 3 * * * root /usr/bin/docker system prune -af --filter "until=24h" >/dev/null 2>&1
+0 4 * * * root /opt/Vortex/scripts/backup.sh >/dev/null 2>&1
+CRON
+  echo "  ✓ Cron jobs: Docker cleanup (3am) + backups (4am)"
+fi
+
   SWAP_TOTAL=$(swapon --show=SWAPSIZE "$SWAP_FILE" 2>/dev/null || echo "$SWAP_SIZE")
   echo "  ✓ Swap enabled: $SWAP_TOTAL at $SWAP_FILE"
 fi
 
 # ── Step 2: Install Docker ──────────────────────────────────────────────────
 if ! command -v docker &>/dev/null; then
-  echo -e "${GREEN}[2/8] Installing Docker + Docker Compose...${NC}"
+  echo -e "${GREEN}[2/9] Installing Docker + Docker Compose...${NC}"
   apt-get update
   apt-get install -y ca-certificates curl gnupg
   install -m 0755 -d /etc/apt/keyrings
@@ -81,12 +144,12 @@ if ! command -v docker &>/dev/null; then
   systemctl enable docker
   systemctl start docker
 else
-  echo -e "${GREEN}[2/8] Docker already installed${NC}"
+  echo -e "${GREEN}[2/9] Docker already installed${NC}"
 fi
 
 # ── Step 3: Install Caddy ───────────────────────────────────────────────────
 if ! command -v caddy &>/dev/null; then
-  echo -e "${GREEN}[3/8] Installing Caddy reverse proxy...${NC}"
+  echo -e "${GREEN}[3/9] Installing Caddy reverse proxy...${NC}"
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
   curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | tee /etc/apt/sources.list.d/caddy-stable.list
@@ -94,11 +157,11 @@ if ! command -v caddy &>/dev/null; then
   apt-get install -y caddy
   systemctl enable caddy
 else
-  echo -e "${GREEN}[3/8] Caddy already installed${NC}"
+  echo -e "${GREEN}[3/9] Caddy already installed${NC}"
 fi
 
 # ── Step 4: Generate secrets ────────────────────────────────────────────────
-echo -e "${GREEN}[4/8] Generating secure secrets...${NC}"
+echo -e "${GREEN}[4/9] Generating secure secrets...${NC}"
 
 JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))" 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(48))")
 PG_PASSWORD=$(node -e "console.log(require('crypto').randomBytes(16).toString('hex'))" 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(16))")
@@ -113,7 +176,7 @@ echo "  Encryption key:    ${ENCRYPTION_KEY:0:16}... (32 bytes)"
 echo "  Shield key:        ${SHIELD_KEY:0:16}... (32 bytes)"
 
 # ── Step 5: Create .env with Cloudflare R2 ──────────────────────────────────
-echo -e "${GREEN}[5/8] Creating production .env (Cloudflare R2 storage)...${NC}"
+echo -e "${GREEN}[5/9] Creating production .env (Cloudflare R2 storage)...${NC}"
 
 # ── Cloudflare R2 + SMTP credentials (pre-configured) ────────────────────────
 R2_ACCOUNT_ID="R2_ACCOUNT_PLACEHOLDER"
@@ -206,13 +269,13 @@ echo "  .env created at $REPO_ROOT/.env"
 export POSTGRES_PASSWORD="${PG_PASSWORD}"
 
 # ── Step 6: Build and start ─────────────────────────────────────────────────
-echo -e "${GREEN}[6/8] Building and starting services...${NC}"
+echo -e "${GREEN}[6/9] Building and starting services...${NC}"
 echo "  This may take 3-5 minutes on first build..."
 docker compose up -d --build
 echo "  Containers started"
 
 # ── Step 7: Wait for health ────────────────────────────────────────────────
-echo -e "${GREEN}[7/8] Waiting for services to become healthy...${NC}"
+echo -e "${GREEN}[7/9] Waiting for services to become healthy...${NC}"
 
 MAX_WAIT=60
 WAITED=0
@@ -235,7 +298,7 @@ else
 fi
 
 # ── Step 8: Admin user ─────────────────────────────────────────────────────
-echo -e "${GREEN}[8/8] Admin account setup${NC}"
+echo -e "${GREEN}[8/9] Admin account setup${NC}"
 echo ""
 echo -e "${BOLD}Create your first admin account:${NC}"
 echo -e "  ${CYAN}docker compose exec vortex-server npm run admin -- promote you@example.com${NC}"
