@@ -128,13 +128,14 @@ SMTP_USER="resend"
 SMTP_PASS="REPLACE_WITH_YOUR_RESEND_KEY"
 SMTP_URL="smtps://${SMTP_USER}:${SMTP_PASS}@${SMTP_HOST}:465"
 
-DOMAIN="${VORTEX_DOMAIN:-vortex.local}"
-PUBLIC_URL="${VORTEX_PUBLIC_URL:-http://localhost:8080}"
+DOMAIN="${VORTEX_DOMAIN:-vortex.no-group.org}"
+PUBLIC_URL="${VORTEX_PUBLIC_URL:-https://${DOMAIN}}"
 
 echo "  R2 Account ID:     $R2_ACCOUNT_ID"
 echo "  R2 Bucket:         $R2_BUCKET"
 echo "  R2 Endpoint:       $R2_ENDPOINT"
 echo "  SMTP:              $SMTP_HOST (Resend)"
+echo "  Domain:            $DOMAIN"
 
 cat > .env << EOF
 # ── Vortex Production Configuration ──────────────────────────────────────────
@@ -184,6 +185,11 @@ REALTIME_HEARTBEAT_MS=30000
 VAPID_PUBLIC_KEY=${VAPID_PUB}
 VAPID_PRIVATE_KEY=${VAPID_PRIV}
 VAPID_SUBJECT=noreply@${DOMAIN}
+
+# FCM (Firebase Cloud Messaging) — add your Firebase credentials below
+# Get these from: console.firebase.google.com > Project Settings > Service Accounts
+FCM_PROJECT_ID=
+FCM_PRIVATE_KEY=
 
 # Query governance
 SLOW_QUERY_MS=250
