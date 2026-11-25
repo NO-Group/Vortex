@@ -14,6 +14,15 @@ import {
   parseUploadChecksum,
 } from './tus.types.js';
 
+/** Content types that can execute in a browser context. */
+const DANGEROUS_CONTENT_TYPES = new Set([
+  'text/html',
+  'image/svg+xml',
+  'application/javascript',
+  'text/javascript',
+  'application/x-javascript',
+  'text/vbscript',
+]);
 let webhookService: WebhookService | null = null;
 
 function getWebhookService(ctx: AppContext): WebhookService {
@@ -76,6 +85,17 @@ export function createTusRoutes(ctx: AppContext): Router {
         throw ApiError.badRequest('Upload exceeds maximum size (1 GB)');
       }
 
+      // Block content types that can execute in a browser (stored XSS /
+      // malicious script hosting). Admins bypass this check.
+      if (contentType && req.auth!.role !== 'admin') {
+        const baseType = (contentType.split(';')[0] ?? contentType).trim().toLowerCase();
+        if (DANGEROUS_CONTENT_TYPES.has(baseType)) {
+          throw ApiError.badRequest(
+            `Content type "${baseType}" is not allowed for uploads. ` +
+            'Use a data format like JSON, plain text, or binary.',
+          );
+        }
+      }
       const metadata = parseUploadMetadata(uploadMetadata);
       const checksum = parseUploadChecksum(checksumHeader);
 

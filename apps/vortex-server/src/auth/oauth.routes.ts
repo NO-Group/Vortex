@@ -94,11 +94,36 @@ export function createOAuthRoutes(ctx: AppContext): Router {
 
       // For browser-based flows, redirect to the console with the token.
       // For API clients, return the session as JSON.
+      // The redirect target MUST be validated against an allowlist to
+      // prevent open-redirect attacks that leak the session token to a
+      // malicious site.
       const redirect = String(req.query.redirect ?? '');
-      if (redirect) {
-        const sep = redirect.includes('?') ? '&' : '?';
-        res.redirect(302, `${redirect}${sep}vortex_token=${encodeURIComponent(result.session.token)}`);
-        return;
+      const allowedRedirectBases = (ctx.env as { consoleUrl?: string }).consoleUrl
+        ? [(ctx.env as { consoleUrl?: string }).consoleUrl!]
+        : [];
+
+      if (redirect && allowedRedirectBases.length > 0) {
+        let safeRedirect: URL | null = null;
+        try {
+          safeRedirect = new URL(redirect, ctx.env.publicAppUrl);
+        } catch {
+          safeRedirect = null;
+        }
+        if (safeRedirect) {
+          const isAllowed = allowedRedirectBases.some((base) => {
+            try {
+              const baseUrl = new URL(base);
+              return safeRedirect.origin === baseUrl.origin;
+            } catch {
+              return false;
+            }
+          });
+          if (isAllowed) {
+            const sep = safeRedirect.search ? '&' : '?';
+            res.redirect(302, `${safeRedirect.origin}${safeRedirect.pathname}${safeRedirect.search}${sep}vortex_token=${encodeURIComponent(result.session.token)}`);
+            return;
+          }
+        }
       }
 
       res.status(200).json(result);

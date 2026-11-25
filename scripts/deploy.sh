@@ -256,12 +256,22 @@ VAPID_SUBJECT=noreply@${DOMAIN}
 FCM_PROJECT_ID=
 FCM_PRIVATE_KEY=
 
-# ── Paystack ────────────────────────────────────────────────────────────────
-# Public key from ACI (African-Children-Initiative) repo
-# Secret key: get from dashboard.paystack.com > Settings > Developer
+# ── Billing & Payments ─────────────────────────────────────────────────────
+# Native payments module — supports Paystack, Flutterwave, Stripe
+BILLING_GATEWAY=paystack
+BILLING_ENABLED=true
+BILLING_CURRENCY=ngn
+
+# Paystack — secret key from dashboard.paystack.com > Settings > Developer
 PAYSTACK_PUBLIC_KEY=pk_live_1d48c7981d1abf7396474499a369ab7bef17740a
 PAYSTACK_SECRET_KEY=
 
+# Flutterwave — secret key from dashboard.flutterwave.com > Settings > API Keys
+FLUTTERWAVE_SECRET_KEY=
+
+# Stripe — secret key from dashboard.stripe.com > Developers > API keys
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 # ── Super Admin Bypass ──────────────────────────────────────────────────────
 # Email that always has admin access, bypassing any paywall or role check.
 VORTEX_SUPER_ADMIN=n.ogroup@yahoo.com

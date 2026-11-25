@@ -61,12 +61,11 @@ export function securityHeaders() {
     // X-Permitted-Cross-Domain-Policies — restrict Adobe Flash/PDF cross-domain
     res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
 
-    // Cross-Origin Resource Sharing for API responses
-    res.setHeader('Access-Control-Allow-Origin', _req.get('origin') ?? '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Vortex-Token');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '86400');
+    // NOTE: CORS headers are intentionally NOT set here. They are handled by
+    // the `cors()` middleware in app.ts, which enforces an explicit allowlist
+    // (fail-closed). Setting `Access-Control-Allow-Origin: *` with
+    // `Access-Control-Allow-Credentials: true` here would allow any website
+    // to read authenticated cross-origin responses — a critical CORS bypass.
 
     // Remove server version disclosure
     res.removeHeader('X-Powered-By');
