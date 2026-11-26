@@ -35,6 +35,7 @@ export { Shield } from './shield.js';
 export { Sessions } from './sessions.js';
 export { PasswordSecurity } from './password-security.js';
 export { SecurityScore } from './security-score.js';
+export { Billing } from './billing.js';
 export { HttpClient, VortexApiError } from './http.js';
 
 export type {
@@ -68,6 +69,8 @@ export type {
   StorageProviderType, StorageObjectMetadata, PresignedUrlResult,
   MultipartPart,
   MultipartUploadInit, RenderParams, TransformResult, StorageEngineHealth,
+  BillingPlan, BillingTransaction, BillingSubscription, BillingCheckoutResult,
+  BillingStatus, UserBilling, CreatePlanInput, UpdatePlanInput, CheckoutInput,
 } from './types.js';
 
 export type { FilterOp } from './types.js';

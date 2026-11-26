@@ -32,3 +32,4 @@ Thumbs.db
 
 # Vortex runtime chunks
 .vortex-chunks/
+secrets.env

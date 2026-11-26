@@ -20,6 +20,7 @@ import '../services/biometric_service.dart';
 import '../services/chunked_upload_service.dart';
 import '../services/transformations_service.dart';
 import '../services/shield_service.dart';
+import '../services/billing_service.dart';
 import 'api_exception.dart';
 import 'jwt.dart';
 
@@ -55,6 +56,7 @@ class VortexClient {
   late final ChunkedUploadService chunkedUpload = ChunkedUploadService(this);
   late final TransformationsService transformations = TransformationsService(this);
   late final ShieldService shield = ShieldService(this);
+  late final BillingService billing = BillingService(this);
 
   String? _accessToken;
 
