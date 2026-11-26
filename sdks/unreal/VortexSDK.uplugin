@@ -1,0 +1,22 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "1.0.0",
+    "FriendlyName": "Vortex SDK",
+    "Description": "Vortex BaaS SDK for Unreal Engine — auth, database, storage, functions, billing",
+    "Category": "Programming",
+    "CreatedBy": "N.O Group",
+    "CreatedByURL": "https://vortex.no-group.org",
+    "DocURL": "https://vortex.no-group.org/docs",
+    "CanContainContent": false,
+    "IsBetaVersion": false,
+    "IsExperimentalVersion": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "VortexSDK",
+            "Type": "Runtime",
+            "LoadingPhase": "Default"
+        }
+    ]
+}

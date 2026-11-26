@@ -1,0 +1,24 @@
+{
+  "name": "@nogroup/vortex",
+  "version": "1.0.0",
+  "description": "Vortex BaaS — TypeScript/JavaScript SDK for Node, Web, and Edge",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["vortex", "baas", "backend", "sdk", "typescript", "javascript"],
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

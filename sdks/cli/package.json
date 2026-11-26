@@ -1,0 +1,18 @@
+{
+  "name": "@nogroup/vortex-cli",
+  "version": "1.0.0",
+  "description": "Vortex BaaS command-line interface for managing Vortex deployments",
+  "type": "module",
+  "bin": {
+    "vortex": "./bin/vortex.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["bin", "src"],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["vortex", "baas", "cli", "backend", "sdk"],
+  "license": "Apache-2.0"
+}
