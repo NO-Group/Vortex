@@ -100,8 +100,10 @@ export interface OAuthProvider {
   userinfoUrl: string;
   scopes: string;
   extra: Record<string, unknown> | null;
-  enabled: boolean;
-  createdAt: string;
+    enabled: boolean;
+    /** OIDC discovery URL (for generic OIDC providers). */
+    discoveryUrl: string | null;
+    createdAt: string;
   updatedAt: string;
 }
 

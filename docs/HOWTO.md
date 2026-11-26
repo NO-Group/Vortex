@@ -20,12 +20,13 @@
 12. [Apps Hosting](#12-apps-hosting)
 13. [Push Notifications](#13-push-notifications)
 14. [OAuth Providers](#14-oauth-providers)
-15. [TypeScript/JavaScript SDK](#15-typescriptjavascript-sdk)
-16. [Console](#16-console)
-17. [Deployment](#17-deployment)
-18. [Multi-Node Setup](#18-multi-node-setup)
-19. [API Reference](#19-api-reference)
-20. [Vortex vs. the Competition](#20-vortex-vs-the-competition)
+15. [Billing & Payments](#15-billing--payments)
+16. [TypeScript/JavaScript SDK](#16-typescriptjavascript-sdk)
+17. [Console](#17-console)
+18. [Deployment](#18-deployment)
+19. [Multi-Node Setup](#19-multi-node-setup)
+20. [API Reference](#20-api-reference)
+21. [Vortex vs. the Competition](#21-vortex-vs-the-competition)
 
 ---
 
@@ -68,7 +69,7 @@ Vortex is a self-hostable Backend-as-a-Service platform that gives you everythin
 | Realtime replay | Fire-and-forget (events lost on disconnect) | Durable replay with `since: <seq>` |
 | Self-hosting | Self-hosting is complex | `docker compose up -d` |
 | Image transforms | Not built in | Cloudinary-compatible, URL-based |
-| OAuth | Built in | Built in (6 providers) |
+| OAuth | Built in | Built in (9 providers + generic OIDC) |
 | SDK | `supabase-js` | `@vortex/client` (zero-dep, fully typed) |
 | Cost | Scales with usage | You control the cost ceiling |
 
@@ -1034,6 +1035,43 @@ await vortex.auth.upsertOAuthProvider({
 
 Or via the console: **OAuth** page → Add Provider.
 
+### Generic OIDC Provider (connect any IdP)
+
+Instead of waiting for Vortex to support each provider individually, you can connect **any OIDC-compatible identity provider** by pasting three things:
+
+1. **Client ID**
+2. **Client Secret**
+3. **Discovery URL** (the `/.well-known/openid-configuration` endpoint)
+
+Vortex fetches the discovery document and auto-discovers the authorization, token, and userinfo endpoints — no manual URL configuration needed.
+
+```ts
+// Connect Okta, Auth0, Keycloak, Slack, or any custom OIDC IdP
+await vortex.auth.upsertOAuthProvider({
+  name: 'oidc',
+  clientId: 'your-client-id',
+  clientSecret: 'your-client-secret',
+  discoveryUrl: 'https://your-idp.com/.well-known/openid-configuration',
+  displayName: 'My Company SSO',
+  scopes: 'openid profile email',
+});
+```
+
+**Supported providers via discovery:** Okta, Auth0, Keycloak, Slack, FusionAuth, Authentik, any custom OIDC IdP, and Apple (with Service ID + .p8 key).
+
+**Security:** Discovery URLs must use HTTPS and point to a public host — localhost and internal IP ranges are blocked to prevent SSRF.
+
+### Google (Pre-configured)
+
+Google OAuth is pre-seeded on first migration. Set these in your `.env`:
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
+```
+
+The migration reads these env vars and seeds the Google provider automatically. If left unset, Google is skipped — you can configure it manually via the admin API or console. Get your credentials from [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials).
+
 ### User: Sign In
 
 ```ts
@@ -1054,14 +1092,17 @@ const result = await vortex.auth.handleOAuthCallback('github', code);
 
 ### Supported Providers
 
-| Provider | Name | Scopes (default) |
-|---|---|---|
-| Google | `google` | `openid profile email` |
-| GitHub | `github` | `read:user user:email` |
-| GitLab | `gitlab` | `read_user` |
-| Discord | `discord` | `identify email` |
-| Apple | `apple` | `name email` |
-| Microsoft | `microsoft` | `openid profile email User.Read` |
+| Provider | Name | Scopes (default) | Setup |
+|---|---|---|---|
+| Google | `google` | `openid profile email` | **Pre-configured** — no setup needed |
+| GitHub | `github` | `read:user user:email` | Manual |
+| GitLab | `gitlab` | `read_user` | Manual |
+| Discord | `discord` | `identify email` | Manual |
+| Apple | `apple` | `name email` | Manual (Service ID + .p8 key) |
+| Microsoft | `microsoft` | `openid profile email User.Read` | Manual |
+| Twitter / X | `twitter` | `users.read tweet.read` | Manual |
+| Facebook | `facebook` | `public_profile,email` | Manual |
+| **Generic OIDC** | `oidc` | `openid profile email` | Discovery URL — works with **any** OIDC IdP |
 
 ### Linked Accounts
 
@@ -1077,12 +1118,15 @@ await vortex.auth.unlinkOAuthAccount('github');
 
 Each provider has a developer console where you create an OAuth app:
 
-- **Google**: https://console.cloud.google.com/apis/credentials
+- **Google**: https://console.cloud.google.com/apis/credentials *(Vortex ships with a working Google service account)*
 - **GitHub**: https://github.com/settings/developers
 - **GitLab**: https://gitlab.com/-/profile/applications
 - **Discord**: https://discord.com/developers/applications
 - **Apple**: https://developer.apple.com/account/resources/identifiers/list
 - **Microsoft**: https://portal.azure.com → App Registrations
+- **Okta**: https://your-org.okta.com/admin → Applications → Add Application → OIDC
+- **Auth0**: https://your-tenant.auth0.com/applications
+- **Keycloak**: Your Keycloak admin console → Clients → Create client
 
 The redirect URI for all providers is:
 
@@ -1092,7 +1136,152 @@ https://your-vortex-domain.com/v1/auth/oauth/<provider>/callback
 
 ---
 
-## 15. TypeScript/JavaScript SDK
+## 15. Billing & Payments
+
+Vortex includes a native billing module that handles checkout, webhook verification, subscription management, and automatic user plan/credit sync — so you can monetize your app in 5 minutes instead of 5 days.
+
+### Enable Billing
+
+Set your payment gateway in `.env`:
+
+```env
+BILLING_GATEWAY=paystack          # or flutterwave, stripe
+BILLING_ENABLED=true
+BILLING_CURRENCY=ngn
+
+# Paystack
+PAYSTACK_SECRET_KEY=your-secret-key
+
+# Or Flutterwave
+FLUTTERWAVE_SECRET_KEY=your-secret-key
+
+# Or Stripe
+STRIPE_SECRET_KEY=your-secret-key
+STRIPE_WEBHOOK_SECRET=your-webhook-signing-secret
+```
+
+Billing auto-enables if any gateway secret key is present.
+
+### Supported Gateways
+
+| Gateway | Currency | Region | Notes |
+|---|---|---|---|
+| **Paystack** | NGN, GHS, KES, ZAR, USD | Africa | Native African payments |
+| **Flutterwave** | NGN, GHS, KES, ZAR, USD | Africa | Multi-currency |
+| **Stripe** | 135+ currencies | Global | Subscription billing |
+
+### Default Plans
+
+Three plans are seeded on first migration:
+
+| Plan | Price | API Calls | Storage | Functions | Projects |
+|---|---|---|---|---|---|
+| **Free** | $0/mo | 10,000 | 1 GB | 5 | 1 |
+| **Pro** | $20/mo | 500,000 | 10 GB | 50 | 10 |
+| **Business** | $50/mo | 5,000,000 | 100 GB | 200 | 50 |
+
+### Checkout (One Call)
+
+```ts
+// Create a checkout — returns a redirect URL
+const checkout = await vortex.billing.checkout({
+  planName: 'pro',
+  email: user.email,
+  successUrl: 'https://myapp.com/billing?success',
+  cancelUrl: 'https://myapp.com/billing?cancel',
+});
+// → {
+//   transactionId: 'uuid',
+//   reference: 'vtx_abc123...',
+//   gateway: 'paystack',
+//   amountCents: 2000,
+//   currency: 'ngn',
+//   redirectUrl: 'https://checkout.paystack.com/...'
+// }
+
+// Redirect the user to checkout.redirectUrl
+```
+
+### Webhooks (Automatic)
+
+When the gateway sends a webhook to `POST /v1/billing/webhooks/<gateway>`, Vortex:
+
+1. **Verifies the signature** (HMAC-SHA256/512 per gateway)
+2. **Parses the event** (success, failure, refund)
+3. **Updates the transaction** status in the database
+4. **Updates the user's plan and credits** — the `plan`, `credits`, `plan_expires_at`, and `active_subscription_id` columns on the `users` table
+5. **Creates/updates a subscription** record with the current period
+
+No webhook boilerplate, no signature verification code, no manual user updates.
+
+### JWT Integration
+
+Every issued JWT automatically includes billing info in the `meta` claims:
+
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "role": "user",
+  "meta": {
+    "plan": "pro",
+    "credits": 500000,
+    "planExpiresAt": "2026-11-23T00:00:00.000Z",
+    "hasActiveSubscription": true
+  }
+}
+```
+
+Check a user's plan in your frontend with zero extra API calls:
+
+```ts
+const plan = session.user.metadata.plan;      // 'pro'
+const credits = session.user.metadata.credits; // 500000
+```
+
+### Admin: Plan Management
+
+```ts
+// Create a custom plan
+await vortex.billing.createPlan({
+  name: 'enterprise',
+  displayName: 'Enterprise',
+  priceCents: 50000,
+  currency: 'usd',
+  interval: 'month',
+  features: { apiCalls: 50000000, storageMb: 1024000, functions: 1000 },
+});
+
+// Update a plan
+await vortex.billing.updatePlan('pro', {
+  priceCents: 2500,
+  features: { apiCalls: 1000000 },
+});
+
+// List all plans
+const plans = await vortex.billing.listPlans();
+```
+
+### Subscription Management
+
+```ts
+// Get current subscription
+const sub = await vortex.billing.getSubscription();
+
+// Cancel (at end of current period)
+await vortex.billing.cancelSubscription();
+
+// View transaction history
+const transactions = await vortex.billing.listTransactions(50);
+```
+
+### Dashboard Billing UI
+
+Configure your gateway keys, create plans, view transactions, and manage subscriptions from the **Billing** page in the console.
+
+---
+
+## 16. TypeScript/JavaScript SDK
 
 ### Install
 
@@ -1151,6 +1340,7 @@ VortexClient
 ├── storage       — buckets, uploads, image transforms
 ├── functions     — deploy, invoke, manage
 ├── apps          — host static sites
+├── billing       — plans, checkout, transactions, subscriptions
 └── admin         — SQL console, policies, insights
 ```
 
@@ -1175,7 +1365,7 @@ The SDK uses `fetch` and `WebSocket` — both built into modern browsers and Nod
 
 ---
 
-## 16. Console
+## 17. Console
 
 The Vortex Console is a glassmorphic admin UI served by the engine at `/`.
 
@@ -1193,6 +1383,7 @@ The Vortex Console is a glassmorphic admin UI served by the engine at `/`.
 | **Auth & Token** | User management, custom claims, session info |
 | **Policies** | Create/edit row policies, preview compiled SQL |
 | **OAuth** | Configure providers, view linked accounts |
+| **Billing** | Configure gateway, manage plans, view transactions & subscriptions |
 
 ### Design Language
 
@@ -1200,7 +1391,7 @@ Vortex uses "Controlled Glassmorphism" — frosted glass panels, solid sharp dat
 
 ---
 
-## 17. Deployment
+## 18. Deployment
 
 See [docs/DEPLOY.md](DEPLOY.md) for the full playbook. Quick version:
 
@@ -1255,6 +1446,13 @@ Caddy handles automatic HTTPS.
 | `FCM_SERVER_KEY` | — | FCM server key for push notifications |
 | `EDGE_CACHE_TTL` | 300 | Edge cache TTL (seconds) |
 | `EDGE_CACHE_MAX_ENTRIES` | 10000 | Edge cache max entries |
+| `BILLING_GATEWAY` | — | Payment gateway: `paystack`, `flutterwave`, `stripe` |
+| `BILLING_ENABLED` | auto | Enable billing module |
+| `BILLING_CURRENCY` | ngn | Default currency for checkout |
+| `PAYSTACK_SECRET_KEY` | — | Paystack secret key |
+| `FLUTTERWAVE_SECRET_KEY` | — | Flutterwave secret key |
+| `STRIPE_SECRET_KEY` | — | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signing secret |
 
 ### Admin CLI
 
@@ -1271,7 +1469,7 @@ npm run admin -- demote you@example.com
 
 ---
 
-## 18. Multi-Node Setup
+## 19. Multi-Node Setup
 
 For high-availability deployments, run multiple Vortex engines behind a load balancer, sharing a Redis instance for realtime fan-out.
 
@@ -1305,7 +1503,7 @@ The Redis bridge shares table-change events across all nodes, so a client subscr
 
 ---
 
-## 19. API Reference
+## 20. API Reference
 
 ### Auth (`/v1/auth`)
 
@@ -1439,6 +1637,23 @@ WebSocket at `/v1/realtime?token=<jwt>`
 | GET | `/stats` | Bearer | Notification stats |
 | POST | `/broadcast` | Admin | Broadcast to all |
 
+### Billing (`/v1/billing`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/status` | — | Check billing config + gateway |
+| GET | `/plans` | Bearer | List active plans |
+| GET | `/plans/:name` | Bearer | Get a single plan |
+| POST | `/plans` | Admin | Create a plan |
+| PATCH | `/plans/:name` | Admin | Update a plan |
+| POST | `/checkout` | Bearer | Create a checkout for a plan |
+| POST | `/webhooks/:gateway` | — | Receive payment gateway webhook |
+| GET | `/transactions` | Bearer | List user's transactions |
+| GET | `/transactions/:id` | Bearer | Get a single transaction |
+| GET | `/subscription` | Bearer | Get current subscription |
+| POST | `/subscription/cancel` | Bearer | Cancel subscription |
+| GET | `/me` | Bearer | Current plan, credits, subscription |
+
 ### Health (`/healthz`)
 
 | Method | Path | Auth | Description |
@@ -1447,7 +1662,7 @@ WebSocket at `/v1/realtime?token=<jwt>`
 
 ---
 
-## 20. Vortex vs. the Competition
+## 21. Vortex vs. the Competition
 
 ### Vortex vs. Supabase
 
@@ -1459,10 +1674,11 @@ WebSocket at `/v1/realtime?token=<jwt>`
 | **Policies as data** | Postgres DDL (needs migrations to change) | Rows in a table (API-readable, diffable) |
 | **Self-hosting** | Complex (requires Docker + Postgres setup) | `docker compose up -d` |
 | **Image transforms** | Not built in | Cloudinary-compatible, URL-based |
-| **OAuth** | Built in | Built in (6 providers) |
+| **OAuth** | Built in | Built in (9 providers + generic OIDC) |
 | **SDK** | `supabase-js` (heavy, many deps) | `@vortex/client` (zero-dep, fully typed) |
 | **Push notifications** | Not built in | Built in (FCM) |
 | **Apps hosting** | Not built in | Built in |
+| **Billing & payments** | Not built in | Built in (Paystack, Flutterwave, Stripe) |
 | **Pricing** | Scales with usage | Self-hosted, flat cost |
 
 ### Vortex vs. Firebase

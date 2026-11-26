@@ -16,6 +16,7 @@ interface ProviderRow {
   scopes: string;
   extra: Record<string, unknown> | null;
   enabled: boolean;
+  discovery_url: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
@@ -52,6 +53,7 @@ function toProvider(row: ProviderRow): OAuthProvider {
     scopes: row.scopes,
     extra: row.extra ?? null,
     enabled: row.enabled,
+    discoveryUrl: row.discovery_url,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -110,10 +112,18 @@ export class OAuthService {
     extra?: Record<string, unknown>;
     enabled?: boolean;
     displayName?: string;
+    discoveryUrl?: string;
   }): Promise<OAuthProvider> {
     const def = OAUTH_PROVIDERS[input.name];
     if (!def) {
       throw ApiError.badRequest(`Unknown OAuth provider: "${input.name}"`);
+    }
+
+    // If a discovery URL is provided, fetch OIDC discovery document to
+    // auto-populate endpoints (auth_url, token_url, userinfo_url).
+    let discovered: { authUrl: string; tokenUrl: string; userinfoUrl: string } | null = null;
+    if (input.discoveryUrl) {
+      discovered = await this.discoverOidc(input.discoveryUrl);
     }
 
     const existing = await this.db<ProviderRow>('vortex_oauth_providers')
@@ -129,6 +139,10 @@ export class OAuthService {
           extra: input.extra ?? existing.extra,
           enabled: input.enabled ?? existing.enabled,
           display_name: input.displayName ?? existing.display_name,
+          discovery_url: input.discoveryUrl ?? existing.discovery_url,
+          auth_url: discovered?.authUrl ?? existing.auth_url,
+          token_url: discovered?.tokenUrl ?? existing.token_url,
+          userinfo_url: discovered?.userinfoUrl ?? existing.userinfo_url,
           updated_at: this.db.fn.now(),
         })
         .returning('*');
@@ -141,16 +155,78 @@ export class OAuthService {
         display_name: input.displayName ?? def.displayName,
         client_id: input.clientId,
         client_secret: input.clientSecret,
-        auth_url: def.authUrl,
-        token_url: def.tokenUrl,
-        userinfo_url: def.userinfoUrl,
+        auth_url: discovered?.authUrl ?? def.authUrl,
+        token_url: discovered?.tokenUrl ?? def.tokenUrl,
+        userinfo_url: discovered?.userinfoUrl ?? def.userinfoUrl,
         scopes: input.scopes ?? def.scopes,
         extra: input.extra ?? null,
         enabled: input.enabled ?? true,
+        discovery_url: input.discoveryUrl ?? null,
       })
       .returning('*');
 
     return toProvider(row!);
+  }
+
+  /**
+   * Fetch an OIDC discovery document and extract the endpoint URLs.
+   * Given a discovery URL like `https://idp.example.com/.well-known/openid-configuration`,
+   * this fetches the JSON document and returns the auth/token/userinfo URLs.
+   */
+  async discoverOidc(discoveryUrl: string): Promise<{
+    authUrl: string;
+    tokenUrl: string;
+    userinfoUrl: string;
+  }> {
+    let parsed: URL;
+    try {
+      parsed = new URL(discoveryUrl);
+    } catch {
+      throw ApiError.badRequest('Invalid discovery URL');
+    }
+
+    // Only allow HTTPS for discovery URLs to prevent SSRF via localhost/internal IPs.
+    if (parsed.protocol !== 'https:') {
+      throw ApiError.badRequest('Discovery URL must use HTTPS');
+    }
+
+    const hostname = parsed.hostname;
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1') {
+      throw ApiError.badRequest('Discovery URL must point to a public host');
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(discoveryUrl, {
+        headers: { accept: 'application/json' },
+        redirect: 'follow',
+      });
+    } catch (err) {
+      throw ApiError.badRequest(`Failed to fetch discovery document: ${(err as Error).message}`);
+    }
+
+    if (!res.ok) {
+      throw ApiError.badRequest(`Discovery document returned HTTP ${res.status}`);
+    }
+
+    const doc = (await res.json()) as Record<string, unknown>;
+
+    const authUrl = doc.authorization_endpoint as string | undefined;
+    const tokenUrl = doc.token_endpoint as string | undefined;
+    const userinfoUrl = (doc.userinfo_endpoint as string | undefined)
+      ?? (doc.userinfo_endpoint as string | undefined);
+
+    if (!authUrl || !tokenUrl) {
+      throw ApiError.badRequest(
+        'Discovery document is missing authorization_endpoint or token_endpoint',
+      );
+    }
+
+    return {
+      authUrl,
+      tokenUrl,
+      userinfoUrl: userinfoUrl ?? '',
+    };
   }
 
   /** Remove a provider (and its linked accounts). */
@@ -171,6 +247,13 @@ export class OAuthService {
 
     const def = OAUTH_PROVIDERS[providerName];
     if (!def) throw ApiError.badRequest(`Unknown provider: "${providerName}"`);
+
+    // OIDC providers configured via discovery must have their auth URL set.
+    if (!provider.authUrl) {
+      throw ApiError.badRequest(
+        `Provider "${providerName}" has no authorization URL. Configure it with a discovery URL.`,
+      );
+    }
 
     const params = new URLSearchParams({
       client_id: provider.clientId,
