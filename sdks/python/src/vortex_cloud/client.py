@@ -15,6 +15,7 @@ class VortexClient:
         from .apps import Apps
         from .billing import Billing
         from .admin import Admin
+        from .vcaptcha import VCaptcha
         self.auth = Auth(self)
         self.database = Database(self)
         self.storage = Storage(self)
@@ -22,6 +23,7 @@ class VortexClient:
         self.apps = Apps(self)
         self.billing = Billing(self)
         self.admin = Admin(self)
+        self.vcaptcha = VCaptcha(self)
 
     @property
     def token(self) -> str | None:

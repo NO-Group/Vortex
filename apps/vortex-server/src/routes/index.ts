@@ -31,6 +31,7 @@ import { createOidcRoutes } from '../auth/oidc.routes.js';
 import { createPasswordSecurityRoutes } from '../auth/password-security.routes.js';
 import { createSecurityRoutes } from '../security/security-score.routes.js';
 import { createBillingRoutes } from '../billing/billing.routes.js';
+import { createVCaptchaRoutes } from '../vcaptcha/vcaptcha.routes.js';
 
 /** Mount every /v1 API family onto one router. */
 export function createApiRouter(ctx: AppContext): Router {
@@ -66,5 +67,6 @@ export function createApiRouter(ctx: AppContext): Router {
   router.use('/auth/password-security', createPasswordSecurityRoutes(ctx));
   router.use('/security', createSecurityRoutes(ctx));
   router.use('/billing', createBillingRoutes(ctx));
+  router.use('/vcaptcha', createVCaptchaRoutes(ctx));
   return router;
 }

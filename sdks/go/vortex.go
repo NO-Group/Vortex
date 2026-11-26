@@ -27,8 +27,9 @@ type Client struct {
 	Storage *StorageService
 	Functions *FunctionService
 	Apps    *AppsService
-	Billing *BillingService
-	Admin   *AdminService
+	Billing   *BillingService
+	Admin     *AdminService
+	VCaptcha  *VCaptchaService
 }
 
 // New creates a new Vortex client.
@@ -44,6 +45,7 @@ func New(baseURL string) *Client {
 	c.Apps = &AppsService{c: c}
 	c.Billing = &BillingService{c: c}
 	c.Admin = &AdminService{c: c}
+	c.VCaptcha = &VCaptchaService{c: c}
 	return c
 }
 

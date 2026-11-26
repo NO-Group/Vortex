@@ -10,6 +10,7 @@ notes = await vortex.database.from("notes").filter("owner_id", "eq", session.use
 """
 from .client import VortexClient
 from .errors import VortexError
+from .vcaptcha import VCaptcha
 
-__all__ = ["VortexClient", "VortexError"]
+__all__ = ["VortexClient", "VortexError", "VCaptcha"]
 __version__ = "1.0.0"

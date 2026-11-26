@@ -128,6 +128,50 @@ export interface OAuthAccount {
   email: string;
 }
 
+export type VCaptchaMode = 'sequence' | 'negative' | 'pattern';
+
+export interface VCaptchaChallenge {
+  challengeId: string;
+  mode: VCaptchaMode;
+  gridSize: number;
+  cellCount: number;
+  sequenceLength: number;
+  expiresAt: string;
+  patternName?: string;
+}
+
+export interface VCaptchaSolution {
+  challengeId: string;
+  clicks: number[];
+}
+
+export interface VCaptchaVerifyResult {
+  valid: boolean;
+  message: string;
+  newChallenge?: VCaptchaChallenge;
+}
+
+export interface VCaptchaConfig {
+  id: string;
+  enabled: boolean;
+  default_mode: VCaptchaMode;
+  default_grid_size: number;
+  default_sequence_length: number;
+  ttl_seconds: number;
+  require_on_signup: boolean;
+  require_on_login: boolean;
+  max_attempts: number;
+  updated_at: string;
+}
+
+export interface VCaptchaStats {
+  total: number;
+  solved: number;
+  failed: number;
+  expired: number;
+  active: number;
+}
+
 export interface NotificationDevice {
   token: string;
   platform: string;

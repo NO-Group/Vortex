@@ -21,6 +21,7 @@ mod functions;
 mod apps;
 mod billing;
 mod admin;
+mod vcaptcha;
 
 pub use auth::Auth;
 pub use database::Database;
@@ -29,6 +30,7 @@ pub use functions::Functions;
 pub use apps::Apps;
 pub use billing::Billing;
 pub use admin::Admin;
+pub use vcaptcha::VCaptcha;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -56,6 +58,7 @@ pub struct VortexClient {
     apps: Apps,
     billing: Billing,
     admin: Admin,
+    vcaptcha: VCaptcha,
 }
 
 impl VortexClient {
@@ -72,6 +75,7 @@ impl VortexClient {
             apps: Apps::new(base_url.trim_end_matches('/').to_string(), http.clone()),
             billing: Billing::new(base_url.trim_end_matches('/').to_string(), http.clone()),
             admin: Admin::new(base_url.trim_end_matches('/').to_string(), http.clone()),
+            vcaptcha: VCaptcha::new(base_url.trim_end_matches('/').to_string(), http.clone()),
         };
         client
     }
@@ -85,6 +89,7 @@ impl VortexClient {
         self.apps.set_token(token);
         self.billing.set_token(token);
         self.admin.set_token(token);
+        self.vcaptcha.set_token(token);
     }
 
     pub fn auth(&self) -> &Auth { &self.auth }
@@ -94,4 +99,5 @@ impl VortexClient {
     pub fn apps(&self) -> &Apps { &self.apps }
     pub fn billing(&self) -> &Billing { &self.billing }
     pub fn admin(&self) -> &Admin { &self.admin }
+    pub fn vcaptcha(&self) -> &VCaptcha { &self.vcaptcha }
 }

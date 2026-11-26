@@ -7,6 +7,7 @@ import { Functions } from './functions.js';
 import { Apps } from './apps.js';
 import { Billing } from './billing.js';
 import { Admin } from './admin.js';
+import { VCaptcha } from './vcaptcha.js';
 
 export interface VortexClientOptions {
   url: string;
@@ -23,6 +24,7 @@ export class VortexClient {
   readonly apps: Apps;
   readonly billing: Billing;
   readonly admin: Admin;
+  readonly vcaptcha: VCaptcha;
 
   private rt: Realtime | null = null;
 
@@ -35,6 +37,7 @@ export class VortexClient {
     this.apps = new Apps(this.http);
     this.billing = new Billing(this.http);
     this.admin = new Admin(this.http);
+    this.vcaptcha = new VCaptcha(this.http);
   }
 
   connectRealtime(

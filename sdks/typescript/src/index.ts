@@ -21,6 +21,7 @@ export { Functions } from './functions.js';
 export { Apps } from './apps.js';
 export { Billing } from './billing.js';
 export { Admin } from './admin.js';
+export { VCaptcha } from './vcaptcha.js';
 export { VortexApiError, HttpClient } from './http.js';
 
 export type {
@@ -32,4 +33,6 @@ export type {
   TableEvent, PresencePeer,
   OAuthProvider, OAuthAccount,
   NotificationDevice, Notification,
+  VCaptchaMode, VCaptchaChallenge, VCaptchaSolution,
+  VCaptchaVerifyResult, VCaptchaConfig, VCaptchaStats,
 } from './types.js';
