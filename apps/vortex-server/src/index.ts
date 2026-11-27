@@ -16,6 +16,30 @@ import { EdgeCache } from './governance/edge-cache.js';
 import { CronScheduler } from './cron/scheduler.service.js';
 import { SessionService } from './auth/session.service.js';
 import { TenantService } from './tenant/tenant.service.js';
+import { PlatformCapabilityRegistry } from './platform/platform.service.js';
+import { PhoneAuthService } from './platform/phone.service.js';
+import { PasskeyService } from './platform/passkey.service.js';
+import { OrgsService } from './platform/orgs.service.js';
+import { ABACService } from './platform/abac.service.js';
+import { DocDBService } from './platform/docdb.service.js';
+import { ProceduresService } from './platform/procedures.service.js';
+import { BackupsService } from './platform/backups.service.js';
+import { QueueService } from './platform/queue.service.js';
+import { IdempotencyService } from './platform/idempotency.service.js';
+import { SearchRankingService } from './platform/searchrank.service.js';
+import { NotificationsExtService } from './platform/notifications-ext.service.js';
+import { AIService } from './platform/ai.service.js';
+import { StreamService } from './platform/stream.service.js';
+import { AnalyticsService } from './platform/analytics.service.js';
+import { QuotasService } from './platform/quotas.service.js';
+import { DataExportService } from './platform/dataexport.service.js';
+import { ResidencyService } from './platform/residency.service.js';
+import { LifecycleService } from './platform/lifecycle.service.js';
+import { MediaService } from './platform/media.service.js';
+import { DistCacheService } from './platform/distcache.service.js';
+import { CDNService } from './platform/cdn.service.js';
+import { TypingService } from './platform/typing.service.js';
+import { TracingService } from './platform/tracing.service.js';
 import type { AppContext } from './context.js';
 
 async function main(): Promise<void> {
@@ -43,6 +67,31 @@ async function main(): Promise<void> {
     }),
     sessions: new SessionService(db),
     tenant: new TenantService(db),
+    // ── Platform capability layer ──
+    platformRegistry: new PlatformCapabilityRegistry(db),
+    phoneAuth: new PhoneAuthService(db),
+    passkeys: new PasskeyService(db),
+    orgs: new OrgsService(db),
+    abac: new ABACService(db),
+    docdb: new DocDBService(db),
+    procedures: new ProceduresService(db),
+    backups: new BackupsService(db, env.databaseUrl),
+    queue: new QueueService(db),
+    idempotency: new IdempotencyService(db),
+    searchRank: new SearchRankingService(db),
+    notificationsExt: new NotificationsExtService(db),
+    ai: new AIService(db),
+    stream: new StreamService(db),
+    analytics: new AnalyticsService(db),
+    quotas: new QuotasService(db),
+    dataExport: new DataExportService(db, env.databaseUrl),
+    residency: new ResidencyService(db),
+    lifecycle: new LifecycleService(db),
+    media: new MediaService(db),
+    distCache: new DistCacheService(db),
+    cdn: new CDNService(db),
+    typing: new TypingService(db),
+    tracing: new TracingService(db),
   };
 
   // Create the cron scheduler with the real context, then attach it.
