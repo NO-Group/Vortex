@@ -1790,10 +1790,66 @@ The Vortex Console is a glassmorphic admin UI served by the engine at `/`.
 | **Policies** | Create/edit row policies, preview compiled SQL |
 | **OAuth** | Configure providers, view linked accounts |
 | **Billing** | Configure gateway, manage plans, view transactions & subscriptions |
+| **Platform** | Full capability dashboard with pie/bar/area charts, capability matrix, and status badges across all 15 categories |
 
 ### Design Language
 
 Vortex uses "Controlled Glassmorphism" — frosted glass panels, solid sharp data surfaces, a pure dark canvas (#000000/#090C10/#161B22), Vortex Glow accents, and the Unified Command Center sidebar.
+
+### Platform Capabilities Dashboard
+
+The **Platform** page (`/#/platform`) provides a unified view of all Vortex
+capability categories with live charts and a capability matrix:
+
+- **Pie chart** — capability status distribution (active / pending / disabled)
+- **Bar chart** — capabilities grouped by category
+- **Area chart** — analytics event activity over time
+- **Bar chart** — API usage broken down by HTTP method
+- **Bar chart** — job queue status distribution
+- **Capability matrix** — every capability with its status badge, category, and endpoint
+
+Data is fetched live from `/v1/platform/*` endpoints (see below).
+
+### Platform API (`/v1/platform/*`)
+
+Vortex includes a comprehensive platform layer covering **15 capability
+categories** via 21 backend services. All endpoints are mounted under
+`/v1/platform/`:
+
+| Category | Service | Endpoint |
+|---|---|---|
+| **AI / Chat** | `ai.service` | `/v1/platform/ai/*` |
+| **Analytics** | `analytics.service` | `/v1/platform/analytics/*` |
+| **Approvals** | `approval.service` | `/v1/platform/approvals/*` |
+| **Abac / RBAC** | `abac.service` | `/v1/platform/abac/*` |
+| **Backups** | `backups.service` | `/v1/platform/backups/*` |
+| **CDN** | `cdn.service` | `/v1/platform/cdn/*` |
+| **Data Export** | `dataexport.service` | `/v1/platform/export/*` |
+| **Email** | `email.service` | `/v1/platform/email/*` |
+| **FCM / Push** | `push.service` | `/v1/platform/push/*` |
+| **Functions** | `functions.service` | `/v1/platform/functions/*` |
+| **Geo** | `geo.service` | `/v1/platform/geo/*` |
+| **Jobs / Queue** | `jobs.service` | `/v1/platform/jobs/*` |
+| **OAuth / SSO** | `oauth.service` | `/v1/platform/oauth/*` |
+| **Passkeys** | `passkey.service` | `/v1/platform/passkeys/*` |
+| **Storage** | `storage.service` | `/v1/platform/storage/*` |
+| **Webhooks** | `webhook.service` | `/v1/platform/webhooks/*` |
+| **VCaptcha** | `vcaptcha.service` | `/v1/platform/vcaptcha/*` |
+| **Capabilities** | `capabilities.service` | `/v1/platform/capabilities` |
+
+**Key endpoints:**
+
+```
+GET  /v1/platform/capabilities          — list all capabilities with status
+GET  /v1/platform/capabilities/summary  — aggregated counts by category/status
+GET  /v1/platform/analytics/stats       — analytics event totals + bucket distribution
+GET  /v1/platform/analytics/api-usage   — request counts by HTTP method
+GET  /v1/platform/queue/stats           — job queue depth + status distribution
+```
+
+The platform layer is backed by **34 database tables** (migration
+`20261126000002_platform_full`) and all services are instantiated in the
+engine's context at startup.
 
 ---
 
