@@ -103,6 +103,16 @@ export interface ServerEnv {
   mailFrom: string;
   /** Serve the built dashboard from the engine (single-process deploys). */
   serveConsole: boolean;
+  /** Payment gateway configuration — enables the billing module. */
+  billing: {
+    gateway: 'paystack' | 'flutterwave' | 'stripe' | null;
+    paystackSecretKey: string | undefined;
+    flutterwaveSecretKey: string | undefined;
+    stripeSecretKey: string | undefined;
+    stripeWebhookSecret: string | undefined;
+    defaultCurrency: string;
+    enabled: boolean;
+  };
 }
 
 function required(name: string, fallback?: string): string {
@@ -154,35 +164,35 @@ export function loadEnv(): ServerEnv {
       issuer: required('JWT_ISSUER', 'vortex'),
     },
     autoMigrate: bool('AUTO_MIGRATE', true),
-  storage: {
-    driver: driverRaw as StorageDriverName,
-    localDir: required('STORAGE_LOCAL_DIR', './.vortex-data'),
-    /**
-     * Absolute base for presigned URLs. Set to `auto` to derive from each
-     * request's Host/protocol (correct behind reverse proxies & previews).
-     */
-    publicApiBase: required('PUBLIC_API_BASE', 'http://localhost:8080').replace(/\/+$/, ''),
-    s3: {
-      bucket: required('S3_BUCKET', 'vortex'),
-      region: required('S3_REGION', 'auto'),
-      endpoint: process.env.S3_ENDPOINT || undefined,
-      accessKeyId: required('S3_ACCESS_KEY_ID', 'vortex'),
-      secretAccessKey: required('S3_SECRET_ACCESS_KEY', 'vortex-secret'),
-      forcePathStyle: bool('S3_FORCE_PATH_STYLE', true),
+    storage: {
+      driver: driverRaw as StorageDriverName,
+      localDir: required('STORAGE_LOCAL_DIR', './.vortex-data'),
+      /**
+       * Absolute base for presigned URLs. Set to `auto` to derive from each
+       * request's Host/protocol (correct behind reverse proxies & previews).
+       */
+      publicApiBase: required('PUBLIC_API_BASE', 'http://localhost:8080').replace(/\/+$/, ''),
+      s3: {
+        bucket: required('S3_BUCKET', 'vortex'),
+        region: required('S3_REGION', 'auto'),
+        endpoint: process.env.S3_ENDPOINT || undefined,
+        accessKeyId: required('S3_ACCESS_KEY_ID', 'vortex'),
+        secretAccessKey: required('S3_SECRET_ACCESS_KEY', 'vortex-secret'),
+        forcePathStyle: bool('S3_FORCE_PATH_STYLE', true),
+      },
+      fallbackDriver: process.env.STORAGE_FALLBACK_DRIVER as StorageDriverName | undefined,
+      providerConfig: {
+        r2: process.env.CLOUDFLARE_ACCOUNT_ID
+          ? { accountId: process.env.CLOUDFLARE_ACCOUNT_ID }
+          : undefined,
+        gcs: process.env.GCS_PROJECT_ID
+          ? { projectId: process.env.GCS_PROJECT_ID }
+          : undefined,
+        azure: process.env.AZURE_CONNECTION_STRING
+          ? { connectionString: process.env.AZURE_CONNECTION_STRING }
+          : undefined,
+      },
     },
-    fallbackDriver: process.env.STORAGE_FALLBACK_DRIVER as StorageDriverName | undefined,
-    providerConfig: {
-      r2: process.env.CLOUDFLARE_ACCOUNT_ID
-        ? { accountId: process.env.CLOUDFLARE_ACCOUNT_ID }
-        : undefined,
-      gcs: process.env.GCS_PROJECT_ID
-        ? { projectId: process.env.GCS_PROJECT_ID }
-        : undefined,
-      azure: process.env.AZURE_CONNECTION_STRING
-        ? { connectionString: process.env.AZURE_CONNECTION_STRING }
-        : undefined,
-    },
-  },
     realtime: {
       heartbeatMs: int('REALTIME_HEARTBEAT_MS', 30_000),
       redisUrl: process.env.REDIS_URL || undefined,
@@ -220,6 +230,19 @@ export function loadEnv(): ServerEnv {
     edgeCacheTtl: int('EDGE_CACHE_TTL', 300),
     /** Edge cache max entries (default: 10000). */
     edgeCacheMaxEntries: int('EDGE_CACHE_MAX_ENTRIES', 10000),
+    billing: {
+      gateway: (process.env.BILLING_GATEWAY as 'paystack' | 'flutterwave' | 'stripe' | null) || null,
+      paystackSecretKey: process.env.PAYSTACK_SECRET_KEY || undefined,
+      flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY || undefined,
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY || undefined,
+      stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || undefined,
+      defaultCurrency: process.env.BILLING_CURRENCY || 'ngn',
+      enabled: bool('BILLING_ENABLED', Boolean(
+        process.env.PAYSTACK_SECRET_KEY ||
+        process.env.FLUTTERWAVE_SECRET_KEY ||
+        process.env.STRIPE_SECRET_KEY,
+      )),
+    },
   };
 
   // Production safety rails — refuse to boot a publicly reachable engine

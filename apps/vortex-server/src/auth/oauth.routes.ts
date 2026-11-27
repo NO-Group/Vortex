@@ -9,13 +9,17 @@ import { validateBody } from '../middleware/validate.js';
 import type { TokenConfig } from './tokens.js';
 
 const providerUpsertSchema = z.object({
-  name: z.enum(['google', 'github', 'gitlab', 'discord', 'apple', 'microsoft']),
+  name: z.enum([
+    'google', 'github', 'gitlab', 'discord', 'apple', 'microsoft',
+    'twitter', 'facebook', 'oidc',
+  ]),
   clientId: z.string().min(1),
   clientSecret: z.string().min(1),
   scopes: z.string().optional(),
   extra: z.record(z.unknown()).optional(),
   enabled: z.boolean().optional(),
   displayName: z.string().min(1).max(64).optional(),
+  discoveryUrl: z.string().url().optional(),
 });
 
 /**

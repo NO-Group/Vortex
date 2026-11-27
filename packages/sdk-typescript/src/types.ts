@@ -732,3 +732,107 @@ export interface StorageEngineHealth {
   fallbackHealthy: boolean;
   active: string;
 }
+
+// ── Billing & Payments ──────────────────────────────────────────────────────
+
+export interface BillingPlan {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string | null;
+  priceCents: number;
+  currency: string;
+  interval: string;
+  intervalCount: number;
+  features: Record<string, unknown> | null;
+  isActive: boolean;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingTransaction {
+  id: string;
+  userId: string;
+  gateway: string;
+  gatewayTransactionId: string | null;
+  planId: string | null;
+  amountCents: number;
+  currency: string;
+  status: string;
+  reference: string;
+  failureReason: string | null;
+  metadata: Record<string, unknown> | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface BillingSubscription {
+  id: string;
+  userId: string;
+  planId: string;
+  gateway: string;
+  gatewaySubscriptionId: string | null;
+  status: string;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: string | null;
+  lastRenewalTransactionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string | null;
+}
+
+export interface BillingCheckoutResult {
+  transactionId: string;
+  reference: string;
+  gateway: string;
+  amountCents: number;
+  currency: string;
+  redirectUrl: string;
+}
+
+export interface BillingStatus {
+  enabled: boolean;
+  gateway: string | null;
+  defaultCurrency: string;
+}
+
+export interface UserBilling {
+  plan: string | null;
+  credits: number;
+  planExpiresAt: string | null;
+  hasActiveSubscription: boolean;
+  subscription: BillingSubscription | null;
+}
+
+export interface CreatePlanInput {
+  name: string;
+  displayName?: string;
+  description?: string;
+  priceCents: number;
+  currency?: string;
+  interval?: string;
+  intervalCount?: number;
+  features?: Record<string, unknown>;
+  isPublic?: boolean;
+}
+
+export interface UpdatePlanInput {
+  displayName?: string;
+  description?: string;
+  priceCents?: number;
+  currency?: string;
+  interval?: string;
+  intervalCount?: number;
+  features?: Record<string, unknown>;
+  isPublic?: boolean;
+  isActive?: boolean;
+}
+
+export interface CheckoutInput {
+  planName: string;
+  email: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}

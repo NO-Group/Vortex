@@ -20,12 +20,13 @@
 12. [Apps Hosting](#12-apps-hosting)
 13. [Push Notifications](#13-push-notifications)
 14. [OAuth Providers](#14-oauth-providers)
-15. [TypeScript/JavaScript SDK](#15-typescriptjavascript-sdk)
-16. [Console](#16-console)
-17. [Deployment](#17-deployment)
-18. [Multi-Node Setup](#18-multi-node-setup)
-19. [API Reference](#19-api-reference)
-20. [Vortex vs. the Competition](#20-vortex-vs-the-competition)
+15. [Billing & Payments](#15-billing--payments)
+16. [SDKs (All Languages)](#16-sdks-all-languages)
+17. [Console](#17-console)
+18. [Deployment](#18-deployment)
+19. [Multi-Node Setup](#19-multi-node-setup)
+20. [API Reference](#20-api-reference)
+21. [Vortex vs. the Competition](#21-vortex-vs-the-competition)
 
 ---
 
@@ -68,8 +69,8 @@ Vortex is a self-hostable Backend-as-a-Service platform that gives you everythin
 | Realtime replay | Fire-and-forget (events lost on disconnect) | Durable replay with `since: <seq>` |
 | Self-hosting | Self-hosting is complex | `docker compose up -d` |
 | Image transforms | Not built in | Cloudinary-compatible, URL-based |
-| OAuth | Built in | Built in (6 providers) |
-| SDK | `supabase-js` | `@vortex/client` (zero-dep, fully typed) |
+| OAuth | Built in | Built in (9 providers + generic OIDC) |
+| SDK | `supabase-js` | `@nogroup/vortex` (zero-dep, fully typed) |
 | Cost | Scales with usage | You control the cost ceiling |
 
 ### Why Vortex instead of Firebase?
@@ -179,8 +180,7 @@ curl -X POST http://localhost:8080/v1/db/notes/query \
 | **Vortex Core** | `packages/vortex-core` | Shared types, wire protocol, brand tokens |
 | **Vortex Server** | `apps/vortex-server` | The engine: auth, DB, realtime, storage, functions, apps, notifications |
 | **Vortex Console** | `apps/vortex-dashboard` | Glassmorphic admin UI (served by the engine) |
-| **TypeScript SDK** | `packages/sdk-typescript` | `@vortex/client` — zero-dependency client |
-| **Dart SDK** | `packages/sdk-dart` | Flutter/Dart client |
+| **SDKs** | `sdks/` | 16 self-contained SDKs: TypeScript, Dart, Python, Go, Rust, Java/Kotlin, Swift, C#/.NET, PHP, Ruby, C/C++, Elixir, Godot, Unity, Unreal, CLI |
 
 ### Tech Stack
 
@@ -199,7 +199,7 @@ curl -X POST http://localhost:8080/v1/db/notes/query \
 Browser / Mobile App
         │
         ▼
-  Vortex SDK (@vortex/client)
+  Vortex SDK (@nogroup/vortex)
         │
         ▼
   Vortex Engine (Express)
@@ -1034,6 +1034,43 @@ await vortex.auth.upsertOAuthProvider({
 
 Or via the console: **OAuth** page → Add Provider.
 
+### Generic OIDC Provider (connect any IdP)
+
+Instead of waiting for Vortex to support each provider individually, you can connect **any OIDC-compatible identity provider** by pasting three things:
+
+1. **Client ID**
+2. **Client Secret**
+3. **Discovery URL** (the `/.well-known/openid-configuration` endpoint)
+
+Vortex fetches the discovery document and auto-discovers the authorization, token, and userinfo endpoints — no manual URL configuration needed.
+
+```ts
+// Connect Okta, Auth0, Keycloak, Slack, or any custom OIDC IdP
+await vortex.auth.upsertOAuthProvider({
+  name: 'oidc',
+  clientId: 'your-client-id',
+  clientSecret: 'your-client-secret',
+  discoveryUrl: 'https://your-idp.com/.well-known/openid-configuration',
+  displayName: 'My Company SSO',
+  scopes: 'openid profile email',
+});
+```
+
+**Supported providers via discovery:** Okta, Auth0, Keycloak, Slack, FusionAuth, Authentik, any custom OIDC IdP, and Apple (with Service ID + .p8 key).
+
+**Security:** Discovery URLs must use HTTPS and point to a public host — localhost and internal IP ranges are blocked to prevent SSRF.
+
+### Google (Pre-configured)
+
+Google OAuth is pre-seeded on first migration. Set these in your `.env`:
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
+```
+
+The migration reads these env vars and seeds the Google provider automatically. If left unset, Google is skipped — you can configure it manually via the admin API or console. Get your credentials from [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials).
+
 ### User: Sign In
 
 ```ts
@@ -1054,14 +1091,17 @@ const result = await vortex.auth.handleOAuthCallback('github', code);
 
 ### Supported Providers
 
-| Provider | Name | Scopes (default) |
-|---|---|---|
-| Google | `google` | `openid profile email` |
-| GitHub | `github` | `read:user user:email` |
-| GitLab | `gitlab` | `read_user` |
-| Discord | `discord` | `identify email` |
-| Apple | `apple` | `name email` |
-| Microsoft | `microsoft` | `openid profile email User.Read` |
+| Provider | Name | Scopes (default) | Setup |
+|---|---|---|---|
+| Google | `google` | `openid profile email` | **Pre-configured** — no setup needed |
+| GitHub | `github` | `read:user user:email` | Manual |
+| GitLab | `gitlab` | `read_user` | Manual |
+| Discord | `discord` | `identify email` | Manual |
+| Apple | `apple` | `name email` | Manual (Service ID + .p8 key) |
+| Microsoft | `microsoft` | `openid profile email User.Read` | Manual |
+| Twitter / X | `twitter` | `users.read tweet.read` | Manual |
+| Facebook | `facebook` | `public_profile,email` | Manual |
+| **Generic OIDC** | `oidc` | `openid profile email` | Discovery URL — works with **any** OIDC IdP |
 
 ### Linked Accounts
 
@@ -1077,12 +1117,15 @@ await vortex.auth.unlinkOAuthAccount('github');
 
 Each provider has a developer console where you create an OAuth app:
 
-- **Google**: https://console.cloud.google.com/apis/credentials
+- **Google**: https://console.cloud.google.com/apis/credentials *(Vortex ships with a working Google service account)*
 - **GitHub**: https://github.com/settings/developers
 - **GitLab**: https://gitlab.com/-/profile/applications
 - **Discord**: https://discord.com/developers/applications
 - **Apple**: https://developer.apple.com/account/resources/identifiers/list
 - **Microsoft**: https://portal.azure.com → App Registrations
+- **Okta**: https://your-org.okta.com/admin → Applications → Add Application → OIDC
+- **Auth0**: https://your-tenant.auth0.com/applications
+- **Keycloak**: Your Keycloak admin console → Clients → Create client
 
 The redirect URI for all providers is:
 
@@ -1092,18 +1135,202 @@ https://your-vortex-domain.com/v1/auth/oauth/<provider>/callback
 
 ---
 
-## 15. TypeScript/JavaScript SDK
+## 15. Billing & Payments
 
-### Install
+Vortex includes a native billing module that handles checkout, webhook verification, subscription management, and automatic user plan/credit sync — so you can monetize your app in 5 minutes instead of 5 days.
 
-```bash
-npm install @vortex/client
+### Enable Billing
+
+Set your payment gateway in `.env`:
+
+```env
+BILLING_GATEWAY=paystack          # or flutterwave, stripe
+BILLING_ENABLED=true
+BILLING_CURRENCY=ngn
+
+# Paystack
+PAYSTACK_SECRET_KEY=your-secret-key
+
+# Or Flutterwave
+FLUTTERWAVE_SECRET_KEY=your-secret-key
+
+# Or Stripe
+STRIPE_SECRET_KEY=your-secret-key
+STRIPE_WEBHOOK_SECRET=your-webhook-signing-secret
 ```
 
-### Quick Example
+Billing auto-enables if any gateway secret key is present.
+
+### Supported Gateways
+
+| Gateway | Currency | Region | Notes |
+|---|---|---|---|
+| **Paystack** | NGN, GHS, KES, ZAR, USD | Africa | Native African payments |
+| **Flutterwave** | NGN, GHS, KES, ZAR, USD | Africa | Multi-currency |
+| **Stripe** | 135+ currencies | Global | Subscription billing |
+
+### Default Plans
+
+Three plans are seeded on first migration:
+
+| Plan | Price | API Calls | Storage | Functions | Projects |
+|---|---|---|---|---|---|
+| **Free** | $0/mo | 10,000 | 1 GB | 5 | 1 |
+| **Pro** | $20/mo | 500,000 | 10 GB | 50 | 10 |
+| **Business** | $50/mo | 5,000,000 | 100 GB | 200 | 50 |
+
+### Checkout (One Call)
 
 ```ts
-import { VortexClient } from '@vortex/client';
+// Create a checkout — returns a redirect URL
+const checkout = await vortex.billing.checkout({
+  planName: 'pro',
+  email: user.email,
+  successUrl: 'https://myapp.com/billing?success',
+  cancelUrl: 'https://myapp.com/billing?cancel',
+});
+// → {
+//   transactionId: 'uuid',
+//   reference: 'vtx_abc123...',
+//   gateway: 'paystack',
+//   amountCents: 2000,
+//   currency: 'ngn',
+//   redirectUrl: 'https://checkout.paystack.com/...'
+// }
+
+// Redirect the user to checkout.redirectUrl
+```
+
+### Webhooks (Automatic)
+
+When the gateway sends a webhook to `POST /v1/billing/webhooks/<gateway>`, Vortex:
+
+1. **Verifies the signature** (HMAC-SHA256/512 per gateway)
+2. **Parses the event** (success, failure, refund)
+3. **Updates the transaction** status in the database
+4. **Updates the user's plan and credits** — the `plan`, `credits`, `plan_expires_at`, and `active_subscription_id` columns on the `users` table
+5. **Creates/updates a subscription** record with the current period
+
+No webhook boilerplate, no signature verification code, no manual user updates.
+
+### JWT Integration
+
+Every issued JWT automatically includes billing info in the `meta` claims:
+
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "role": "user",
+  "meta": {
+    "plan": "pro",
+    "credits": 500000,
+    "planExpiresAt": "2026-11-23T00:00:00.000Z",
+    "hasActiveSubscription": true
+  }
+}
+```
+
+Check a user's plan in your frontend with zero extra API calls:
+
+```ts
+const plan = session.user.metadata.plan;      // 'pro'
+const credits = session.user.metadata.credits; // 500000
+```
+
+### Admin: Plan Management
+
+```ts
+// Create a custom plan
+await vortex.billing.createPlan({
+  name: 'enterprise',
+  displayName: 'Enterprise',
+  priceCents: 50000,
+  currency: 'usd',
+  interval: 'month',
+  features: { apiCalls: 50000000, storageMb: 1024000, functions: 1000 },
+});
+
+// Update a plan
+await vortex.billing.updatePlan('pro', {
+  priceCents: 2500,
+  features: { apiCalls: 1000000 },
+});
+
+// List all plans
+const plans = await vortex.billing.listPlans();
+```
+
+### Subscription Management
+
+```ts
+// Get current subscription
+const sub = await vortex.billing.getSubscription();
+
+// Cancel (at end of current period)
+await vortex.billing.cancelSubscription();
+
+// View transaction history
+const transactions = await vortex.billing.listTransactions(50);
+```
+
+### Dashboard Billing UI
+
+Configure your gateway keys, create plans, view transactions, and manage subscriptions from the **Billing** page in the console.
+
+---
+
+## 16. SDKs (All Languages)
+
+Vortex ships **16 self-contained SDKs** in the `sdks/` directory — one per language, each with its own manifest, client, and service modules. All SDKs share the same API surface: auth, database (query builder), storage, functions, apps, billing, and admin.
+
+### SDK Overview
+
+| Language | Package | Install |
+|---|---|---|
+| **TypeScript / JavaScript** | `@nogroup/vortex` | `npm install @nogroup/vortex` |
+| **Dart** | `vortex_sdk` | `dart pub add vortex_sdk` |
+| **Python** | `vortex-cloud` | `pip install vortex-cloud` |
+| **Go** | `github.com/nogroup/vortex-go` | `go get github.com/nogroup/vortex-go` |
+| **Rust** | `vortex-sdk` | `cargo add vortex-sdk` |
+| **Java / Kotlin** | `org.nogroup:vortex-sdk` | Maven dependency |
+| **Swift** | `VortexSwift` | Swift Package Manager |
+| **C# / .NET** | `NoGroup.Vortex` | `dotnet add package NoGroup.Vortex` |
+| **PHP / Laravel** | `nogroup/vortex-php` | `composer require nogroup/vortex-php` |
+| **Ruby** | `vortex-sdk` | `gem install vortex-sdk` |
+| **C / C++** | `vortex-cpp` | CMake `add_subdirectory` |
+| **Elixir** | `vortex_sdk` | `mix deps.get vortex_sdk` |
+| **Godot** | `vortex-godot` | Copy scripts into project |
+| **Unity** | `com.nogroup.vortex` | Copy into Assets/ |
+| **Unreal Engine** | `VortexSDK` | Plugin import |
+| **CLI** | `@nogroup/vortex-cli` | `npm install -g @nogroup/vortex-cli` |
+
+### SDK Structure (all languages)
+
+```
+VortexClient
+├── auth          — signup, login, me, OAuth, devices, notifications
+├── database      — fluent query builder + raw CRUD
+├── realtime      — WebSocket client with durable replay
+├── storage       — buckets, uploads, image transforms
+├── functions     — deploy, invoke, manage
+├── apps          — host static sites
+├── billing       — plans, checkout, transactions, subscriptions
+└── admin         — SQL console, policies, insights
+```
+
+### TypeScript / JavaScript
+
+#### Install
+
+```bash
+npm install @nogroup/vortex
+```
+
+#### Quick Example
+
+```ts
+import { VortexClient } from '@nogroup/vortex';
 
 const vortex = new VortexClient({ url: 'https://your-vortex.example.com' });
 
@@ -1141,23 +1368,10 @@ await vortex.auth.registerDevice({ token: 'fcm-token' });
 await vortex.auth.sendNotification({ title: 'Hi!', body: 'Hello from Vortex' });
 ```
 
-### SDK Structure
-
-```
-VortexClient
-├── auth          — signup, login, magic links, OAuth, devices, notifications
-├── database      — fluent query builder + raw CRUD
-├── realtime      — WebSocket client with durable replay
-├── storage       — buckets, uploads, image transforms
-├── functions     — deploy, invoke, manage
-├── apps          — host static sites
-└── admin         — SQL console, policies, insights
-```
-
-### Error Handling
+#### Error Handling
 
 ```ts
-import { VortexApiError } from '@vortex/client';
+import { VortexApiError } from '@nogroup/vortex';
 
 try {
   await vortex.auth.login({ email, password: 'wrong' });
@@ -1169,13 +1383,395 @@ try {
 }
 ```
 
-### Works in Browser and Node.js
+#### Works in Browser and Node.js
 
 The SDK uses `fetch` and `WebSocket` — both built into modern browsers and Node.js 18+. No polyfills needed.
 
+### Dart
+
+#### Install
+
+```bash
+dart pub add vortex_sdk
+```
+
+#### Quick Example
+
+```dart
+import 'package:vortex_sdk/vortex_sdk.dart';
+
+final vortex = VortexClient(baseUrl: 'https://your-vortex.example.com');
+final session = await vortex.auth.signup(email: 'user@example.com', password: 'password');
+final notes = await vortex.database
+    .from('notes')
+    .filter('owner_id', 'eq', session.user.id)
+    .limit(10)
+    .execute();
+```
+
+### Python
+
+#### Install
+
+```bash
+pip install vortex-cloud
+```
+
+#### Quick Example
+
+```python
+import asyncio
+from vortex_cloud import VortexClient
+
+async def main():
+    async with VortexClient(url="https://your-vortex.example.com") as vortex:
+        session = await vortex.auth.signup(email="user@example.com", password="password")
+        notes = await vortex.database.from_table("notes") \
+            .filter("owner_id", "eq", session["user"]["id"]) \
+            .limit(10) \
+            .execute()
+        print(notes)
+
+asyncio.run(main())
+```
+
+### Go
+
+#### Install
+
+```bash
+go get github.com/nogroup/vortex-go
+```
+
+#### Quick Example
+
+```go
+import vortex "github.com/nogroup/vortex-go"
+
+v := vortex.New("https://your-vortex.example.com")
+session, _ := v.Auth.Signup(ctx, "user@example.com", "password")
+notes, _ := v.Database.From("notes").
+    Filter("owner_id", "eq", session.User.ID).
+    Limit(10).
+    Execute(ctx)
+```
+
+### Rust
+
+#### Install
+
+```toml
+[dependencies]
+vortex-sdk = "1.0"
+```
+
+#### Quick Example
+
+```rust
+use vortex_sdk::VortexClient;
+
+#[tokio::main]
+async fn main() {
+    let vortex = VortexClient::new("https://your-vortex.example.com");
+    let session = vortex.auth().signup("user@example.com", "password").await.unwrap();
+    let notes = vortex.database()
+        .from("notes")
+        .filter("owner_id", "eq", &session.user.id)
+        .limit(10)
+        .execute()
+        .await
+        .unwrap();
+}
+```
+
+### Java / Kotlin
+
+#### Install (Maven)
+
+```xml
+<dependency>
+  <groupId>org.nogroup</groupId>
+  <artifactId>vortex-sdk</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+#### Quick Example (Kotlin)
+
+```kotlin
+import org.nogroup.vortex.VortexClient
+
+val vortex = VortexClient("https://your-vortex.example.com")
+val session = vortex.auth().signup("user@example.com", "password")
+val notes = vortex.database()
+    .from("notes")
+    .filter("owner_id", "eq", session.user.id)
+    .limit(10)
+    .execute()
+```
+
+### Swift
+
+#### Install (Swift Package Manager)
+
+```swift
+.package(url: "https://github.com/no-group/vortex", from: "1.0.0")
+```
+
+#### Quick Example
+
+```swift
+import VortexSwift
+
+let vortex = VortexClient(baseURL: "https://your-vortex.example.com")
+let session = await vortex.auth.signup(email: "user@example.com", password: "password")
+let notes = await vortex.database
+    .from("notes")
+    .filter("owner_id", "eq", session.user.id)
+    .limit(10)
+    .execute()
+```
+
+### C# / .NET
+
+#### Install
+
+```bash
+dotnet add package NoGroup.Vortex
+```
+
+#### Quick Example
+
+```csharp
+using NoGroup.Vortex;
+
+var vortex = new VortexClient("https://your-vortex.example.com");
+var session = await vortex.Auth.SignupAsync("user@example.com", "password");
+var notes = await vortex.Database
+    .From("notes")
+    .Filter("owner_id", "eq", session.User.Id)
+    .Limit(10)
+    .ExecuteAsync();
+```
+
+### PHP
+
+#### Install
+
+```bash
+composer require nogroup/vortex-php
+```
+
+#### Quick Example
+
+```php
+use NoGroup\Vortex\VortexClient;
+
+$vortex = new VortexClient('https://your-vortex.example.com');
+$session = $vortex->auth()->signup('user@example.com', 'password');
+$notes = $vortex->database()->from('notes')
+    ->filter('owner_id', 'eq', $session['user']['id'])
+    ->limit(10)
+    ->execute();
+```
+
+### Ruby
+
+#### Install
+
+```bash
+gem install vortex-sdk
+```
+
+#### Quick Example
+
+```ruby
+require 'vortex_sdk'
+
+vortex = VortexSDK.client('https://your-vortex.example.com')
+session = vortex.auth.signup('user@example.com', 'password')
+notes = vortex.database
+  .from('notes')
+  .filter('owner_id', 'eq', session['user']['id'])
+  .limit(10)
+  .execute
+```
+
+### C / C++
+
+#### Build
+
+```bash
+cmake -B build
+cmake --build build
+```
+
+#### Quick Example
+
+```cpp
+#include "vortex.h"
+
+int main() {
+    vortex::Client vortex("https://your-vortex.example.com");
+    auto session = vortex.auth().signup("user@example.com", "password");
+    auto notes = vortex.database().from("notes")
+        .filter("owner_id", "eq", session["user"]["id"])
+        .limit(10)
+        .execute();
+    return 0;
+}
+```
+
+### Elixir
+
+#### Install
+
+```elixir
+def deps do
+  [
+    {:vortex_sdk, "~> 1.0"}
+  ]
+end
+```
+
+#### Quick Example
+
+```elixir
+{:ok, vortex} = VortexSDK.Client.new("https://your-vortex.example.com")
+{:ok, session} = vortex.auth().signup("user@example.com", "password")
+
+{:ok, notes} = vortex.database()
+  |> VortexSDK.Database.from("notes")
+  |> VortexSDK.QueryBuilder.filter("owner_id", "eq", session["user"]["id"])
+  |> VortexSDK.QueryBuilder.limit(10)
+  |> VortexSDK.QueryBuilder.execute()
+```
+
+### Godot
+
+Copy the `.gd` scripts into your Godot project, then:
+
+```gdscript
+var vortex := VortexClient.new("https://your-vortex.example.com")
+var session = await vortex.auth.signup("user@example.com", "password")
+var notes = await vortex.database.from("notes") \
+    .filter("owner_id", "eq", session.user.id) \
+    .limit(10) \
+    .execute()
+```
+
+### Unity
+
+Copy the `.cs` files into your Unity project under `Assets/Plugins/VortexSDK/`, then:
+
+```csharp
+using Com.NoGroup.Vortex;
+
+var vortex = new VortexClient("https://your-vortex.example.com");
+StartCoroutine(vortex.Auth.Signup("user@example.com", "password",
+    data => { Debug.Log("Signed up!"); },
+    (status, code, msg) => { Debug.LogError(msg); }));
+```
+
+### Unreal Engine
+
+Copy the `VortexSDK` plugin folder into your project's `Plugins/` directory and enable it in **Edit → Plugins**. Then in Blueprints or C++:
+
+```cpp
+auto* vortex = NewObject<UVortexClient>();
+vortex->Initialize(FString(TEXT("https://your-vortex.example.com")));
+vortex->Auth->Signup(FString(TEXT("user@example.com")), FString(TEXT("password")), OnSuccess, OnError);
+```
+
+### CLI
+
+#### Install
+
+```bash
+npm install -g @nogroup/vortex-cli
+```
+
+#### Quick Start
+
+```bash
+# Initialize with your Vortex URL
+vortex init https://your-vortex.example.com
+
+# Sign up / log in
+vortex auth signup user@example.com password
+vortex auth login user@example.com password
+
+# Query the database
+vortex db tables
+vortex db query notes '{"filters":[],"limit":10}'
+
+# Storage
+vortex storage buckets
+
+# Functions
+vortex functions list
+vortex functions invoke myFunction '{"key":"value"}'
+
+# Billing
+vortex billing plans
+vortex billing status
+
+# Admin
+vortex admin sql "SELECT * FROM users LIMIT 10"
+```
+
+### Query Builder Pattern (all SDKs)
+
+Every SDK's database service exposes a fluent query builder:
+
+```ts
+// TypeScript
+vortex.database.from('notes')
+  .select(['id', 'title', 'body'])
+  .filter('owner_id', 'eq', session.user.id)
+  .orderBy('created_at', 'desc')
+  .limit(10)
+  .countTotal()
+  .execute();
+// → { rows: [...], count: 10, total: 42 }
+```
+
+The same pattern exists in all 16 SDKs — `from(table)` → `filter()` → `orderBy()` → `limit()` → `execute()`.
+
+### Error Handling
+
+All SDKs throw typed errors on non-2xx responses. The error carries the HTTP status, the API error code, and the message:
+
+```ts
+// TypeScript
+try {
+  await vortex.auth.login({ email, password: 'wrong' });
+} catch (err) {
+  console.error(err.status, err.code, err.message);
+  // → 401, 'unauthorized', 'Invalid email or password'
+}
+```
+
+```python
+# Python
+from vortex_cloud import VortexClient, VortexError
+try:
+    ...
+except VortexError as e:
+    print(e.status, e.code, e.message)
+```
+
+```go
+// Go
+session, err := v.Auth.Login(ctx, "user@example.com", "wrong")
+if err != nil {
+    // err.Error() contains the API error message
+}
+```
+
 ---
 
-## 16. Console
+## 17. Console
 
 The Vortex Console is a glassmorphic admin UI served by the engine at `/`.
 
@@ -1193,6 +1789,7 @@ The Vortex Console is a glassmorphic admin UI served by the engine at `/`.
 | **Auth & Token** | User management, custom claims, session info |
 | **Policies** | Create/edit row policies, preview compiled SQL |
 | **OAuth** | Configure providers, view linked accounts |
+| **Billing** | Configure gateway, manage plans, view transactions & subscriptions |
 
 ### Design Language
 
@@ -1200,7 +1797,7 @@ Vortex uses "Controlled Glassmorphism" — frosted glass panels, solid sharp dat
 
 ---
 
-## 17. Deployment
+## 18. Deployment
 
 See [docs/DEPLOY.md](DEPLOY.md) for the full playbook. Quick version:
 
@@ -1255,6 +1852,13 @@ Caddy handles automatic HTTPS.
 | `FCM_SERVER_KEY` | — | FCM server key for push notifications |
 | `EDGE_CACHE_TTL` | 300 | Edge cache TTL (seconds) |
 | `EDGE_CACHE_MAX_ENTRIES` | 10000 | Edge cache max entries |
+| `BILLING_GATEWAY` | — | Payment gateway: `paystack`, `flutterwave`, `stripe` |
+| `BILLING_ENABLED` | auto | Enable billing module |
+| `BILLING_CURRENCY` | ngn | Default currency for checkout |
+| `PAYSTACK_SECRET_KEY` | — | Paystack secret key |
+| `FLUTTERWAVE_SECRET_KEY` | — | Flutterwave secret key |
+| `STRIPE_SECRET_KEY` | — | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signing secret |
 
 ### Admin CLI
 
@@ -1271,7 +1875,7 @@ npm run admin -- demote you@example.com
 
 ---
 
-## 18. Multi-Node Setup
+## 19. Multi-Node Setup
 
 For high-availability deployments, run multiple Vortex engines behind a load balancer, sharing a Redis instance for realtime fan-out.
 
@@ -1305,7 +1909,7 @@ The Redis bridge shares table-change events across all nodes, so a client subscr
 
 ---
 
-## 19. API Reference
+## 20. API Reference
 
 ### Auth (`/v1/auth`)
 
@@ -1439,6 +2043,23 @@ WebSocket at `/v1/realtime?token=<jwt>`
 | GET | `/stats` | Bearer | Notification stats |
 | POST | `/broadcast` | Admin | Broadcast to all |
 
+### Billing (`/v1/billing`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/status` | — | Check billing config + gateway |
+| GET | `/plans` | Bearer | List active plans |
+| GET | `/plans/:name` | Bearer | Get a single plan |
+| POST | `/plans` | Admin | Create a plan |
+| PATCH | `/plans/:name` | Admin | Update a plan |
+| POST | `/checkout` | Bearer | Create a checkout for a plan |
+| POST | `/webhooks/:gateway` | — | Receive payment gateway webhook |
+| GET | `/transactions` | Bearer | List user's transactions |
+| GET | `/transactions/:id` | Bearer | Get a single transaction |
+| GET | `/subscription` | Bearer | Get current subscription |
+| POST | `/subscription/cancel` | Bearer | Cancel subscription |
+| GET | `/me` | Bearer | Current plan, credits, subscription |
+
 ### Health (`/healthz`)
 
 | Method | Path | Auth | Description |
@@ -1447,7 +2068,7 @@ WebSocket at `/v1/realtime?token=<jwt>`
 
 ---
 
-## 20. Vortex vs. the Competition
+## 21. Vortex vs. the Competition
 
 ### Vortex vs. Supabase
 
@@ -1459,10 +2080,11 @@ WebSocket at `/v1/realtime?token=<jwt>`
 | **Policies as data** | Postgres DDL (needs migrations to change) | Rows in a table (API-readable, diffable) |
 | **Self-hosting** | Complex (requires Docker + Postgres setup) | `docker compose up -d` |
 | **Image transforms** | Not built in | Cloudinary-compatible, URL-based |
-| **OAuth** | Built in | Built in (6 providers) |
-| **SDK** | `supabase-js` (heavy, many deps) | `@vortex/client` (zero-dep, fully typed) |
+| **OAuth** | Built in | Built in (9 providers + generic OIDC) |
+| **SDK** | `supabase-js` (heavy, many deps) | `@nogroup/vortex` (zero-dep, fully typed) |
 | **Push notifications** | Not built in | Built in (FCM) |
 | **Apps hosting** | Not built in | Built in |
+| **Billing & payments** | Not built in | Built in (Paystack, Flutterwave, Stripe) |
 | **Pricing** | Scales with usage | Self-hosted, flat cost |
 
 ### Vortex vs. Firebase

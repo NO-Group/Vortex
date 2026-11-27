@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, raw } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { ApiError } from '../errors.js';
@@ -42,7 +42,7 @@ const abortSchema = z.object({
  * - /v1/storage/multipart/initiate — start a multipart upload
  * - /v1/storage/multipart/upload-part — upload a single part
  * - /v1/storage/multipart/complete — assemble all parts
- * - /v1/storage/multipart/abort — cancel an upload
+ * - /v1/storage/multipart/abort — cancel a upload
  *
  * Automatic cleanup of uncompleted/orphaned multipart uploads
  * is handled by the cleanupOrphanedMultipartUploads method
@@ -71,10 +71,7 @@ export function createMultipartRoutes(ctx: AppContext): Router {
     async (req, res, next) => {
       try {
         validateKey(req.body.key);
-        const result = await driver.initiateMultipartUpload(
-          req.body.key,
-          req.body.mimeType,
-        );
+        const result = await driver.initiateMultipartUpload(req.body.key, req.body.mimeType);
         res.status(201).json(result);
       } catch (err) {
         next(err);
@@ -82,18 +79,24 @@ export function createMultipartRoutes(ctx: AppContext): Router {
     },
   );
 
-  /** PUT /v1/storage/multipart/upload-part — upload a single part. */
-  router.put(
+  /** POST /v1/storage/multipart/upload-part — upload a single part. */
+  router.post(
     '/multipart/upload-part',
     auth,
     storageGuard,
+    raw({ type: () => true, limit: '64mb' }),
+    validateBody(uploadPartSchema),
     async (req, res, next) => {
       try {
-        const { key, uploadId, partNumber } = req.body as typeof uploadPartSchema._output;
-        validateKey(key);
-        const body = Buffer.from(req.body.body ?? req.body.data ?? '');
-        const result = await driver.uploadPart(key, uploadId, partNumber, body);
-        res.status(201).json(result);
+        validateKey(req.body.key);
+        const bodyBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+        const result = await driver.uploadPart(
+          req.body.key,
+          req.body.uploadId,
+          req.body.partNumber,
+          bodyBuffer,
+        );
+        res.json(result);
       } catch (err) {
         next(err);
       }

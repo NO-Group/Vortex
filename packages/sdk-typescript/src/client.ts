@@ -21,6 +21,7 @@ import { Shield } from './shield.js';
 import { Sessions } from './sessions.js';
 import { PasswordSecurity } from './password-security.js';
 import { SecurityScore } from './security-score.js';
+import { Billing } from './billing.js';
 import type {
   AuthSession, LoginInput, SignupInput, TwoFactorChallenge,
   TableChangeHandler, PresenceHandler, BroadcastHandler, ReplayHandler, StatusHandler,
@@ -92,6 +93,7 @@ export class VortexClient {
   readonly sessions: Sessions;
   readonly passwordSecurity: PasswordSecurity;
   readonly securityScore: SecurityScore;
+  readonly billing: Billing;
 
   private rt: Realtime | null = null;
 
@@ -131,6 +133,7 @@ export class VortexClient {
     this.sessions = new Sessions(this.http);
     this.passwordSecurity = new PasswordSecurity(this.http);
     this.securityScore = new SecurityScore(this.http);
+    this.billing = new Billing(this.http);
   }
 
   /**

@@ -37,6 +37,7 @@ export 'src/services/biometric_service.dart';
 export 'src/services/chunked_upload_service.dart';
 export 'src/services/transformations_service.dart';
 export 'src/services/shield_service.dart';
+export 'src/services/billing_service.dart';
 
 // UI controllers
 export 'src/ui/glass_panel.dart';

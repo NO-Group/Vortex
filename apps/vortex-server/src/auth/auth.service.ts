@@ -12,6 +12,10 @@ interface UserRow {
   password_hash: string;
   role: string;
   metadata: Record<string, unknown>;
+  plan: string | null;
+  credits: number;
+  plan_expires_at: Date | null;
+  active_subscription_id: string | null;
   created_at: Date;
 }
 
@@ -20,7 +24,13 @@ function toAuthUser(row: UserRow): AuthUser {
     id: row.id,
     email: row.email,
     role: row.role,
-    metadata: row.metadata ?? {},
+    metadata: {
+      ...(row.metadata ?? {}),
+      plan: row.plan,
+      credits: row.credits ?? 0,
+      planExpiresAt: row.plan_expires_at?.toISOString() ?? null,
+      hasActiveSubscription: Boolean(row.active_subscription_id),
+    },
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -31,7 +41,13 @@ function sessionFor(row: UserRow, config: TokenConfig): AuthSession {
       userId: row.id,
       email: row.email,
       role: row.role,
-      meta: row.metadata ?? {},
+      meta: {
+        ...(row.metadata ?? {}),
+        plan: row.plan,
+        credits: row.credits ?? 0,
+        planExpiresAt: row.plan_expires_at?.toISOString() ?? null,
+        hasActiveSubscription: Boolean(row.active_subscription_id),
+      },
     },
     config,
   );

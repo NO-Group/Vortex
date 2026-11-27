@@ -23,7 +23,6 @@ const DANGEROUS_CONTENT_TYPES = new Set([
   'application/x-javascript',
   'text/vbscript',
 ]);
-
 let webhookService: WebhookService | null = null;
 
 function getWebhookService(ctx: AppContext): WebhookService {
@@ -97,7 +96,6 @@ export function createTusRoutes(ctx: AppContext): Router {
           );
         }
       }
-
       const metadata = parseUploadMetadata(uploadMetadata);
       const checksum = parseUploadChecksum(checksumHeader);
 

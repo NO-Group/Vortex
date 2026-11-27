@@ -251,16 +251,33 @@ VAPID_PUBLIC_KEY=${VAPID_PUB}
 VAPID_PRIVATE_KEY=${VAPID_PRIV}
 VAPID_SUBJECT=noreply@${DOMAIN}
 
-# FCM (Firebase Cloud Messaging) — add your Firebase credentials below
-# Get these from: console.firebase.google.com > Project Settings > Service Accounts
-FCM_PROJECT_ID=
-FCM_PRIVATE_KEY=
+# FCM (Firebase Cloud Messaging) — pre-configured from Firebase service account
+FCM_PROJECT_ID=vortex-d0243
+FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC02tXVbnOLDfCT\nSqLnlOvCnxeNjylw201uQ1RmJOzGLt6a3aQc4YbpvvtgmnLiG/0T22yPWuBTSiBz\nOCCEWg6JeFkSr1twd4dsCcBw6/Rz9SfqJdO+U+6siXLGU8qSUZ6Nx1n8Uvp4Ek+z\n2ySsWn20xyauzA1znTaX+jPbd4nzQFZELz/fhXFICPEeKhUN6vLONf6bFND8IWnA\n9UMyESO+k3Qflea2qHCpn2LVcBNvm+udKvAmTFDvGK7HtTJf3XRF5HD0cwWjcBOQ\nDj9ey7GVE/xe+uBymAXGRy91i530sPSPv+1yiaqh1tmoJWnZcYAU5ABpbqZIKP44\nxwbIZE27AgMBAAECggEAB3ljxdSGSQRydpWjgIlEXCeYy143Q8cv95MLblRaG8v5\naO7TjeirPyMWUHNKfChjEZU9OfodtBqZevCiboB/nqJZvc6cHT/+BE87wFKADDj9\nfjClkjyD+mZTyNy2hukPuNxG6t6jB7wy4plMy5Y8dmJdfuS419EBQXoy9uNo7WrK\nV/wKpcx6yM8PbVACx6bMItiayKQuXKETaC7kC4RuZqmgQOxEzr47VoRNsfYvz6Pv\nre3EmIXdaPekauEU8XgaJukDSCguQjqauM3p4oI08ACu31AVBPVeVEEt40DQpSbi\nZpQBQVOlwEMTCg1LLEBFT5LQkIA32I0tvLMulTANwQKBgQDhbhYk++q+U6zBTpqO\nUdnAOFfdKW/N4ivF59+iSYpskREzBuPWSaQL+OO7LPiTtOaJqDTOhIJ7pV7XbNsG\nFDo/jI26w0Y0XxnoX5zb4u5qFUc6fgkPzFueCguePD+vAvQTvOtdHKTKb/yYyn29\nGYLS9DQoXXrAgspOaWxGBuKGZwKBgQDNYUyG2FgvuV+xdLUSvS2oTldW2FPHHuK7\nlv937rLPq52pinKCfQd5KWpZLpx3iHK8xWWirPtuObSLFMQtZgvNDmaiwfH8umIN\nH//hIirhIClITm8C1dDjgc2jdOc/n/McjCeWow/6y3EWinJVj+KZJXbIhrYyPN8O\n/eWosSshjQKBgQCPBjVuiZZJ4vS8QI62tR+eYSD95IhW66QyEAdHA7mbX/61jS2I\ni3hVUDfMTZ/4ttF9jQbT8CaJJEakDyB3HuZF43sYf0RPffcGA4OVzsjM7WsfpU9C\ngrmt71mnrzoIY6tPypDZpo63EY4FspNMIp9qEB33bjevZEvOq/xSAZQ/CQKBgAcN\nEh2HC/AHgzuKcDUGfazLk8ANiULK0qnyEy9A6K6si6sob6n/NOR6AYayTPjlnFrS\nxByDp9Yu8P3dZqbQXBNcLTXlRrOQipE8ygImtCYqfoBXAQSt5pAJAtBb0RykFyqh\nvTI0wvWvSmClvCsn13W+jYdw6Ixs/pN7MAlMm9h5AoGBAL32H5uOawHv/Mq2PsSx\n+AUjjt3AHSdzYd7rSIgyR/MXuS4iu8BdOGvAmuFLM8MFAsYulrTpv0oArT9IxbW8\nGPKHL572oi96MaGDkpqD2/asyUo1MWWfZOX/R7NiBV/EHzrR3cTL1EQ+A9HpvKNO\nRuZzy5lathrHPI/pGor/9CKl\n-----END PRIVATE KEY-----\n"
 
-# ── Paystack ────────────────────────────────────────────────────────────────
-# Public key from ACI (African-Children-Initiative) repo
-# Secret key: get from dashboard.paystack.com > Settings > Developer
+# ── Billing & Payments ─────────────────────────────────────────────────────
+# Native payments module — supports Paystack, Flutterwave, Stripe
+BILLING_GATEWAY=paystack
+BILLING_ENABLED=true
+BILLING_CURRENCY=ngn
+
+# Paystack — pre-configured from dashboard.paystack.com
 PAYSTACK_PUBLIC_KEY=pk_live_1d48c7981d1abf7396474499a369ab7bef17740a
-PAYSTACK_SECRET_KEY=
+PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY:-}
+
+# Flutterwave — secret key from dashboard.flutterwave.com > Settings > API Keys
+FLUTTERWAVE_SECRET_KEY=
+
+# Stripe — secret key from dashboard.stripe.com > Developers > API keys
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+# ── Google OAuth (pre-seeded provider) ──────────────────────────────────────
+# Read from secrets.env if present (create it: cp secrets.env.example secrets.env)
+if [[ -f secrets.env ]]; then
+  set -a; source secrets.env; set +a
+fi
+GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
 
 # ── Super Admin Bypass ──────────────────────────────────────────────────────
 # Email that always has admin access, bypassing any paywall or role check.

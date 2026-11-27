@@ -1,0 +1,19 @@
+name: vortex_sdk
+description: Vortex BaaS SDK for Flutter/Dart — auth, database, realtime, storage, functions, billing.
+version: 1.0.0
+publish_to: 'https://pub.dev'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  http: ^1.2.0
+  web_socket_channel: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
