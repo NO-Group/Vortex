@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell,
+} from 'recharts';
 import { api, getToken, type Health, type QueryResult, type StorageObject, type StorageStats } from '../lib/api.js';
 import { formatBytes } from '../lib/format.js';
 import { PageTitle, Chip, GlassCard, Skeleton } from '../components/Glass.js';
@@ -35,6 +40,8 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [objects, setObjects] = useState<StorageObject[] | null>(null);
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [wsHistory, setWsHistory] = useState<Array<{ t: string; connections: number }>>([]);
+  const [storageDist, setStorageDist] = useState<Array<{ name: string; value: number }>>([]);
 
   useEffect(() => {
     let alive = true;
@@ -63,9 +70,32 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
       }
       try {
         const stats = await api.get<StorageStats>('/v1/storage/stats');
-        if (alive) setStorageStats(stats);
+        if (alive) {
+          setStorageStats(stats);
+          // Build storage distribution pie chart
+          const buckets: Array<{ name: string; value: number }> = [];
+          if (stats.byBucket) {
+            for (const [name, data] of Object.entries(stats.byBucket)) {
+              buckets.push({ name, value: data.count });
+            }
+          } else {
+            buckets.push({ name: 'objects', value: objects?.length ?? 0 });
+          }
+          setStorageDist(buckets);
+        }
       } catch {
         if (alive) setStorageStats(null);
+      }
+
+      // Track realtime connection history for line chart
+      const connCount = wsConnections ?? health?.realtime.connections ?? 0;
+      if (alive && connCount > 0) {
+        const now = new Date();
+        setWsHistory((prev) => {
+          const entry = { t: now.toLocaleTimeString(), connections: connCount };
+          const next = [...prev, entry];
+          return next.slice(-30); // keep last 30 samples
+        });
       }
     };
 
@@ -159,6 +189,78 @@ export function Overview({ wsConnections }: { wsConnections: number | null }) {
           />
         </div>
       )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Line chart: realtime connection history */}
+        <GlassCard className="p-5 lg:col-span-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Realtime Connections — Live Trend
+          </div>
+          {wsHistory.length > 1 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={wsHistory} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="t" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '12px',
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="connections"
+                  stroke="#00D2FF"
+                  strokeWidth={2}
+                  dot={{ fill: '#00D2FF', r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="py-12 text-center text-xs text-slate-500">
+              Waiting for realtime connections…
+            </div>
+          )}
+        </GlassCard>
+
+        {/* Pie chart: storage distribution */}
+        <GlassCard className="p-5">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            Storage Distribution
+          </div>
+          {storageDist.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={storageDist}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={75}
+                  innerRadius={40}
+                  dataKey="value"
+                  label={(entry: { name?: string; value?: number }) => `${entry.name ?? ''}: ${entry.value ?? 0}`}
+                >
+                  {storageDist.map((_, i) => (
+                    <Cell key={i} fill={['#3379FF', '#00E6A6', '#00D2FF', '#FFA1C5', '#8b5cf6', '#f59e0b'][i % 6]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    background: 'rgba(15, 23, 42, 0.95)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '12px',
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="py-12 text-center text-xs text-slate-500">No storage data</div>
+          )}
+        </GlassCard>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <GlassCard className="p-5 lg:col-span-2">

@@ -39,6 +39,7 @@ import CronPage from './pages/CronPage.js';
 import { ShieldPage } from './pages/ShieldPage.js';
 import { MediaPage } from './pages/MediaPage.js';
 import { BillingPage } from './pages/BillingPage.js';
+import { PlatformPage } from './pages/PlatformPage.js';
 
 const PAGES: PageKey[] = [
   'overview',
@@ -61,6 +62,7 @@ const PAGES: PageKey[] = [
   'shield',
   'media',
   'billing',
+  'platform',
 ];
 
 interface Session {
@@ -253,6 +255,8 @@ export default function App() {
         return <MediaPage />;
       case 'billing':
         return <BillingPage isAdmin={session?.user.role === 'admin'} />;
+      case 'platform':
+        return <PlatformPage />;
       default:
         return <Overview wsConnections={wsConnections} />;
     }

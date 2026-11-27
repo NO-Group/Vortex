@@ -21,7 +21,8 @@ export type PageKey =
   | 'cron'
   | 'shield'
   | 'media'
-  | 'billing';
+  | 'billing'
+  | 'platform';
 
 interface NavItem {
   key: PageKey;
@@ -155,6 +156,13 @@ const icons: Record<PageKey, ReactElement> = {
       <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
+  platform: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="3" />
+      <circle cx="12" cy="12" r="9" strokeDasharray="2 4" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 const items: Array<{ key: PageKey; label: string; hint: string }> = [
@@ -178,6 +186,7 @@ const items: Array<{ key: PageKey; label: string; hint: string }> = [
   { key: 'shield', label: 'Shield', hint: '/v1/shield' },
   { key: 'media', label: 'Media', hint: '/v1/storage' },
   { key: 'billing', label: 'Billing', hint: '/v1/billing' },
+  { key: 'platform', label: 'Platform', hint: '/v1/platform' },
 ];
 
 export function Sidebar({
