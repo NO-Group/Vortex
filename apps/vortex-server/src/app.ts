@@ -155,6 +155,9 @@ export function createApp(ctx: AppContext): Express {
         if (RESERVED.test(req.path)) return next();
         res.sendFile(indexHtml);
       });
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(`[vortex] dashboard dist not found at ${indexHtml} — API-only mode`);
     }
   }
 

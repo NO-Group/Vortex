@@ -11,8 +11,11 @@ RUN npm install --workspaces --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/vortex-core packages/vortex-core
 COPY apps/vortex-server apps/vortex-server
+COPY apps/vortex-dashboard apps/vortex-dashboard
 COPY apps/vortex-showcase apps/vortex-showcase
-RUN npm run build -w @vortex/core && npm run build -w @vortex/server
+RUN npm run build -w @vortex/core \
+    && npm run build -w @vortex/dashboard \
+    && npm run build -w @vortex/server
 
 # Stage 2: runtime
 FROM node:22-alpine
@@ -23,6 +26,7 @@ COPY --from=build /workspace/node_modules ./node_modules
 COPY --from=build /workspace/packages/vortex-core ./packages/vortex-core
 COPY --from=build /workspace/apps/vortex-server/package.json ./apps/vortex-server/
 COPY --from=build /workspace/apps/vortex-server/dist ./apps/vortex-server/dist
+COPY --from=build /workspace/apps/vortex-dashboard ./apps/vortex-dashboard
 COPY --from=build /workspace/apps/vortex-showcase ./apps/vortex-showcase
 EXPOSE 8080
 CMD ["node", "apps/vortex-server/dist/index.js"]
