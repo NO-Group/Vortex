@@ -306,6 +306,20 @@ if command -v bash &>/dev/null; then
 fi
 echo ""
 
+# ── Step 5c: Pull latest code ──────────────────────────────────────────────
+echo -e "${GREEN}[5c/9] Pulling latest code...${NC}"
+cd "$REPO_ROOT"
+if git remote get-url origin &>/dev/null; then
+  GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+  git fetch origin
+  git checkout "$GIT_BRANCH" 2>/dev/null || git checkout -b "$GIT_BRANCH" --track "origin/$GIT_BRANCH"
+  git pull --ff-only origin "$GIT_BRANCH"
+  echo "  ✓ Code updated to $(git rev-parse --short HEAD)"
+else
+  echo "  ${YELLOW}No git remote found — skipping pull (using existing code)${NC}"
+fi
+echo ""
+
 # ── Step 6: Build and start ─────────────────────────────────────────────────
 echo -e "${GREEN}[6/9] Building and starting services...${NC}"
 echo "  This may take 3-5 minutes on first build..."
