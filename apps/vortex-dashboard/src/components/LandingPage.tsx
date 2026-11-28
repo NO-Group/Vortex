@@ -24,7 +24,8 @@ const PAGE_IDS: Page[] = ['home', 'features', 'architecture', 'pricing', 'howto'
 
 function pageFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '') as Page;
-  return PAGE_IDS.includes(hash) ? hash : 'notfound';
+  if (!hash || hash === 'home') return 'home';
+  return PAGE_IDS.includes(hash) ? hash : 'home';
 }
 
 export function LandingPage({ onAuthSuccess }: { onAuthSuccess: (session: AuthSession) => void }) {
