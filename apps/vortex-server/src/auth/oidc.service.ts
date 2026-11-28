@@ -69,6 +69,18 @@ interface UserRow {
   created_at: Date | string;
 }
 
+interface RefreshTokenRow {
+  id: string;
+  token_hash: string;
+  client_id: string;
+  user_id: string;
+  scope: string;
+  previous_token_hash: string | null;
+  expires_at: Date | string;
+  revoked_at: Date | string | null;
+  created_at: Date | string;
+}
+
 function toClient(row: ClientRow): OAuthClient {
   return {
     id: row.id,
@@ -452,10 +464,51 @@ export class OidcService {
     );
   }
 
-  /** Issue a refresh token. */
-  issueRefreshToken(user: UserRow, clientId: string): string {
+  /** Issue a refresh token and persist it to the database. */
+  async issueRefreshToken(user: UserRow, clientId: string, scope: string): Promise<string> {
     const refreshToken = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '');
+    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+    const REFRESH_TTL_DAYS = 30;
+    const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+    await this.db('vortex_oauth_refresh_tokens').insert({
+      token_hash: tokenHash,
+      client_id: clientId,
+      user_id: user.id,
+      scope,
+      expires_at: expiresAt,
+    });
+
     return refreshToken;
+  }
+
+  /** Validate a refresh token and return the associated user + scope. */
+  async validateRefreshToken(
+    refreshToken: string,
+    clientId: string,
+  ): Promise<{ user: UserRow; scope: string }> {
+    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+
+    const [row] = await this.db<RefreshTokenRow>('vortex_oauth_refresh_tokens')
+      .where({ token_hash: tokenHash })
+      .limit(1);
+
+    if (!row) throw ApiError.badRequest('Invalid refresh token');
+    if (row.revoked_at) throw ApiError.badRequest('Refresh token revoked');
+    if (row.client_id !== clientId) throw ApiError.badRequest('Token does not match client');
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      throw ApiError.badRequest('Refresh token expired');
+    }
+
+    // Rotate: revoke the old token (one-time use)
+    await this.db('vortex_oauth_refresh_tokens')
+      .where({ id: row.id })
+      .update({ revoked_at: this.db.fn.now() });
+
+    const user = await this.db<UserRow>('users').where({ id: row.user_id }).first();
+    if (!user) throw ApiError.notFound('User not found');
+
+    return { user, scope: row.scope };
   }
 
   /** Build the complete token response. */
@@ -481,7 +534,7 @@ export class OidcService {
     };
 
     if (includeRefreshToken) {
-      response.refresh_token = this.issueRefreshToken(user, clientId);
+      response.refresh_token = await this.issueRefreshToken(user, clientId, scope);
     }
 
     return response;

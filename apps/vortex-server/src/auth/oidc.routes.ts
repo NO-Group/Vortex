@@ -191,7 +191,29 @@ export function createOidcRoutes(ctx: AppContext): Router {
 
         res.json(tokenResponse);
       } else if (grant_type === 'refresh_token') {
-        throw ApiError.badRequest('Refresh token grant not yet implemented');
+        if (!refresh_token) throw ApiError.badRequest('Missing refresh_token');
+        if (!client_id) throw ApiError.badRequest('Missing client_id');
+
+        // Validate the client first
+        const client = await service.requireClient(client_id);
+
+        // Verify client secret if one is set
+        if (client_secret) {
+          await service.verifyClientSecret(client_id, client_secret);
+        }
+
+        const { user, scope } = await service.validateRefreshToken(refresh_token, client_id);
+
+        // Build a new token response (refresh tokens are rotated — a new one is issued)
+        const tokenResponse = await service.buildTokenResponse(
+          user,
+          client_id,
+          scope,
+          null,
+          true,
+        );
+
+        res.json(tokenResponse);
       } else {
         throw ApiError.badRequest(`Unsupported grant_type: ${grant_type}`);
       }
